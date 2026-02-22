@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
-import { apiPostForm, apiPost } from "@/lib/api";
 import {
     Upload,
     FileText,
@@ -233,35 +232,32 @@ export default function ResumeAnalysis() {
         setCurrentStep(1);
 
         try {
-            // Step 1: Upload
-            setLoadingLabel("Uploading resume…");
-            const formData = new FormData();
-            formData.append("file", file);
-            const uploadRes = await apiPostForm<{ id: string }>(
-                "/resumes/upload",
-                formData
-            );
-            setResumeId(uploadRes.id);
+            // Placeholder — backend not connected
+            setLoadingLabel("Analyzing resume…");
+            await new Promise((r) => setTimeout(r, 1500));
+            setResumeId("demo");
 
-            // Step 2: ATS Score
             setLoadingLabel("Calculating ATS match score…");
-            const atsRes = await apiPost<MatchResult>("/analysis/match", {
-                resume_id: uploadRes.id,
-                job_description: jobDesc,
-            });
-            setMatchResult(atsRes);
+            await new Promise((r) => setTimeout(r, 1000));
+            setMatchResult({ score: 72, raw_similarity: 0.68 });
 
-            // Step 3: Roast
             setLoadingLabel("Running deep analysis…");
             setCurrentStep(2);
-            const roastRes = await apiPost<RoastResult>(
-                `/analysis/${uploadRes.id}/roast`,
-                {
-                    resume_id: uploadRes.id,
-                    job_description: jobDesc,
-                }
-            );
-            setRoastResult(roastRes);
+            await new Promise((r) => setTimeout(r, 1200));
+            setRoastResult({
+                overall_feedback: "Good resume with room for improvement.",
+                summary: "Your resume shows strong technical skills but could benefit from more measurable impact statements.",
+                sections: {
+                    experience: { score: "Good", feedback: "Add quantifiable achievements to strengthen impact.", issues: "Some bullet points lack specificity." },
+                    skills: { score: "Very Good", feedback: "Strong technical skill coverage.", missing_keywords: "Cloud infrastructure keywords could be added." },
+                    summary: { score: "Fair", feedback: "Professional summary could be more targeted to the role." },
+                },
+                action_items: [
+                    "Add measurable achievements to your experience section to increase ATS performance.",
+                    "Tailor your professional summary to match the target role.",
+                    "Include relevant cloud/infrastructure keywords.",
+                ],
+            });
             setCurrentStep(2);
         } catch (e: any) {
             setError(e.message || "Something went wrong");
@@ -323,18 +319,18 @@ export default function ResumeAnalysis() {
                                 <div key={step} className="flex items-center">
                                     <div
                                         className={`flex items-center gap-1.5 px-3 py-1 rounded text-xs font-medium transition-colors duration-200 ${i === currentStep
-                                                ? "text-foreground bg-secondary/60"
-                                                : i < currentStep
-                                                    ? "text-foreground/60"
-                                                    : "text-muted-foreground/40"
+                                            ? "text-foreground bg-secondary/60"
+                                            : i < currentStep
+                                                ? "text-foreground/60"
+                                                : "text-muted-foreground/40"
                                             }`}
                                     >
                                         <span
                                             className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-mono ${i < currentStep
-                                                    ? "bg-foreground/20 text-foreground/80"
-                                                    : i === currentStep
-                                                        ? "bg-foreground/10 text-foreground"
-                                                        : "bg-border/30 text-muted-foreground/30"
+                                                ? "bg-foreground/20 text-foreground/80"
+                                                : i === currentStep
+                                                    ? "bg-foreground/10 text-foreground"
+                                                    : "bg-border/30 text-muted-foreground/30"
                                                 }`}
                                         >
                                             {i < currentStep ? "✓" : i + 1}
@@ -362,10 +358,10 @@ export default function ResumeAnalysis() {
                                 onDrop={handleDrop}
                                 onClick={() => !file && fileInputRef.current?.click()}
                                 className={`relative border border-dashed rounded-lg transition-all duration-200 ${isDragOver
-                                        ? "border-foreground/40 bg-secondary/40"
-                                        : file
-                                            ? "border-border/30 bg-transparent cursor-default"
-                                            : "border-border/40 hover:border-foreground/20 cursor-pointer"
+                                    ? "border-foreground/40 bg-secondary/40"
+                                    : file
+                                        ? "border-border/30 bg-transparent cursor-default"
+                                        : "border-border/40 hover:border-foreground/20 cursor-pointer"
                                     }`}
                             >
                                 <input

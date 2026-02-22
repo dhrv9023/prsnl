@@ -2,16 +2,19 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
-import { useAuth } from "@/lib/auth";
 import {
   Menu,
   X,
-  LogOut,
-  BarChart3,
   FileText,
-  Flame,
+  Target,
+  MessageSquare,
+  TrendingUp,
+  Sparkles,
   PenTool,
-  BriefcaseBusiness,
+  Search,
+  FolderKanban,
+  Users,
+  Bot,
   Lock,
 } from "lucide-react";
 
@@ -23,11 +26,46 @@ const navLinks = [
 
 const features = [
   {
-    icon: BarChart3,
-    name: "Resume Analyzer",
-    description: "ATS score & AI-powered resume analysis",
+    icon: FileText,
+    name: "Resume Analysis",
+    description: "AI-powered resume review & feedback",
     href: "/resume-analysis",
     active: true,
+  },
+  {
+    icon: Target,
+    name: "ATS Scoring",
+    description: "Check how your resume scores with ATS systems",
+    href: null,
+    active: false,
+  },
+  {
+    icon: MessageSquare,
+    name: "AI Mock Interviews",
+    description: "Practice with AI-generated interview questions",
+    href: null,
+    active: false,
+  },
+  {
+    icon: TrendingUp,
+    name: "Career Roadmaps",
+    description: "Personalized career growth planning",
+    href: null,
+    active: false,
+  },
+  {
+    icon: Sparkles,
+    name: "Resume Template Generator",
+    description: "Generate polished resume templates instantly",
+    href: null,
+    active: false,
+  },
+  {
+    icon: Search,
+    name: "Job Description Analyzer",
+    description: "Extract key requirements from any job posting",
+    href: null,
+    active: false,
   },
   {
     icon: PenTool,
@@ -37,16 +75,44 @@ const features = [
     active: false,
   },
   {
-    icon: BriefcaseBusiness,
-    name: "Interview Prep",
-    description: "Practice with AI-generated questions",
+    icon: Sparkles,
+    name: "AI Project Recommender",
+    description: "Get project ideas to boost your portfolio",
     href: null,
     active: false,
   },
   {
-    icon: FileText,
-    name: "Career Roadmap",
-    description: "Personalized career growth planning",
+    icon: Target,
+    name: "Role Fit Score",
+    description: "See how well you match a specific role",
+    href: null,
+    active: false,
+  },
+  {
+    icon: FolderKanban,
+    name: "Job Tracker",
+    description: "Organize and track your job applications",
+    href: null,
+    active: false,
+  },
+  {
+    icon: Users,
+    name: "Resume Audit Marketplace",
+    description: "Get expert human reviews on your resume",
+    href: null,
+    active: false,
+  },
+  {
+    icon: Users,
+    name: "Career Twin",
+    description: "Find professionals with similar career paths",
+    href: null,
+    active: false,
+  },
+  {
+    icon: Bot,
+    name: "24x7 AI Chatbot",
+    description: "Always-on AI career assistant",
     href: null,
     active: false,
   },
@@ -56,7 +122,6 @@ export function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isFeaturesOpen, setIsFeaturesOpen] = useState(false);
-  const { isAuthenticated, logout, isLoading } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -69,11 +134,7 @@ export function Navbar() {
 
   const handleFeatureClick = (feature: (typeof features)[0]) => {
     if (!feature.active || !feature.href) return;
-    if (!isAuthenticated) {
-      navigate("/auth", { state: { from: feature.href } });
-    } else {
-      navigate(feature.href);
-    }
+    navigate(feature.href);
     setIsFeaturesOpen(false);
     setIsMobileMenuOpen(false);
   };
@@ -94,12 +155,12 @@ export function Navbar() {
 
         {/* Desktop Navigation */}
         <div className="hidden md:flex items-center gap-8">
-          <a
-            href="#"
+          <Link
+            to="/"
             className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors link-underline"
           >
             Home
-          </a>
+          </Link>
 
           {/* Features Dropdown */}
           <div
@@ -134,43 +195,59 @@ export function Navbar() {
                   transition={{ duration: 0.2, ease: "easeOut" }}
                   className="absolute top-full left-1/2 -translate-x-1/2 pt-3"
                 >
-                  <div className="w-[380px] rounded-xl border border-border/50 bg-card/95 backdrop-blur-xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.4)] overflow-hidden">
-                    <div className="p-2">
-                      {features.map((feature) => (
-                        <button
-                          key={feature.name}
-                          onClick={() => handleFeatureClick(feature)}
-                          disabled={!feature.active}
-                          className={`w-full flex items-start gap-3.5 p-3 rounded-lg text-left transition-all duration-200 group ${feature.active
+                  <div className="w-[680px] rounded-xl border border-border/50 bg-card/95 backdrop-blur-xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.4)] overflow-hidden">
+                    <div className="p-3 max-h-[75vh] overflow-y-auto">
+                      <div className="grid grid-cols-2 gap-1">
+                        {features.map((feature) => (
+                          <button
+                            key={feature.name}
+                            onClick={() => handleFeatureClick(feature)}
+                            disabled={!feature.active}
+                            className={`flex items-start gap-3.5 p-3.5 rounded-lg text-left transition-all duration-200 group ${feature.active
                               ? "hover:bg-secondary/60 cursor-pointer"
-                              : "opacity-45 cursor-not-allowed"
-                            }`}
-                        >
-                          <div
-                            className={`mt-0.5 p-2 rounded-lg border transition-colors duration-200 ${feature.active
-                                ? "border-border/50 bg-secondary/50 group-hover:border-accent/30 group-hover:bg-accent/10"
-                                : "border-border/30 bg-secondary/30"
+                              : "opacity-50 cursor-default"
                               }`}
                           >
-                            <feature.icon className="w-4 h-4" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium text-foreground">
-                                {feature.name}
-                              </span>
-                              {!feature.active && (
-                                <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground/60 bg-secondary/50 px-1.5 py-0.5 rounded">
-                                  Soon
-                                </span>
-                              )}
+                            <div
+                              className={`mt-0.5 p-2.5 rounded-lg shrink-0 transition-colors duration-200 ${feature.active
+                                ? "bg-accent/15 text-accent group-hover:bg-accent/25"
+                                : "bg-secondary/60 text-muted-foreground/60"
+                                }`}
+                            >
+                              <feature.icon className="w-4 h-4" />
                             </div>
-                            <p className="text-xs text-muted-foreground/70 mt-0.5 leading-relaxed">
-                              {feature.description}
-                            </p>
-                          </div>
-                        </button>
-                      ))}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium text-foreground">
+                                  {feature.name}
+                                </span>
+                                {feature.active && (
+                                  <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400 bg-emerald-400/15 px-1.5 py-0.5 rounded">
+                                    Live
+                                  </span>
+                                )}
+                                {!feature.active && (
+                                  <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50 bg-secondary/60 px-1.5 py-0.5 rounded">
+                                    Soon
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-xs text-muted-foreground/60 mt-0.5 leading-relaxed line-clamp-2">
+                                {feature.description}
+                              </p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="border-t border-border/30 px-4 py-2.5">
+                      <Link
+                        to="/"
+                        onClick={() => setIsFeaturesOpen(false)}
+                        className="flex items-center justify-end gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        All Features →
+                      </Link>
                     </div>
                   </div>
                 </motion.div>
@@ -178,39 +255,23 @@ export function Navbar() {
             </AnimatePresence>
           </div>
 
-          <a
-            href="/pricing"
+          <Link
+            to="/pricing"
             className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors link-underline"
           >
             Pricing
-          </a>
-          <a
-            href="#contact"
+          </Link>
+          <Link
+            to="/#contact"
             className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors link-underline"
           >
             Contact
-          </a>
+          </Link>
         </div>
 
         {/* Actions */}
         <div className="flex items-center gap-4">
           <ThemeToggle />
-          {!isLoading && isAuthenticated ? (
-            <button
-              onClick={logout}
-              className="hidden md:inline-flex items-center justify-center gap-2 h-10 px-5 text-sm font-medium bg-secondary text-foreground rounded-full hover:bg-secondary/80 transition-colors"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              Logout
-            </button>
-          ) : (
-            <Link
-              to="/auth"
-              className="hidden md:inline-flex items-center justify-center h-10 px-5 text-sm font-medium bg-primary text-primary-foreground rounded-full hover:opacity-90 transition-opacity"
-            >
-              Get Started
-            </Link>
-          )}
 
           {/* Mobile Menu Toggle */}
           <button
@@ -236,13 +297,13 @@ export function Navbar() {
           className="md:hidden glass border-t border-border/50"
         >
           <div className="container py-6 flex flex-col gap-4">
-            <a
-              href="#"
+            <Link
+              to="/"
               onClick={() => setIsMobileMenuOpen(false)}
               className="text-base font-medium text-muted-foreground hover:text-foreground transition-colors py-2"
             >
               Home
-            </a>
+            </Link>
 
             {/* Mobile Features */}
             <div className="space-y-1">
@@ -255,8 +316,8 @@ export function Navbar() {
                   onClick={() => handleFeatureClick(feature)}
                   disabled={!feature.active}
                   className={`w-full flex items-center gap-3 py-2.5 px-1 text-left transition-colors ${feature.active
-                      ? "text-foreground"
-                      : "text-muted-foreground/40 cursor-not-allowed"
+                    ? "text-foreground"
+                    : "text-muted-foreground/40 cursor-not-allowed"
                     }`}
                 >
                   <feature.icon className="w-4 h-4" />
@@ -268,41 +329,20 @@ export function Navbar() {
               ))}
             </div>
 
-            <a
-              href="/pricing"
+            <Link
+              to="/pricing"
               onClick={() => setIsMobileMenuOpen(false)}
               className="text-base font-medium text-muted-foreground hover:text-foreground transition-colors py-2"
             >
               Pricing
-            </a>
-            <a
-              href="#contact"
+            </Link>
+            <Link
+              to="/#contact"
               onClick={() => setIsMobileMenuOpen(false)}
               className="text-base font-medium text-muted-foreground hover:text-foreground transition-colors py-2"
             >
               Contact
-            </a>
-
-            {!isLoading && isAuthenticated ? (
-              <button
-                onClick={() => {
-                  logout();
-                  setIsMobileMenuOpen(false);
-                }}
-                className="inline-flex items-center justify-center gap-2 h-12 px-6 text-sm font-medium bg-secondary text-foreground rounded-full hover:bg-secondary/80 transition-colors mt-2"
-              >
-                <LogOut className="w-3.5 h-3.5" />
-                Logout
-              </button>
-            ) : (
-              <Link
-                to="/auth"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="inline-flex items-center justify-center h-12 px-6 text-sm font-medium bg-primary text-primary-foreground rounded-full hover:opacity-90 transition-opacity mt-2"
-              >
-                Get Started
-              </Link>
-            )}
+            </Link>
           </div>
         </motion.div>
       )}
