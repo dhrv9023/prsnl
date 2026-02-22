@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <title>KAREERIST – AI-Powered Career Intelligence Platform</title>
+  <meta name="description"
+    content="Stop guessing your career path. Kareerist uses AI to analyze your profile, simulate real hiring standards, and guide your career with clarity." />
+  <meta name="author" content="Kareerist" />
+
+  <meta property="og:title" content="KAREERIST – Build Your Career With Confidence" />
+  <meta property="og:description"
+    content="AI-powered career intelligence for students and early professionals. Resume analysis, mock interviews, and personalized roadmaps." />
+  <meta property="og:type" content="website" />
+
+
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:site" content="@Kareerist" />
+
+  <!-- Inline theme init: prevents flash of wrong theme before React loads -->
+  <script>
+    (function () {
+      var saved = localStorage.getItem('theme');
+      // Default to dark mode unless user explicitly chose light
+      if (saved !== 'light') {
+        document.documentElement.classList.add('dark');
+      }
+    })();
+  </script>
+</head>
+
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+
+</html>
