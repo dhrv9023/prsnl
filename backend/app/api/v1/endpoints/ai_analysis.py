@@ -73,10 +73,11 @@ async def ats_score_calculator(request: MatchRequest, user: CurrentUser):
 @router.post("/roast")
 async def roast_resume(request: RoastRequest, user: CurrentUser):
     """
-    General Analysis (The Roast). Uses Groq/GPT OSS.
-    Calculates general quality by combining semantic math score and LLM analysis.
+    Targeted Analysis (The Roast). 
+    Calculates semantic math score first, then feeds it to the LLM.
     """
 
+    # 1. Fetch Resume
     data = supabase.table("resumes")\
         .select("parsed_content")\
         .eq("id", request.resume_id)\
@@ -87,40 +88,43 @@ async def roast_resume(request: RoastRequest, user: CurrentUser):
         raise HTTPException(status_code=404, detail="Resume not found")
     resume_text = data.data[0]['parsed_content']['raw_text']
 
-    ats_score = supabase.table("ai_analyses")\
-        .select("output_data")\
-        .eq("resume_id", request.resume_id)\
-        .eq("analysis_type", "job_match_score")\
-        .execute()
+    # 2. GUARANTEE an accurate ATS score for THIS Job Description
+    try:
+        # Run the math engine right here so we never pass a fake "0" to the AI
+        match_result = ats_score(resume_text, request.job_description)
+        calculated_ats_score = match_result.get("score", 0)
+    except Exception as e:
+        print(f"Math Engine Error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to calculate base ATS score")
 
-    calculated_ats_score = 0 # Fallback in case it hasn't been calculated yet
-    if ats_score.data:
-        calculated_ats_score = ats_score.data[-1].get("output_data", {}).get("score", 0)
-
-
-    # --- UPDATED STEP: 2. Pass the calculated score to the Groq AI Service ---
+    # 3. Pass the guaranteed score to Groq
     ai_result = generate_resume_roast(resume_text, request.job_description, calculated_ats_score)
     
     if not ai_result:
         raise HTTPException(status_code=502, detail="AI analysis failed")
 
-    # 3. Save to DB (The "Detailed Log")
+    # 4. Save to DB
     analysis_record = {
         "resume_id": request.resume_id,
-        "analysis_type": "general_roast",
+        "analysis_type": "general_roast", # Renamed to reflect it uses a JD
         "output_data": ai_result
     }
+    
     try:
         supabase.table("ai_analyses").insert(analysis_record).execute()
         
-        # 4. Update the Main Score Badge
+        # 5. Update the Main Score Badge
         supabase.table("resumes").update({
             "resume_quality_feedback": ai_result['overall_feedback']
         }).eq("id", request.resume_id)\
         .eq("user_id", user.id)\
         .execute()
         
-        return ai_result
+        # We return BOTH the math score and the AI roast so the frontend has everything
+        return {
+            "ats_math_score": calculated_ats_score,
+            "roast_details": ai_result
+        }
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database Save Error: {str(e)}")

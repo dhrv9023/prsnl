@@ -110,6 +110,7 @@ def generate_resume_roast(resume_text: str, job_description: str, calculated_ats
             ],
             temperature = 0.3,
             reasoning_effort="high",
+            response_format={"type": "json_object"},
             stream=False
         )
         raw_content = completion.choices[0].message.content
