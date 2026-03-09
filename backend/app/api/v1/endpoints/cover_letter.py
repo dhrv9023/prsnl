@@ -135,3 +135,18 @@ async def save_cover_letter_pdf(request: SavePDFRequest, user: CurrentUser):
         "msg": "PDF Saved successfully",
         "pdf_url": filename
     }
+
+
+# endpoint to get all cover letters 
+@router.get("/")
+async def list_applications(user: CurrentUser):
+    res = supabase.table("job_applications").select("id, company_name, job_title, status, created_at").eq("user_id", user.id).execute()
+    return res.data
+
+# endpoint to get a specific cover letter 
+@router.get("/{app_id}")
+async def get_application(app_id: str, user: CurrentUser):
+    res = supabase.table("job_applications").select("*").eq("id", app_id).eq("user_id", user.id).execute()
+    if not res.data:
+        raise HTTPException(404, "Not found")
+    return res.data[0]

@@ -128,3 +128,15 @@ async def roast_resume(request: RoastRequest, user: CurrentUser):
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database Save Error: {str(e)}")
+
+
+
+# endpoint to get all analyses for a resume
+@router.get("/history/{resume_id}")
+async def get_analysis_history(resume_id: str, user: CurrentUser):
+    verify_res = supabase.table("resumes").select("id").eq("id", resume_id).eq("user_id", user.id).execute()
+    if not verify_res.data:
+        raise HTTPException(404, "Resume not found")
+
+    history_res = supabase.table("ai_analyses").select("*").eq("resume_id", resume_id).order("created_at", desc=True).execute()
+    return history_res.data

@@ -75,3 +75,68 @@ async def upload_resume(
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database Error: {str(e)}")
+
+
+# endpoint to get all resumes
+@router.get("/")
+async def list_resumes(user: CurrentUser):
+    res = supabase.table("resumes").select("id, file_url, resume_quality_feedback, created_at").eq("user_id", user.id).execute()
+    return res.data
+
+# endpoint to get resume acc to id.
+@router.get("/{resume_id}")
+async def get_resume(resume_id: str, user: CurrentUser):
+    res = supabase.table("resumes").select("*").eq("id", resume_id).eq("user_id", user.id).execute()
+    if not res.data:
+        raise HTTPException(404, "Not found")
+    return res.data[0]
+
+@router.delete("/{resume_id}")
+async def delete_resume(resume_id: str, user: CurrentUser):
+    files_to_delete = []
+
+    # 1. Get the main Resume PDF URL
+    res_data = supabase.table("resumes")\
+        .select("file_url")\
+        .eq("id", resume_id)\
+        .eq("user_id", user.id)\
+        .execute()
+        
+    if not res_data.data:
+        raise HTTPException(status_code=404, detail="Resume not found")
+        
+    if res_data.data[0].get("file_url"):
+        files_to_delete.append(res_data.data[0]["file_url"])
+
+    # 2. Get all associated Cover Letter PDF URLs
+    # (Even if you rename this table later, this fetches the generated files)
+    cl_data = supabase.table("job_applications")\
+        .select("cover_letter_file_url")\
+        .eq("resume_id", resume_id)\
+        .eq("user_id", user.id)\
+        .execute()
+        
+    for record in cl_data.data:
+        if record.get("cover_letter_file_url"):
+            files_to_delete.append(record["cover_letter_file_url"])
+
+    # 3. Nuke all files from the Storage Bucket
+    if files_to_delete:
+        try:
+            # Pass the entire list of URLs to delete them all at once
+            supabase.storage.from_("Resumes").remove(files_to_delete)
+        except Exception as e:
+            print(f"Storage Cleanup Warning: {e}")
+
+    # 4. Nuke the Database Records
+    try:
+        # Manually delete the cover letters/features first to be safe
+        supabase.table("job_applications").delete().eq("resume_id", resume_id).eq("user_id", user.id).execute()
+        supabase.table("ai_analyses").delete().eq("resume_id", resume_id).execute()
+        
+        # Finally, delete the Resume itself
+        supabase.table("resumes").delete().eq("id", resume_id).eq("user_id", user.id).execute()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database Deletion Error: {str(e)}")
+        
+    return {"msg": "Resume and all associated features successfully deleted."}
