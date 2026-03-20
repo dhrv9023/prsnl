@@ -1,125 +1,107 @@
-# app/services/interview_service.py
-import os
 import json
-import io
-import base64
-import pypdf
-from groq import Groq
-from gtts import gTTS
+from typing import List
+from groq import AsyncGroq
 from app.core.config import settings
 from app.schemas.models import InterviewQuestion, AnswerEvaluation
 
-client = Groq(api_key=settings.GROQ_API_KEY)
+client = AsyncGroq(api_key=settings.GROQ_API_KEY)
 
-class InterviewSession:
-    def __init__(self):
-        self.resume_text = ""
-        self.questions = []
-        self.answers = {}
-        self.evaluations = {}
+EVAL_INSTRUCTIONS = """
+You are an expert technical interviewer. Evaluate the candidate's answer to the question below.
+- For THEORY: Score 0-10 for correctness, depth, and clarity. Give concise, actionable feedback and a model answer.
+- For MCQ: Score 10 if correct, else 0. Feedback should explain why the answer is right or wrong.
+- For CODE: Score 0-10 for correctness, efficiency, and code quality. Give feedback on edge cases, time/space complexity, and suggest improvements. Provide a concise ideal solution.
+Respond ONLY in valid JSON with the following shape:
+{
+  "score": <integer 0-10>,
+  "feedback": "<exactly 2 sentences separated by a single newline>",
+  "ideal_answer": "<concise strong answer>"
+}
+"""
 
-# GLOBAL SESSION (For testing only - simple, but not multi-user safe)
-# In production, you would save this to the Database (Redis/Postgres)
-session_storage = InterviewSession()
-
-def extract_text_from_pdf(file_bytes: bytes) -> str:
-    try:
-        pdf_reader = pypdf.PdfReader(io.BytesIO(file_bytes))
-        text = ""
-        for page in pdf_reader.pages:
-            text += page.extract_text() + "\n"
-        return text
-    except Exception:
-        return ""
-
-def generate_audio(text: str) -> str:
-    try:
-        tts = gTTS(text=text, lang='en')
-        fp = io.BytesIO()
-        tts.write_to_fp(fp)
-        fp.seek(0)
-        return base64.b64encode(fp.read()).decode('utf-8')
-    except Exception:
-        return ""
-
-def transcribe_audio(audio_bytes: bytes) -> str:
-    try:
-        audio_file = io.BytesIO(audio_bytes)
-        audio_file.name = "audio.wav" 
-        transcription = client.audio.transcriptions.create(
-            file=(audio_file.name, audio_file.read()),
-            model="distil-whisper-large-v3-en",
-            response_format="json",
-            temperature=0.0
-        )
-        return transcription.text
-    except Exception:
-        return ""
-
-async def generate_questions(resume_text: str, role: str, level: str, counts: dict):
-    # Update session
-    session_storage.resume_text = resume_text
-    
-    total = sum(counts.values())
+async def generate_questions(role: str, experience_level: str, resume_text: str) -> List[InterviewQuestion]:
     prompt = f"""
-    Role: {role} ({level}). 
-    Resume: {resume_text[:2000]}
-    Generate exactly {total} questions:
-    - {counts['theory']} Theory
-    - {counts['mcq']} MCQ
-    - {counts['code']} Coding
-    Output JSON: {{ "questions": [ {{ "id": 1, "type": "theory", "text": "..." }} ] }}
+    You are an expert technical interviewer for the role of {role} ({experience_level}).
+
+    RESUME TEXT: {resume_text[:3000]}
+
+    TASK:
+    Design a tailored interview based strictly on the candidate's resume.
+
+    Guidelines for choosing QUESTION TYPES:
+    1. THEORY: Conceptual/design questions anchored in their projects/stack.
+    2. MCQ: Concrete tools/libraries mentioned in the resume. 4 options, 1 correct.
+    3. CODE: Language-agnostic LeetCode-style DSA questions. Expect uncommented code with short meaningful variables.
+
+    CRITICAL INSTRUCTION:
+    Do NOT output an array. You MUST output a JSON object with exactly 6 named keys: "q1", "q2", "q3", "q4", "q5", and "q6". Do not generate a 7th key.
+
+    OUTPUT JSON FORMAT:
+    {{
+      "q1": {{ "id": 1, "type": "theory", "text": "..." }},
+      "q2": {{ "id": 2, "type": "theory", "text": "..." }},
+      "q3": {{ "id": 3, "type": "mcq", "text": "...", "options": ["Option A", "Option B", "Option C", "Option D"], "correct_answer": "Option B" }},
+      "q4": {{ "id": 4, "type": "mcq", "text": "...", "options": ["Option A", "Option B", "Option C", "Option D"], "correct_answer": "Option C" }},
+      "q5": {{ "id": 5, "type": "code", "text": "...", "context": "Focus on optimizing TC/SC." }},
+      "q6": {{ "id": 6, "type": "code", "text": "...", "context": "Focus on handling edge cases." }}
+    }}
     """
-    
-    completion = client.chat.completions.create(
-        model="llama3-70b-8192", # Use Llama 3 for better JSON
-        messages=[{"role": "user", "content": prompt}],
-        response_format={"type": "json_object"}
-    )
-    data = json.loads(completion.choices[0].message.content)
-    
-    # Store in session
-    session_storage.questions = [InterviewQuestion(**q) for q in data.get("questions", [])]
-    return session_storage.questions
 
-async def evaluate_answer(question_id: int, user_answer: str):
-    question = next((q for q in session_storage.questions if q.id == question_id), None)
-    if not question: return None
+    try:
+        completion = await client.chat.completions.create(
+            model="qwen/qwen3-32b", 
+            messages=[{"role": "user", "content": prompt}],
+            response_format={"type": "json_object"},
+        )
+        data = json.loads(completion.choices[0].message.content)
+        
+        raw_qs = []
+        for key in ["q1", "q2", "q3", "q4", "q5", "q6"]:
+            if key in data:
+                raw_qs.append(data[key])
+            
+        return [InterviewQuestion(**q) for q in raw_qs]
+        
+    except Exception as e:
+        print(f"Gen Error: {e}")
+        raise ValueError("Failed to generate questions.")
 
-    prompt = f"Question: {question.text}. User Answer: {user_answer}. Evaluate JSON."
-    
-    completion = client.chat.completions.create(
-        model="llama3-70b-8192",
-        messages=[{"role": "user", "content": prompt}],
-        response_format={"type": "json_object"}
-    )
-    eval_data = json.loads(completion.choices[0].message.content)
-    
-    # Generate Audio Feedback
-    audio_b64 = generate_audio(f"Score {eval_data.get('score')}. {eval_data.get('feedback')}")
-    
-    result = AnswerEvaluation(**eval_data, audio_base64=audio_b64)
-    
-    # Save to session
-    session_storage.answers[question_id] = user_answer
-    session_storage.evaluations[question_id] = result
-    
-    return result
 
-def get_report():
-    breakdown = []
-    total = 0
-    count = 0
-    for q in session_storage.questions:
-        if q.id in session_storage.evaluations:
-            ev = session_storage.evaluations[q.id]
-            total += ev.score
-            count += 1
-            breakdown.append({
-                "question": q.text,
-                "score": ev.score,
-                "feedback": ev.feedback
-            })
-    
-    overall = round(total/count, 1) if count > 0 else 0
-    return {"overall_score": overall, "breakdown": breakdown}
+async def evaluate_single_answer(role: str, question: InterviewQuestion, user_answer: str) -> AnswerEvaluation:
+    final_answer = user_answer or "No answer provided."
+
+    if question.type == "code":
+        answer_block = f"User Code:\n```\n{final_answer}\n```"
+    else:
+        answer_block = f"Candidate Answer:\n{final_answer}"
+
+    options_block = ""
+    if question.type == "mcq" and question.options:
+        options_block = f"\nOPTIONS: {question.options}"
+
+    prompt = f"""
+    {EVAL_INSTRUCTIONS}
+
+    QUESTION TYPE: {question.type}
+    ROLE: {role}
+
+    QUESTION:
+    {question.text}
+    {options_block}
+
+    {answer_block}
+    """
+
+    try:
+        completion = await client.chat.completions.create(
+            model="llama3-70b-8192", 
+            messages=[{"role": "user", "content": prompt}],
+            response_format={"type": "json_object"},
+        )
+
+        eval_data = json.loads(completion.choices[0].message.content)
+        return AnswerEvaluation(**eval_data)
+        
+    except Exception as e:
+        print(f"Eval Error: {e}")
+        raise ValueError("Failed to evaluate answer.")
