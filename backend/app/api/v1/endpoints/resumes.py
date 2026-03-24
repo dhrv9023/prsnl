@@ -1,7 +1,7 @@
 # app/api/v1/endpoints/resumes.py
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from app.api.dependencies import CurrentUser
-from app.db.supabase import supabase
+from app.db.supabase import get_db
 from supabase import create_client
 from app.core.config import settings
 from pypdf import PdfReader
@@ -16,6 +16,7 @@ async def upload_resume(
     file: UploadFile = File(...)
 ):
 
+    supabase = await get_db()    
     # 1. Validate File Type
     if file.content_type != "application/pdf":
         raise HTTPException(status_code=400, detail="Only PDF files are allowed")
@@ -29,13 +30,12 @@ async def upload_resume(
         extracted_text = ""
         for page in pdf_reader.pages:
             extracted_text += page.extract_text() + "\n"
-            
-        # Basic Validation: detailed resume should have text
-        if len(extracted_text.strip()) < 50:
-            raise HTTPException(status_code=400, detail="PDF is empty or unreadable.")
-            
     except Exception:
         raise HTTPException(status_code=400, detail="Failed to parse PDF text.")
+        
+    # Basic Validation: Detailed resume should have text (Moved OUTSIDE the try/except block)
+    if len(extracted_text.strip()) < 50:
+        raise HTTPException(status_code=400, detail="PDF is empty or unreadable.")
 
     # 4. Upload to Supabase Storage (THE FIX IS HERE)
     # We add a timestamp to make every filename unique. 
@@ -44,7 +44,7 @@ async def upload_resume(
     unique_filename = f"{timestamp}_{file.filename}"
     file_path = f"{user.id}/{unique_filename}"
     try:
-        supabase.storage.from_("Resumes").upload(
+        await supabase.storage.from_("Resumes").upload(
             path=file_path,
             file=file_content,
             file_options={"content-type": "application/pdf"}
@@ -66,7 +66,7 @@ async def upload_resume(
         }
         
         # Insert and return the new record
-        result = supabase.table("resumes").insert(data).execute()
+        result = await supabase.table("resumes").insert(data).execute()
         return {
             "msg": "Resume uploaded successfully", 
             "id": result.data[0]['id'],
@@ -80,13 +80,15 @@ async def upload_resume(
 # endpoint to get all resumes
 @router.get("/")
 async def list_resumes(user: CurrentUser):
-    res = supabase.table("resumes").select("id, file_url, resume_quality_feedback, created_at").eq("user_id", user.id).execute()
+    supabase = await get_db()
+    res = await supabase.table("resumes").select("id, file_url, resume_quality_feedback, created_at").eq("user_id", user.id).execute()
     return res.data
 
 # endpoint to get resume acc to id.
 @router.get("/{resume_id}")
 async def get_resume(resume_id: str, user: CurrentUser):
-    res = supabase.table("resumes").select("*").eq("id", resume_id).eq("user_id", user.id).execute()
+    supabase = await get_db()
+    res = await supabase.table("resumes").select("*").eq("id", resume_id).eq("user_id", user.id).execute()
     if not res.data:
         raise HTTPException(404, "Not found")
     return res.data[0]
@@ -95,8 +97,9 @@ async def get_resume(resume_id: str, user: CurrentUser):
 async def delete_resume(resume_id: str, user: CurrentUser):
     files_to_delete = []
 
+    supabase = await get_db()
     # 1. Get the main Resume PDF URL
-    res_data = supabase.table("resumes")\
+    res_data = await supabase.table("resumes")\
         .select("file_url")\
         .eq("id", resume_id)\
         .eq("user_id", user.id)\
@@ -110,7 +113,7 @@ async def delete_resume(resume_id: str, user: CurrentUser):
 
     # 2. Get all associated Cover Letter PDF URLs
     # (Even if you rename this table later, this fetches the generated files)
-    cl_data = supabase.table("job_applications")\
+    cl_data = await supabase.table("job_applications")\
         .select("cover_letter_file_url")\
         .eq("resume_id", resume_id)\
         .eq("user_id", user.id)\
@@ -124,18 +127,18 @@ async def delete_resume(resume_id: str, user: CurrentUser):
     if files_to_delete:
         try:
             # Pass the entire list of URLs to delete them all at once
-            supabase.storage.from_("Resumes").remove(files_to_delete)
+            await supabase.storage.from_("Resumes").remove(files_to_delete)
         except Exception as e:
             print(f"Storage Cleanup Warning: {e}")
 
     # 4. Nuke the Database Records
     try:
         # Manually delete the cover letters/features first to be safe
-        supabase.table("job_applications").delete().eq("resume_id", resume_id).eq("user_id", user.id).execute()
-        supabase.table("ai_analyses").delete().eq("resume_id", resume_id).execute()
+        await supabase.table("job_applications").delete().eq("resume_id", resume_id).eq("user_id", user.id).execute()
+        await supabase.table("ai_analyses").delete().eq("resume_id", resume_id).execute()
         
         # Finally, delete the Resume itself
-        supabase.table("resumes").delete().eq("id", resume_id).eq("user_id", user.id).execute()
+        await supabase.table("resumes").delete().eq("id", resume_id).eq("user_id", user.id).execute()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database Deletion Error: {str(e)}")
         

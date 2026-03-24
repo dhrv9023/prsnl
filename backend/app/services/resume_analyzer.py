@@ -1,9 +1,9 @@
-from groq import Groq
+from groq import AsyncGroq
 from app.core.config import settings
 import json
 import re
 
-client = Groq(api_key=settings.GROQ_API_KEY)
+client = AsyncGroq(api_key=settings.GROQ_API_KEY)
 
 
 def clean_llm_answer(text: str) -> str:
@@ -16,7 +16,7 @@ def clean_llm_answer(text: str) -> str:
     return text.strip()
 
 
-def generate_resume_roast(resume_text: str, job_description: str, calculated_ats_score: int) -> dict:
+async def generate_resume_roast(resume_text: str, job_description: str, calculated_ats_score: int) -> dict:
     """
     Performs a Deep-Dive Analysis (Roast + Section Breakdown).
     Returns a complex JSON structure.
@@ -102,7 +102,7 @@ def generate_resume_roast(resume_text: str, job_description: str, calculated_ats
     """
 
     try:
-        completion = client.chat.completions.create(
+        completion = await client.chat.completions.create(
             model = "openai/gpt-oss-120b",
             messages = [
                 {"role": "system", "content": prompt},
@@ -120,12 +120,12 @@ def generate_resume_roast(resume_text: str, job_description: str, calculated_ats
             raise RuntimeError("AI returned empty response")
         return json.loads(cleaned_content)
 
-    except Exception as e:
-        print(f"Error generating analysis: {e}")
-        return None
     except json.JSONDecodeError as e:
         print("Invalid JSON from AI:", cleaned_content[:300])
         return None
     except RuntimeError as e:
         print("AI logic error:", e)
+        return None
+    except Exception as e:
+        print(f"Error generating analysis: {e}")
         return None

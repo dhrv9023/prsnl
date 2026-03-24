@@ -3,10 +3,10 @@ from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np 
 import re
 # import requests
-from huggingface_hub import InferenceClient
+from huggingface_hub import AsyncInferenceClient
 
 
-client = InferenceClient(api_key=settings.HUGGINGFACE_API_KEY)
+client = AsyncInferenceClient(api_key=settings.HUGGINGFACE_API_KEY)
 
 def clean_text(text: str)-> str:
     """
@@ -18,14 +18,14 @@ def clean_text(text: str)-> str:
     text = re.sub(r'\s+',' ', text)
     return text
 
-def get_embedding(text: str):
+async def get_embedding(text: str):
     """
     Uses the Official SDK to get embeddings.
     Auto-waits for model loading.
     """
     try:
         # We use the specific sentence-transformer model
-        response = client.feature_extraction(
+        response = await client.feature_extraction(
             text, 
             model="sentence-transformers/all-mpnet-base-v2"
         )
@@ -34,7 +34,7 @@ def get_embedding(text: str):
         print(f"AI Error: {e}")
         return None
 
-def ats_score(resume_text: str, job_description: str) -> dict:
+async def ats_score(resume_text: str, job_description: str) -> dict:
     # 1. Clean Inputs
     cleaned_resume = clean_text(resume_text)
     cleaned_jd = clean_text(job_description)
@@ -43,8 +43,8 @@ def ats_score(resume_text: str, job_description: str) -> dict:
         return {"score": 0, "raw_similarity": 0.0, "warning": "Empty inputs"}
 
     # 2. Get Vectors
-    resume_vec = get_embedding(cleaned_resume)
-    jd_vec = get_embedding(cleaned_jd)
+    resume_vec = await get_embedding(cleaned_resume)
+    jd_vec = await get_embedding(cleaned_jd)
 
     if resume_vec is None or jd_vec is None:
         return {"score": 0, "raw_similarity": 0.0, "warning": "AI Service Unavailable"}

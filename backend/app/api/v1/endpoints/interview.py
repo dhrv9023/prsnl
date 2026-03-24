@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException
 from typing import List, Dict, Any
 
 from app.api.dependencies import CurrentUser
-from app.db.supabase import supabase
+from app.db.supabase import get_db
 from app.schemas.models import (
     StartInterviewRequest,
     InterviewQuestion,
@@ -29,7 +29,8 @@ async def start_interview_route(
     user_id_str = str(user.id)
     
     # 1. Fetch Resume Data
-    res_data = supabase.table("Resumes")\
+    supabase = await get_db()
+    res_data = await supabase.table("resumes")\
         .select("parsed_content")\
         .eq("id", request.resume_id)\
         .eq("user_id", user_id_str)\

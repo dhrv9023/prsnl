@@ -1,9 +1,8 @@
 from fastapi import HTTPException, APIRouter
 from app.api.dependencies import CurrentUser
-from app.db.supabase import supabase
+from app.db.supabase import get_db
 from pydantic import BaseModel
 from app.services.cover_letter_gen import cover_letter_generator
-from fpdf import FPDF
 import io
 import time
 from reportlab.lib.pagesizes import A4
@@ -60,7 +59,8 @@ async def create_cover_letter(request: CoverLetterRequest, user: CurrentUser):
     Step 1: AI generates the text draft.
     """
     # 1. Fetch Resume Text
-    res_data = supabase.table("resumes")\
+    supabase = await get_db()
+    res_data = await supabase.table("resumes")\
         .select("parsed_content")\
         .eq("id", request.resume_id)\
         .eq("user_id", user.id)\
@@ -72,7 +72,7 @@ async def create_cover_letter(request: CoverLetterRequest, user: CurrentUser):
     resume_text = res_data.data[0]['parsed_content']['raw_text']
     
     # 2. Generate Text via Groq
-    cover_letter_content = cover_letter_generator(resume_text, request.job_description)
+    cover_letter_content = await cover_letter_generator(resume_text, request.job_description)
     if not cover_letter_content:
         raise HTTPException(502, "AI failed to generate text")
         
@@ -90,7 +90,7 @@ async def create_cover_letter(request: CoverLetterRequest, user: CurrentUser):
     }
     
     try:
-        result = supabase.table("job_applications").insert(app_data).execute()
+        result = await supabase.table("job_applications").insert(app_data).execute()
     except Exception as e:
         # This will help you see the exact error if something else is wrong
         raise HTTPException(400, detail=f"Database Insert Error: {str(e)}")
@@ -107,6 +107,7 @@ async def save_cover_letter_pdf(request: SavePDFRequest, user: CurrentUser):
     Step 2: Convert final text to PDF -> Upload to Bucket -> Link in DB.
     """
     # 1. Generate PDF Bytes (Using the helper above)
+    supabase = await get_db()
     try:
         pdf_bytes = create_pdf(request.final_text)
     except Exception as e:
@@ -117,7 +118,7 @@ async def save_cover_letter_pdf(request: SavePDFRequest, user: CurrentUser):
     filename = f"{user.id}/cover_letters/{int(time.time())}_cl.pdf"
     
     try:
-        supabase.storage.from_("Resumes").upload(
+        await supabase.storage.from_("Resumes").upload(
             path=filename,
             file=pdf_bytes,
             file_options={"content-type": "application/pdf"}
@@ -126,7 +127,7 @@ async def save_cover_letter_pdf(request: SavePDFRequest, user: CurrentUser):
         raise HTTPException(500, detail=f"Storage Upload failed: {e}")
 
     # 3. Update Database with the File Path
-    supabase.table("job_applications").update({
+    await supabase.table("job_applications").update({
         # "cover_letter_content": request.final_text, 
         "cover_letter_file_url": filename
     }).eq("id", request.application_id).execute()
@@ -140,13 +141,15 @@ async def save_cover_letter_pdf(request: SavePDFRequest, user: CurrentUser):
 # endpoint to get all cover letters 
 @router.get("/")
 async def list_applications(user: CurrentUser):
-    res = supabase.table("job_applications").select("id, company_name, job_title, status, created_at").eq("user_id", user.id).execute()
+    supabase = await get_db()
+    res = await supabase.table("job_applications").select("id, company_name, job_title, status, created_at").eq("user_id", user.id).execute()
     return res.data
 
 # endpoint to get a specific cover letter 
 @router.get("/{app_id}")
 async def get_application(app_id: str, user: CurrentUser):
-    res = supabase.table("job_applications").select("*").eq("id", app_id).eq("user_id", user.id).execute()
+    supabase = await get_db()
+    res = await supabase.table("job_applications").select("*").eq("id", app_id).eq("user_id", user.id).execute()
     if not res.data:
         raise HTTPException(404, "Not found")
     return res.data[0]

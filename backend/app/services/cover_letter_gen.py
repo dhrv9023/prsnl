@@ -1,10 +1,10 @@
-from groq import Groq
+from groq import AsyncGroq
 from app.core.config import settings
 import json
 from app.services.resume_analyzer import clean_llm_answer
 import re
 
-client = Groq(api_key=settings.GROQ_API_KEY)
+client = AsyncGroq(api_key=settings.GROQ_API_KEY)
 
 # def clean_text(text: str) -> str:
 #     """Clean LLM text by removing unwanted markdown formatting and characters."""
@@ -14,7 +14,7 @@ client = Groq(api_key=settings.GROQ_API_KEY)
 #         text = re.sub(r"```$", "", text) # remove end code block
 #     return text.strip()
 
-def cover_letter_generator(resume_text: str, job_description: str) -> str: # Gently corrected return type hint from dict to str
+async def cover_letter_generator(resume_text: str, job_description: str) -> str: # Gently corrected return type hint from dict to str
     """
     Generates a cover letter based on the resume and the JD
     """
@@ -31,7 +31,7 @@ def cover_letter_generator(resume_text: str, job_description: str) -> str: # Gen
     7. Generate plain text ONLY. Do NOT use any Markdown formatting, asterisks, or bold text for emphasis."""
 
     try:
-        completion = client.chat.completions.create(
+        completion = await client.chat.completions.create(
             model="qwen/qwen3-32b",
             messages=[
                 {"role": "system", "content": prompt},
