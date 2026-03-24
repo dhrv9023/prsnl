@@ -109,7 +109,7 @@ async def generate_resume_roast(resume_text: str, job_description: str, calculat
                 {"role": "user", "content": f"Resume: {resume_text}\n\nJob Description: {job_description}"}
             ],
             temperature = 0.3,
-            reasoning_effort="high",
+            reasoning_effort="low",
             response_format={"type": "json_object"},
             stream=False
         )

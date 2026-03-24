@@ -1,15 +1,16 @@
 # app/api/deps.py
 from typing import Annotated
 from fastapi import Depends, HTTPException, status, Request
-from app.db.supabase import supabase
+from app.db.supabase import get_db
 
-def get_current_user(request: Request):
+async def get_current_user(request: Request):
     """
     Dependency: Extracts the JWT from the HttpOnly cookie 
     and verifies it with Supabase.
     """
     # 1. Extract the token from the cookie
     token = request.cookies.get("access_token")
+    supabase = await get_db()
     
     if not token:
         raise HTTPException(
@@ -23,7 +24,7 @@ def get_current_user(request: Request):
 
     # 3. Verify with Supabase
     try:
-        user_response = supabase.auth.get_user(token)
+        user_response = await supabase.auth.get_user(token)
         if not user_response.user:
             raise HTTPException(status_code=401, detail="Invalid session")
         

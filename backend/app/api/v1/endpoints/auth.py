@@ -1,7 +1,7 @@
 # app/api/v1/endpoints/auth.py
 from fastapi import APIRouter, HTTPException, Response
 from pydantic import BaseModel, EmailStr
-from app.db.supabase import supabase
+from app.db.supabase import get_db
 from app.api.dependencies import CurrentUser
 
 router = APIRouter()
@@ -12,8 +12,9 @@ class UserAuth(BaseModel):
     full_name: str | None = None
 
 @router.post("/signup")
-def sign_up(user_data: UserAuth):
+async def sign_up(user_data: UserAuth):
     try:
+        supabase = await get_db()
         response = supabase.auth.sign_up({
             "email": user_data.email, 
             "password": user_data.password,
@@ -29,13 +30,14 @@ def sign_up(user_data: UserAuth):
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/login")
-def login(user_data: UserAuth, response: Response): # <--- Added Response parameter
+async def login(user_data: UserAuth, response: Response): # <--- Added Response parameter
     """
     Logs in and sets a secure HttpOnly cookie.
     """
+    supabase = await get_db()
     try:
         # 1. Authenticate with Supabase
-        supa_response = supabase.auth.sign_in_with_password({
+        supa_response = await supabase.auth.sign_in_with_password({
             "email": user_data.email,
             "password": user_data.password
         })
