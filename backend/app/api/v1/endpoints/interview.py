@@ -21,13 +21,14 @@ router = APIRouter()
 # State Management moved to the routing layer where session lifecycles belong
 active_sessions: Dict[str, InterviewSession] = {}
 
+
 @router.post("/start")
 async def start_interview_route(
     request: StartInterviewRequest,
     user: CurrentUser,
 ) -> List[InterviewQuestion]:
     user_id_str = str(user.id)
-    
+
     # 1. Fetch Resume Data
     supabase = await get_db()
     res_data = await supabase.table("resumes")\
@@ -35,21 +36,22 @@ async def start_interview_route(
         .eq("id", request.resume_id)\
         .eq("user_id", user_id_str)\
         .execute()
-        
+
     if not res_data.data:
         raise HTTPException(status_code=404, detail="Resume not found")
-        
+
     resume_text = res_data.data[0]['parsed_content']['raw_text']
-    
+
     if len(resume_text) < 50:
-        raise HTTPException(status_code=400, detail="Extracted resume text is too short or invalid.")
+        raise HTTPException(
+            status_code=400, detail="Extracted resume text is too short or invalid.")
 
     # 2. Setup Session State
     session = InterviewSession()
     session.resume_text = resume_text
     session.role = request.role
     session.experience_level = request.experience_level
-    
+
     # 3. Request AI Generation
     try:
         questions = await generate_questions(
@@ -59,7 +61,7 @@ async def start_interview_route(
         )
     except ValueError as e:
         raise HTTPException(status_code=500, detail=str(e))
-        
+
     session.questions = questions
     active_sessions[user_id_str] = session
 
@@ -73,11 +75,13 @@ async def submit_answer_route(
 ) -> AnswerEvaluation:
     user_id_str = str(user.id)
     session = active_sessions.get(user_id_str)
-    
-    if not session:
-        raise HTTPException(status_code=400, detail="No active interview session found. Please start an interview first.")
 
-    question = next((q for q in session.questions if q.id == data.question_id), None)
+    if not session:
+        raise HTTPException(
+            status_code=400, detail="No active interview session found. Please start an interview first.")
+
+    question = next(
+        (q for q in session.questions if q.id == data.question_id), None)
     if not question:
         raise HTTPException(status_code=404, detail="Question not found")
 
@@ -102,9 +106,10 @@ async def submit_answer_route(
 async def end_interview_route(user: CurrentUser) -> InterviewReport:
     user_id_str = str(user.id)
     session = active_sessions.get(user_id_str)
-    
+
     if not session:
-        raise HTTPException(status_code=400, detail="No active interview session found.")
+        raise HTTPException(
+            status_code=400, detail="No active interview session found.")
 
     breakdown = []
     total_score = 0
@@ -130,13 +135,15 @@ async def end_interview_route(user: CurrentUser) -> InterviewReport:
             if q.type == "code":
                 # Assuming AnswerEvaluation handles these as optional fields
                 report_item["tc"] = getattr(eval_data, "time_complexity", None)
-                report_item["sc"] = getattr(eval_data, "space_complexity", None)
-                report_item["quality"] = getattr(eval_data, "code_quality", None)
+                report_item["sc"] = getattr(
+                    eval_data, "space_complexity", None)
+                report_item["quality"] = getattr(
+                    eval_data, "code_quality", None)
 
             breakdown.append(report_item)
 
     overall = round(total_score / count, 1) if count > 0 else 0
-    
+
     if overall < 4.0:
         qual_score = "Poor"
     elif overall < 6.0:
@@ -149,8 +156,8 @@ async def end_interview_route(user: CurrentUser) -> InterviewReport:
         qual_score = "Excellent"
 
     report = InterviewReport(
-        overall_score=overall, 
-        qualitative_score=qual_score, 
+        overall_score=overall,
+        qualitative_score=qual_score,
         breakdown=breakdown
     )
 

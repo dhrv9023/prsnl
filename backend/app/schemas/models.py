@@ -9,6 +9,7 @@ class MatchRequest(BaseModel):
 class RoastRequest(BaseModel):
     resume_id: str
     job_description: str
+    language: str = "english"
 
 class CoverLetterRequest(BaseModel):
     resume_id: str
@@ -39,3 +40,21 @@ class AnswerEvaluation(BaseModel):
 class InterviewReport(BaseModel):
     overall_score: float
     breakdown: List[Dict[str, Any]]
+    qualitative_score: Optional[str] = None
+
+class StartInterviewRequest(BaseModel):
+    resume_id: str
+    role: str
+    experience_level: str
+
+class AnswerSubmission(BaseModel):
+    question_id: int
+    user_answer: Optional[str] = None
+
+class InterviewSession(BaseModel):
+    resume_text: str = ""
+    role: str = ""
+    experience_level: str = ""
+    questions: List[InterviewQuestion] = []
+    answers: Dict[int, str] = {}
+    evaluations: Dict[int, AnswerEvaluation] = {}

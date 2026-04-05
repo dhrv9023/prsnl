@@ -19,6 +19,7 @@ Respond ONLY in valid JSON with the following shape:
 }
 """
 
+
 async def generate_questions(role: str, experience_level: str, resume_text: str) -> List[InterviewQuestion]:
     prompt = f"""
     You are an expert technical interviewer for the role of {role} ({experience_level}).
@@ -49,19 +50,19 @@ async def generate_questions(role: str, experience_level: str, resume_text: str)
 
     try:
         completion = await client.chat.completions.create(
-            model="qwen/qwen3-32b", 
+            model="qwen/qwen3-32b",
             messages=[{"role": "user", "content": prompt}],
             response_format={"type": "json_object"},
         )
         data = json.loads(completion.choices[0].message.content)
-        
+
         raw_qs = []
         for key in ["q1", "q2", "q3", "q4", "q5", "q6"]:
             if key in data:
                 raw_qs.append(data[key])
-            
+
         return [InterviewQuestion(**q) for q in raw_qs]
-        
+
     except Exception as e:
         print(f"Gen Error: {e}")
         raise ValueError("Failed to generate questions.")
@@ -94,14 +95,14 @@ async def evaluate_single_answer(role: str, question: InterviewQuestion, user_an
 
     try:
         completion = await client.chat.completions.create(
-            model="llama3-70b-8192", 
+            model="llama3-70b-8192",
             messages=[{"role": "user", "content": prompt}],
             response_format={"type": "json_object"},
         )
 
         eval_data = json.loads(completion.choices[0].message.content)
         return AnswerEvaluation(**eval_data)
-        
+
     except Exception as e:
         print(f"Eval Error: {e}")
         raise ValueError("Failed to evaluate answer.")

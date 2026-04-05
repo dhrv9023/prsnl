@@ -1,0 +1,97 @@
+Act as a senior frontend engineer auditing a production React + TailwindCSS website.
+
+Problem:
+Across the entire website (not just the dashboard), text in LIGHT MODE is too light and difficult to read. Many paragraphs, labels, and descriptions use light gray colors that blend into the white background.
+
+Goal:
+Improve global text readability in LIGHT MODE without changing layout, structure, animations, or dark mode behavior.
+
+CRITICAL RULES
+- Do NOT modify component structure
+- Do NOT redesign the UI
+- Do NOT create new components
+- Do NOT change spacing, layout, or animations
+- Do NOT modify dark mode colors
+- Only improve LIGHT MODE text contrast
+- Make the fix GLOBAL so all pages benefit
+
+Implementation Strategy
+
+1. Identify all global typography classes such as:
+   text-gray-300
+   text-gray-400
+   text-gray-500
+
+2. Replace them with better contrast values for light mode while preserving dark mode styles.
+
+Example pattern:
+
+Before:
+text-gray-400
+
+After:
+text-gray-700 dark:text-gray-400
+
+Another example:
+
+Before:
+text-gray-500
+
+After:
+text-gray-600 dark:text-gray-400
+
+3. Establish a consistent light-mode typography scale:
+
+Headings / Titles:
+text-gray-900
+
+Primary body text:
+text-gray-800
+
+Secondary descriptions:
+text-gray-700
+
+Muted helper text:
+text-gray-600
+
+4. Ensure WCAG readable contrast for white backgrounds.
+
+5. If the project uses global CSS or Tailwind configuration, implement the fix there so it applies across the entire site.
+
+For example:
+Update typography tokens or base styles instead of editing every component individually.
+
+6. Preserve dark mode exactly as it currently works.
+
+Use Tailwind pattern:
+
+text-gray-800 dark:text-gray-200
+text-gray-700 dark:text-gray-400
+
+7. Verify these areas after the fix:
+- homepage hero text
+- feature descriptions
+- pricing page text
+- dashboard analysis text
+- navbar labels
+- tooltips and helper labels
+
+Expected Result:
+In LIGHT MODE, all text across the entire website should be clearly readable on white or light backgrounds while maintaining the same design hierarchy.
+
+Return only the minimal necessary code changes.
+
+Most startups use this light mode scale:
+
+Headings → #111827
+Body text → #1F2937
+Descriptions → #374151
+Muted → #4B5563
+
+Anything lighter than #6B7280 on white becomes hard to read.
+
+Your site is likely using something like:
+
+text-gray-400
+
+which is the real problem.

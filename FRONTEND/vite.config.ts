@@ -11,6 +11,13 @@ export default defineConfig(({ mode }) => ({
     hmr: {
       overlay: false,
     },
+    proxy: {
+      "/api": {
+        target: "http://localhost:8000",
+        changeOrigin: true,
+        // cookies are forwarded automatically since same origin via proxy
+      },
+    },
   },
   plugins: [react()].filter(Boolean),
   resolve: {

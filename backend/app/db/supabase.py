@@ -10,6 +10,7 @@ from app.core.config import settings
 
 _client = None
 
+
 async def get_db() -> AsyncClient:
     global _client
     if not _client:

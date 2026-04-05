@@ -1,7 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { AuthModal } from "@/components/ui/AuthModal";
+import { useAuthContext } from "@/contexts/AuthContext";
 import {
   Menu,
   X,
@@ -16,6 +18,11 @@ import {
   Users,
   Bot,
   Lock,
+  LayoutDashboard,
+  User,
+  Settings,
+  LogOut,
+  ChevronDown,
 } from "lucide-react";
 
 const navLinks = [
@@ -122,7 +129,11 @@ export function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isFeaturesOpen, setIsFeaturesOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const profileRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+  const auth = useAuthContext();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -132,12 +143,39 @@ export function Navbar() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  // Close profile dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
+        setIsProfileOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   const handleFeatureClick = (feature: (typeof features)[0]) => {
     if (!feature.active || !feature.href) return;
-    navigate(feature.href);
     setIsFeaturesOpen(false);
     setIsMobileMenuOpen(false);
+
+    if (!auth.isAuthenticated) {
+      setShowAuthModal(true);
+      return;
+    }
+
+    navigate(feature.href);
   };
+
+  const handleLogout = async () => {
+    setIsProfileOpen(false);
+    setIsMobileMenuOpen(false);
+    await auth.logout();
+    navigate("/");
+  };
+
+  // Get user initial for avatar
+  const userInitial = auth.user?.email?.[0]?.toUpperCase() || "U";
 
   return (
     <motion.header
@@ -270,8 +308,88 @@ export function Navbar() {
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <ThemeToggle />
+
+          {/* Sign In Button — when logged out */}
+          {!auth.isLoading && !auth.isAuthenticated && (
+            <button
+              onClick={() => setShowAuthModal(true)}
+              className="hidden md:flex items-center justify-center h-9 px-4 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
+            >
+              Sign In
+            </button>
+          )}
+
+          {/* Profile Avatar — only when authenticated */}
+          {auth.isAuthenticated && auth.user && (
+            <div className="relative" ref={profileRef}>
+              <button
+                onClick={() => setIsProfileOpen(!isProfileOpen)}
+                className="flex items-center gap-2 group"
+              >
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary/80 to-primary/40 border border-border/50 flex items-center justify-center text-xs font-bold text-primary-foreground shadow-sm group-hover:shadow-md group-hover:shadow-primary/20 transition-all duration-200">
+                  {userInitial}
+                </div>
+                <ChevronDown className={`w-3 h-3 text-muted-foreground/60 hidden md:block transition-transform duration-200 ${isProfileOpen ? "rotate-180" : ""}`} />
+              </button>
+
+              <AnimatePresence>
+                {isProfileOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 6, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 6, scale: 0.95 }}
+                    transition={{ duration: 0.15, ease: "easeOut" }}
+                    className="absolute right-0 top-full mt-2 w-56 rounded-xl border border-border/50 bg-card/95 backdrop-blur-xl shadow-[0_16px_40px_-8px_rgba(0,0,0,0.4)] overflow-hidden"
+                  >
+                    {/* User info */}
+                    <div className="px-4 py-3 border-b border-border/30">
+                      <p className="text-sm font-medium text-foreground truncate">{auth.user.email}</p>
+                      <p className="text-xs text-muted-foreground/50 mt-0.5">Kareerist Member</p>
+                    </div>
+
+                    {/* Menu items */}
+                    <div className="py-1.5">
+                      <button
+                        onClick={() => { setIsProfileOpen(false); navigate("/dashboard"); }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-secondary/40 transition-colors"
+                      >
+                        <LayoutDashboard className="w-4 h-4" />
+                        Dashboard
+                      </button>
+                      <button
+                        disabled
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-muted-foreground/40 cursor-not-allowed"
+                      >
+                        <User className="w-4 h-4" />
+                        Profile
+                        <span className="ml-auto text-[10px] font-medium uppercase tracking-wider text-muted-foreground/30 bg-secondary/40 px-1.5 py-0.5 rounded">Soon</span>
+                      </button>
+                      <button
+                        disabled
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-muted-foreground/40 cursor-not-allowed"
+                      >
+                        <Settings className="w-4 h-4" />
+                        Settings
+                        <span className="ml-auto text-[10px] font-medium uppercase tracking-wider text-muted-foreground/30 bg-secondary/40 px-1.5 py-0.5 rounded">Soon</span>
+                      </button>
+                    </div>
+
+                    <div className="border-t border-border/30 py-1.5">
+                      <button
+                        onClick={handleLogout}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-400/80 hover:text-red-400 hover:bg-red-400/5 transition-colors"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        Sign out
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
 
           {/* Mobile Menu Toggle */}
           <button
@@ -343,8 +461,55 @@ export function Navbar() {
             >
               Contact
             </Link>
+
+            {/* Mobile auth section */}
+            {auth.isAuthenticated && auth.user ? (
+              <div className="border-t border-border/30 pt-4 mt-2 space-y-1">
+                <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground/50 px-1 pb-1">
+                  Account
+                </p>
+                <button
+                  onClick={() => { setIsMobileMenuOpen(false); navigate("/dashboard"); }}
+                  className="w-full flex items-center gap-3 py-2.5 px-1 text-left text-foreground transition-colors"
+                >
+                  <LayoutDashboard className="w-4 h-4" />
+                  <span className="text-base font-medium">Dashboard</span>
+                </button>
+                <button
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-3 py-2.5 px-1 text-left text-red-400/80 hover:text-red-400 transition-colors"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span className="text-base font-medium">Sign out</span>
+                </button>
+              </div>
+            ) : (
+              <div className="border-t border-border/30 pt-4 mt-2">
+                <button
+                  onClick={() => { setIsMobileMenuOpen(false); setShowAuthModal(true); }}
+                  className="w-full flex items-center justify-center h-11 rounded-lg bg-primary text-primary-foreground text-base font-medium hover:opacity-90 transition-opacity"
+                >
+                  Sign In
+                </button>
+              </div>
+            )}
           </div>
         </motion.div>
+      )}
+      {/* Auth Modal overlay wrapper */}
+      {!auth.isLoading && !auth.isAuthenticated && showAuthModal && (
+        <AuthModal
+          onSuccess={() => {
+            setShowAuthModal(false);
+            navigate("/dashboard");
+          }}
+          onClose={() => setShowAuthModal(false)}
+          login={auth.login}
+          signup={auth.signup}
+          isSubmitting={auth.isSubmitting}
+          error={auth.error}
+          clearError={auth.clearError}
+        />
       )}
     </motion.header>
   );

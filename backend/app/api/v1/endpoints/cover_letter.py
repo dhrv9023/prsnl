@@ -13,6 +13,7 @@ from app.schemas.models import CoverLetterRequest, SavePDFRequest
 
 router = APIRouter()
 
+
 def create_pdf(text: str) -> bytes:
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -31,8 +32,8 @@ def create_pdf(text: str) -> bytes:
 
     for line in text.split("\n"):
         story.append(Paragraph(line.replace("&", "&amp;")
-                                     .replace("<", "&lt;")
-                                     .replace(">", "&gt;"), style))
+                               .replace("<", "&lt;")
+                               .replace(">", "&gt;"), style))
         story.append(Spacer(1, 0.2 * inch))
 
     doc.build(story)
@@ -53,6 +54,7 @@ def create_pdf(text: str) -> bytes:
 
 # --- ENDPOINTS ---
 
+
 @router.post("/generate")
 async def create_cover_letter(request: CoverLetterRequest, user: CurrentUser):
     """
@@ -65,41 +67,42 @@ async def create_cover_letter(request: CoverLetterRequest, user: CurrentUser):
         .eq("id", request.resume_id)\
         .eq("user_id", user.id)\
         .execute()
-    
+
     if not res_data.data:
         raise HTTPException(404, "Resume not found")
-        
+
     resume_text = res_data.data[0]['parsed_content']['raw_text']
-    
+
     # 2. Generate Text via Groq
     cover_letter_content = await cover_letter_generator(resume_text, request.job_description)
     if not cover_letter_content:
         raise HTTPException(502, "AI failed to generate text")
-        
+
     # 3. Create Draft in DB
    # Inside app/api/v1/endpoints/cover_letter.py
 
     app_data = {
         "user_id": user.id,            # The "Who"
-        "resume_id": request.resume_id, # The "What"
+        "resume_id": request.resume_id,  # The "What"
         "company_name": request.company_name,
         "job_title": request.job_title,
         "job_description": request.job_description,
         "status": "draft",
         "cover_letter_content": cover_letter_content
     }
-    
+
     try:
         result = await supabase.table("job_applications").insert(app_data).execute()
     except Exception as e:
         # This will help you see the exact error if something else is wrong
         raise HTTPException(400, detail=f"Database Insert Error: {str(e)}")
-    
+
     return {
-        "msg": "Cover Letter Generated", 
+        "msg": "Cover Letter Generated",
         "application_id": result.data[0]['id'],
         "content": cover_letter_content
     }
+
 
 @router.post("/save_pdf")
 async def save_cover_letter_pdf(request: SavePDFRequest, user: CurrentUser):
@@ -116,7 +119,7 @@ async def save_cover_letter_pdf(request: SavePDFRequest, user: CurrentUser):
     # 2. Upload to Supabase Storage
     # Naming: user_id/cover_letters/timestamp_cl.pdf
     filename = f"{user.id}/cover_letters/{int(time.time())}_cl.pdf"
-    
+
     try:
         await supabase.storage.from_("Resumes").upload(
             path=filename,
@@ -128,7 +131,7 @@ async def save_cover_letter_pdf(request: SavePDFRequest, user: CurrentUser):
 
     # 3. Update Database with the File Path
     await supabase.table("job_applications").update({
-        # "cover_letter_content": request.final_text, 
+        # "cover_letter_content": request.final_text,
         "cover_letter_file_url": filename
     }).eq("id", request.application_id).execute()
 
@@ -138,14 +141,16 @@ async def save_cover_letter_pdf(request: SavePDFRequest, user: CurrentUser):
     }
 
 
-# endpoint to get all cover letters 
+# endpoint to get all cover letters
 @router.get("/")
 async def list_applications(user: CurrentUser):
     supabase = await get_db()
     res = await supabase.table("job_applications").select("id, company_name, job_title, status, created_at").eq("user_id", user.id).execute()
     return res.data
 
-# endpoint to get a specific cover letter 
+# endpoint to get a specific cover letter
+
+
 @router.get("/{app_id}")
 async def get_application(app_id: str, user: CurrentUser):
     supabase = await get_db()

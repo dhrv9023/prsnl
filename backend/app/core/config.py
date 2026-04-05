@@ -7,12 +7,16 @@ class Settings(BaseSettings):
     SUPABASE_URL: str
     SUPABASE_SERVICE_ROLE: str
     HUGGINGFACE_API_KEY: str
+    CORS_ORIGINS: str = "*"  # Comma-separated origins, e.g. "https://kareerist.com,https://www.kareerist.com"
+    COOKIE_SECURE: bool = False  # Set True in production (HTTPS only)
 
-    # This tells Pydantic to read from the .env file in the root
+    # Reads backend/.env when uvicorn is launched from the backend/ directory
     model_config = SettingsConfigDict(
         env_file=".env",
         env_ignore_empty=True,
         extra="ignore"
     )
+
+
 
 settings = Settings()

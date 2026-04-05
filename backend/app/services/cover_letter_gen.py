@@ -10,11 +10,13 @@ client = AsyncGroq(api_key=settings.GROQ_API_KEY)
 #     """Clean LLM text by removing unwanted markdown formatting and characters."""
 #     text.strip()
 #     if text.startswith("```"):
-#         text = re.sub(r"^```(json)?", "", text) # remove start code block 
+#         text = re.sub(r"^```(json)?", "", text) # remove start code block
 #         text = re.sub(r"```$", "", text) # remove end code block
 #     return text.strip()
 
-async def cover_letter_generator(resume_text: str, job_description: str) -> str: # Gently corrected return type hint from dict to str
+
+# Gently corrected return type hint from dict to str
+async def cover_letter_generator(resume_text: str, job_description: str) -> str:
     """
     Generates a cover letter based on the resume and the JD
     """
@@ -42,18 +44,19 @@ async def cover_letter_generator(resume_text: str, job_description: str) -> str:
         )
         raw = completion.choices[0].message.content
         clean = clean_llm_answer(raw)
-        
+
         # Remove think tags (useful if you ever switch to a reasoning model like DeepSeek)
-        clean = re.sub(r"<think>.*?</think>", "", clean, flags=re.DOTALL).strip()
-        
+        clean = re.sub(r"<think>.*?</think>", "",
+                       clean, flags=re.DOTALL).strip()
+
         # Remove any stray markdown asterisks if the LLM ignores rule 7
         clean = clean.replace("*", "")
-        
+
         if not clean or not clean.strip():
             raise ValueError("Empty cover letter generated.")
-        
-        return clean  
-        
+
+        return clean
+
     except json.JSONDecodeError as e:
         print("Invalid JSON from AI:", e)
         return None

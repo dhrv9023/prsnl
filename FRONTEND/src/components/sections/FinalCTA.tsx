@@ -27,7 +27,7 @@ export function FinalCTA() {
           </p>
 
           <div className="flex flex-col items-center gap-6">
-            <Link to="/auth" className="inline-flex items-center justify-center h-14 px-8 text-base rounded-full group bg-foreground text-background hover:bg-foreground/90 font-medium">
+            <Link to="/resume-analysis" className="inline-flex items-center justify-center h-14 px-8 text-base rounded-full group bg-foreground text-background hover:bg-foreground/90 font-medium">
               Enter Kareerist
               <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </Link>

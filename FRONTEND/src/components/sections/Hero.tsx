@@ -59,7 +59,7 @@ export function Hero() {
             className="flex flex-col sm:flex-row items-center justify-center gap-4"
           >
             <Link
-              to="/auth"
+              to="/resume-analysis"
               className="btn-premium h-14 px-8 text-base bg-primary text-primary-foreground rounded-full shadow-lg shadow-primary/10 hover:shadow-xl hover:shadow-primary/20"
             >
               Enter Kareerist

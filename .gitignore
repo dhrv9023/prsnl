@@ -1,0 +1,20 @@
+# Virtual Environments
+.venv/
+env/
+venv/
+ENV/
+
+# Python caching
+__pycache__/
+*.pyc
+
+# Node
+node_modules/
+dist/
+
+# OS specific
+.DS_Store
+
+# IDEs
+.vscode/
+.idea/

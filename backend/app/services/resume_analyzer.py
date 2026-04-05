@@ -11,7 +11,7 @@ def clean_llm_answer(text: str) -> str:
     text = text.strip()
     # Remove opening/closing code blocks
     if text.startswith("```"):
-        text = re.sub(r"^```(json)?", "", text) # Remove start
+        text = re.sub(r"^```(json)?", "", text)  # Remove start
         text = re.sub(r"```$", "", text)        # Remove end
     return text.strip()
 
@@ -103,12 +103,12 @@ async def generate_resume_roast(resume_text: str, job_description: str, calculat
 
     try:
         completion = await client.chat.completions.create(
-            model = "openai/gpt-oss-120b",
-            messages = [
+            model="openai/gpt-oss-120b",
+            messages=[
                 {"role": "system", "content": prompt},
                 {"role": "user", "content": f"Resume: {resume_text}\n\nJob Description: {job_description}"}
             ],
-            temperature = 0.3,
+            temperature=0.3,
             reasoning_effort="low",
             response_format={"type": "json_object"},
             stream=False

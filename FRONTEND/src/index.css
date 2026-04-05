@@ -1,31 +1,33 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 /* KAREERIST Design System - Premium, Editorial, Confident */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap');
-
 @layer base {
   :root {
     /* Light Mode - Warm, Calm, Premium */
     --background: 40 20% 98%;
-    --foreground: 240 10% 10%;
+    /* Headings & Main Text: Darkened to a deeper black/slate for contrast */
+    --foreground: 240 10% 9%;
 
     --card: 40 15% 96%;
-    --card-foreground: 240 10% 10%;
+    --card-foreground: 240 10% 9%;
 
     --popover: 40 20% 98%;
-    --popover-foreground: 240 10% 10%;
+    --popover-foreground: 240 10% 9%;
 
-    --primary: 240 10% 10%;
+    --primary: 240 10% 9%;
     --primary-foreground: 40 20% 98%;
 
     --secondary: 40 10% 94%;
-    --secondary-foreground: 240 10% 10%;
+    --secondary-foreground: 240 10% 15%;
 
     --muted: 40 10% 92%;
-    --muted-foreground: 240 5% 45%;
+    /* Descriptions, Paragraphs, Subtext: Darkened from 45% lightness to 35% for readability on white */
+    --muted-foreground: 240 5% 35%;
 
     --accent: 45 80% 58%;
     --accent-foreground: 240 10% 10%;
