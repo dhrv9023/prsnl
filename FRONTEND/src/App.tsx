@@ -9,6 +9,7 @@ import NotFound from "./pages/NotFound";
 import PricingPage from "./pages/Pricing";
 import ResumeAnalysis from "./pages/ResumeAnalysis";
 import DashboardPage from "./pages/DashboardPage";
+import AIInterview from "./pages/AIInterview";
 
 const queryClient = new QueryClient();
 
@@ -24,6 +25,7 @@ const App = () => (
             <Route path="/pricing" element={<PricingPage />} />
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/resume-analysis" element={<ResumeAnalysis />} />
+            <Route path="/interview" element={<AIInterview />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>

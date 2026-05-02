@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuthContext } from "@/contexts/AuthContext";
-import { apiGetDashboard, type DashboardSummary, type AnalysisHistoryItem } from "@/lib/api";
+import { apiGetDashboard, type DashboardSummary, type AnalysisHistoryItem, type RoastDetails, type RoastSection } from "@/lib/api";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import {
@@ -109,10 +109,10 @@ function HistoryItem({
     const [expanded, setExpanded] = useState(false);
 
     // Auto-detect the initial language based on the loaded summary
-    const initialLang = detectLanguage(item.output_data?.summary);
+    const initialLang = detectLanguage((item.output_data as RoastDetails)?.summary);
     const [language, setLanguage] = useState<"english" | "hinglish">(initialLang);
     const [translating, setTranslating] = useState(false);
-    const [outputData, setOutputData] = useState(item.output_data);
+    const [outputData, setOutputData] = useState<RoastDetails | null>(item.output_data as RoastDetails | null);
 
     // If it's just an ATS score, we generally don't have deep sections to expand
     // But we still allow clicking if we want to add future details.
@@ -128,7 +128,7 @@ function HistoryItem({
             // But if we translated it to Hinglish, we might have lost the English data in state,
             // so let's just make the API call to toggle it fully to be safe.
             const { apiTranslateAnalysis } = await import('@/lib/api');
-            const data = await apiTranslateAnalysis(item.id, targetLang);
+            const data = await apiTranslateAnalysis(item.id, targetLang) as RoastDetails;
             setOutputData(data);
             setLanguage(targetLang);
         } catch (e) {
@@ -217,7 +217,7 @@ function HistoryItem({
                             <div className="space-y-4">
                                 <p className="text-xs text-muted-foreground/50 font-medium border-b border-border/10 pb-1">Detailed Breakdown</p>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {Object.entries(outputData.sections as Record<string, any>).map(([key, sec]) => {
+                                    {Object.entries(outputData.sections as Record<string, RoastSection>).map(([key, sec]) => {
                                         const grade = sec.score?.toLowerCase() || "";
                                         const color = grade === "excellent" || grade === "very good" ? "text-emerald-500 bg-emerald-500/10 border-emerald-500/15"
                                             : grade === "good" ? "text-blue-500 bg-blue-500/10 border-blue-500/15"
@@ -245,9 +245,11 @@ function HistoryItem({
                                                             <div>
                                                                 <p className="text-[10px] uppercase font-mono text-destructive/80 mb-1">Issues</p>
                                                                 <ul className="space-y-1">
-                                                                    {sec.issues.map((iss: string, idx: number) => (
+                                                                    {Array.isArray(sec.issues) ? sec.issues.map((iss: string, idx: number) => (
                                                                         <li key={idx} className="text-[11px] text-muted-foreground flex gap-1.5"><AlertTriangle className="w-3 h-3 text-destructive/60 flex-shrink-0 mt-0.5" /> {iss}</li>
-                                                                    ))}
+                                                                    )) : (
+                                                                        <li className="text-[11px] text-muted-foreground flex gap-1.5"><AlertTriangle className="w-3 h-3 text-destructive/60 flex-shrink-0 mt-0.5" /> {sec.issues}</li>
+                                                                    )}
                                                                 </ul>
                                                             </div>
                                                         )}
@@ -255,11 +257,15 @@ function HistoryItem({
                                                             <div>
                                                                 <p className="text-[10px] uppercase font-mono text-blue-400/80 mb-1">Missing Keywords</p>
                                                                 <div className="flex flex-wrap gap-1">
-                                                                    {sec.missing_keywords.map((kw: string, idx: number) => (
+                                                                    {Array.isArray(sec.missing_keywords) ? sec.missing_keywords.map((kw: string, idx: number) => (
                                                                         <span key={idx} className="px-1.5 py-0.5 rounded bg-blue-500/10 border border-blue-500/10 text-[10px] text-blue-500/80">
                                                                             {kw}
                                                                         </span>
-                                                                    ))}
+                                                                    )) : (
+                                                                        <span className="px-1.5 py-0.5 rounded bg-blue-500/10 border border-blue-500/10 text-[10px] text-blue-500/80">
+                                                                            {sec.missing_keywords}
+                                                                        </span>
+                                                                    )}
                                                                 </div>
                                                             </div>
                                                         )}
@@ -277,12 +283,17 @@ function HistoryItem({
                             <div>
                                 <p className="text-xs text-muted-foreground/50 mb-2 font-medium">Top Priority Items</p>
                                 <ul className="space-y-1.5">
-                                    {outputData.action_items.slice(0, 3).map((item: string, i: number) => (
+                                    {Array.isArray(outputData.action_items) ? outputData.action_items.slice(0, 3).map((item: string, i: number) => (
                                         <li key={i} className="flex gap-2 text-sm text-muted-foreground/80">
                                             <Zap className="w-3.5 h-3.5 text-amber-500 flex-shrink-0 mt-0.5" />
                                             <span>{item}</span>
                                         </li>
-                                    ))}
+                                    )) : (
+                                        <li className="flex gap-2 text-sm text-muted-foreground/80">
+                                            <Zap className="w-3.5 h-3.5 text-amber-500 flex-shrink-0 mt-0.5" />
+                                            <span>{outputData.action_items}</span>
+                                        </li>
+                                    )}
                                 </ul>
                             </div>
                         )}
@@ -323,7 +334,7 @@ const DashboardPage = () => {
     const hasAnalyzed = data && data.total_analyses > 0;
     const atsScore = data?.latest_ats_score;
     // We store roast in state to allow translating it directly
-    const [roastData, setRoastData] = useState<any>(null);
+    const [roastData, setRoastData] = useState<RoastDetails | null>(null);
     const [roastLang, setRoastLang] = useState<"english" | "hinglish">("english");
     const [isTranslatingRoast, setIsTranslatingRoast] = useState(false);
 
@@ -342,7 +353,7 @@ const DashboardPage = () => {
             const targetLang = roastLang === "english" ? "hinglish" : "english";
             const { apiTranslateAnalysis } = await import('@/lib/api');
             // Assuming latest roast is the very first item in analysis_history
-            const translated = await apiTranslateAnalysis(data.analysis_history[0].id, targetLang);
+            const translated = await apiTranslateAnalysis(data.analysis_history[0].id, targetLang) as RoastDetails;
             setRoastData(translated);
             setRoastLang(targetLang);
         } catch (e) {
@@ -446,10 +457,10 @@ const DashboardPage = () => {
                                             <p className="text-sm text-muted-foreground/80 leading-relaxed max-w-2xl">
                                                 {roastData.summary}
                                             </p>
-                                            {roastData.action_items?.[0] && (
+                                            {roastData.action_items && (roastData.action_items.length > 0) && (
                                                 <div className="mt-4 flex items-start gap-2.5 p-3 rounded-lg bg-primary/5 border border-primary/10">
                                                     <Zap className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
-                                                    <p className="text-sm text-foreground/80">{roastData.action_items[0]}</p>
+                                                    <p className="text-sm text-foreground/80">{Array.isArray(roastData.action_items) ? roastData.action_items[0] : roastData.action_items}</p>
                                                 </div>
                                             )}
                                         </div>
@@ -564,7 +575,7 @@ const DashboardPage = () => {
                                             <div>
                                                 <p className="text-xs text-muted-foreground/50 mb-3">Section Breakdown</p>
                                                 <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                                                    {Object.entries(roastData.sections).map(([key, sec]: [string, any]) => {
+                                                    {Object.entries(roastData.sections).map(([key, sec]: [string, RoastSection]) => {
                                                         const grade = sec.score?.toLowerCase() || "";
                                                         const color =
                                                             grade === "excellent" || grade === "very good" ? "text-emerald-600 bg-emerald-600/10 border-emerald-600/15 dark:text-emerald-400 dark:bg-emerald-400/10 dark:border-emerald-400/15"
@@ -588,14 +599,19 @@ const DashboardPage = () => {
                                             <div>
                                                 <p className="text-xs text-muted-foreground/50 mb-3">Top Improvement Areas</p>
                                                 <ol className="space-y-2.5">
-                                                    {roastData.action_items.slice(0, 5).map((item: string, i: number) => (
+                                                    {Array.isArray(roastData.action_items) ? roastData.action_items.slice(0, 5).map((item: string, i: number) => (
                                                         <li key={i} className="flex gap-3 text-sm text-muted-foreground/70 leading-relaxed">
                                                             <span className="font-mono text-xs text-foreground/20 flex-shrink-0 mt-0.5 w-5 text-right">
                                                                 {String(i + 1).padStart(2, "0")}
                                                             </span>
                                                             <span>{item}</span>
                                                         </li>
-                                                    ))}
+                                                    )) : (
+                                                        <li className="flex gap-3 text-sm text-muted-foreground/70 leading-relaxed">
+                                                            <span className="font-mono text-xs text-foreground/20 flex-shrink-0 mt-0.5 w-5 text-right">01</span>
+                                                            <span>{roastData.action_items}</span>
+                                                        </li>
+                                                    )}
                                                 </ol>
                                             </div>
                                         )}

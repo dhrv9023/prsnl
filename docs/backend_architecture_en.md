@@ -30,7 +30,7 @@ This directory defines every single web URL the frontend can hit. Endpoints shou
 
 ### 2. `services/` (The Heavy Lifting & AI Core)
 This is where the actual features work. If an algorithm is wrong, or the AI's prompt needs tweaking, look here.
-*   **`resume_analyzer.py`**: The "brain" of the resume processing. It parses the document text, constructs the prompt, communicates with the OpenAI/Language Model, and formats the ATS score and feedback list.
+*   **`resume_analyzer.py`**: The "brain" of the resume processing. It parses the document text, constructs the prompt, communicates with Groq (Llama-3.3-70b-versatile), and formats the ATS score and feedback list.
 *   **`cover_letter_gen.py`**: Contains the logic to read a job description and a user's resume to draft a matching cover letter.
 *   **`ai_interview.py`**: Logic for managing contextual conversational states for mock interviews.
 *   **`math_engine.py`**: Contains any custom calculation logic needed across the application backend.
@@ -40,8 +40,9 @@ This is where the actual features work. If an algorithm is wrong, or the AI's pr
     *   *Why we need it:* If the frontend tries to send `{ "user_age": "five" }` instead of an integer, FastAPI will look at `models.py` and automatically reject it before it ever hits our logic.
 
 ### 4. `core/` & `db/` (Infrastructure)
-*   **`core/config.py`**: Handles loading standard `.env` variables safely into Python objects. If you add a new API key (like for a payment gateway), you must declare it here.
-*   **`db/`**: Handles database connections, ORM models (like SQLAlchemy), and migrations.
+*   **`core/config.py`**: Handles loading standard `.env` variables safely into Python objects (like API keys and Redis URL).
+*   **`db/supabase.py`**: Handles the async connection pool to Supabase PostgREST endpoints.
+*   **`db/redis_client.py`**: Handles the shared `aioredis` pool ensuring session persistence and proper garbage collection across Uvicorn workers.
 
 ---
 

@@ -1,20 +1,32 @@
 # Virtual Environments
 .venv/
-
 venv/
-
 
 # Python caching
 __pycache__/
 *.pyc
 
+# Environment variables (CRITICAL — never commit secrets)
+.env
+.env.*
+
 # Node
 node_modules/
 dist/
 
+# Build artifacts
+build/
+*.egg-info/
+
 # OS specific
 .DS_Store
+Thumbs.db
 
-# IDEs
+# IDEs & editors
 .vscode/
 .idea/
+.cursor/
+*.swp
+
+# Package manager lock (uv)
+uv.lock

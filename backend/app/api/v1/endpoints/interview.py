@@ -3,6 +3,7 @@ from typing import List, Dict, Any
 
 from app.api.dependencies import CurrentUser
 from app.db.supabase import get_db
+from app.db.redis_client import save_session, load_session, delete_session, refresh_session_ttl
 from app.schemas.models import (
     StartInterviewRequest,
     InterviewQuestion,
@@ -18,8 +19,12 @@ from app.services.ai_interview import (
 
 router = APIRouter()
 
-# State Management moved to the routing layer where session lifecycles belong
-active_sessions: Dict[str, InterviewSession] = {}
+# ── Session state is now persisted in Redis (not in-memory) ──────────────────
+# Benefits:
+#   • Survives server restarts / hot-reloads
+#   • Shared across all Uvicorn workers (no more "session not found" on reload)
+#   • Auto-expires after 45 min TTL — no RAM leak on abandoned sessions
+#   • Explicit delete on /end — no orphaned keys
 
 
 @router.post("/start")
@@ -47,10 +52,11 @@ async def start_interview_route(
             status_code=400, detail="Extracted resume text is too short or invalid.")
 
     # 2. Setup Session State
-    session = InterviewSession()
-    session.resume_text = resume_text
-    session.role = request.role
-    session.experience_level = request.experience_level
+    session = InterviewSession(
+        resume_text=resume_text,
+        role=request.role,
+        experience_level=request.experience_level,
+    )
 
     # 3. Request AI Generation
     try:
@@ -63,7 +69,9 @@ async def start_interview_route(
         raise HTTPException(status_code=500, detail=str(e))
 
     session.questions = questions
-    active_sessions[user_id_str] = session
+
+    # 4. Persist to Redis (replaces: active_sessions[user_id_str] = session)
+    await save_session(user_id_str, session)
 
     return session.questions
 
@@ -74,18 +82,22 @@ async def submit_answer_route(
     user: CurrentUser,
 ) -> AnswerEvaluation:
     user_id_str = str(user.id)
-    session = active_sessions.get(user_id_str)
+
+    # Load from Redis (replaces: active_sessions.get(user_id_str))
+    session = await load_session(user_id_str)
 
     if not session:
         raise HTTPException(
-            status_code=400, detail="No active interview session found. Please start an interview first.")
+            status_code=400,
+            detail="No active interview session found. Please start a new interview."
+        )
 
     question = next(
         (q for q in session.questions if q.id == data.question_id), None)
     if not question:
         raise HTTPException(status_code=404, detail="Question not found")
 
-    # Pass specific question data to AI evaluator
+    # Evaluate answer via AI
     try:
         evaluation = await evaluate_single_answer(
             role=session.role,
@@ -95,9 +107,12 @@ async def submit_answer_route(
     except ValueError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-    # Update session with AI's result
+    # Update in-memory session object
     session.answers[data.question_id] = data.user_answer or "No answer provided."
     session.evaluations[data.question_id] = evaluation
+
+    # Write updated state back to Redis + refresh TTL so active sessions don't expire
+    await save_session(user_id_str, session)
 
     return evaluation
 
@@ -105,7 +120,9 @@ async def submit_answer_route(
 @router.post("/end")
 async def end_interview_route(user: CurrentUser) -> InterviewReport:
     user_id_str = str(user.id)
-    session = active_sessions.get(user_id_str)
+
+    # Load from Redis
+    session = await load_session(user_id_str)
 
     if not session:
         raise HTTPException(
@@ -115,7 +132,7 @@ async def end_interview_route(user: CurrentUser) -> InterviewReport:
     total_score = 0
     count = 0
 
-    # Compile report purely based on standard python dictionaries
+    # Compile report from session data
     for q in session.questions:
         if q.id in session.evaluations:
             eval_data = session.evaluations[q.id]
@@ -133,12 +150,9 @@ async def end_interview_route(user: CurrentUser) -> InterviewReport:
             }
 
             if q.type == "code":
-                # Assuming AnswerEvaluation handles these as optional fields
                 report_item["tc"] = getattr(eval_data, "time_complexity", None)
-                report_item["sc"] = getattr(
-                    eval_data, "space_complexity", None)
-                report_item["quality"] = getattr(
-                    eval_data, "code_quality", None)
+                report_item["sc"] = getattr(eval_data, "space_complexity", None)
+                report_item["quality"] = getattr(eval_data, "code_quality", None)
 
             breakdown.append(report_item)
 
@@ -161,7 +175,7 @@ async def end_interview_route(user: CurrentUser) -> InterviewReport:
         breakdown=breakdown
     )
 
-    # Cleanup memory
-    del active_sessions[user_id_str]
+    # Explicitly delete from Redis (replaces: del active_sessions[user_id_str])
+    await delete_session(user_id_str)
 
     return report

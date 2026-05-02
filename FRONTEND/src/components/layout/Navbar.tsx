@@ -50,8 +50,8 @@ const features = [
     icon: MessageSquare,
     name: "AI Mock Interviews",
     description: "Practice with AI-generated interview questions",
-    href: null,
-    active: false,
+    href: "/interview",
+    active: true,
   },
   {
     icon: TrendingUp,

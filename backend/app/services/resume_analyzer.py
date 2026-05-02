@@ -1,25 +1,28 @@
-from groq import AsyncGroq
-from app.core.config import settings
+# app/services/resume_analyzer.py
 import json
+import logging
 import re
 
+from groq import AsyncGroq
+from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 client = AsyncGroq(api_key=settings.GROQ_API_KEY)
 
 
 def clean_llm_answer(text: str) -> str:
     """Removes markdown formatting (```json ... ```) from LLM output."""
     text = text.strip()
-    # Remove opening/closing code blocks
     if text.startswith("```"):
-        text = re.sub(r"^```(json)?", "", text)  # Remove start
-        text = re.sub(r"```$", "", text)        # Remove end
+        text = re.sub(r"^```(json)?", "", text)
+        text = re.sub(r"```$", "", text)
     return text.strip()
 
 
 async def generate_resume_roast(resume_text: str, job_description: str, calculated_ats_score: int) -> dict:
     """
-    Performs a Deep-Dive Analysis (Roast + Section Breakdown).
-    Returns a complex JSON structure.
+    Performs a deep-dive analysis (roast + section breakdown).
+    Returns a complex JSON structure with overall_feedback, summary, sections, and action_items.
     """
 
     prompt = f"""You are a senior career coach about different fields and industries and an expert on reviewing resumes 
@@ -50,7 +53,7 @@ async def generate_resume_roast(resume_text: str, job_description: str, calculat
         - Do not optimize the resume for a specific company unless stated in the JD.
     5. Ownership and impact.
         - Penalize vague and repetitive language or phrases.
-        - Stronly value ownership, impact, contributions.
+        - Strongly value ownership, impact, contributions.
     6. Interview Realism Check.
         - Assume every statement in the resume will be probed properly in interviews.
         - Flag statements that seem exaggerated or unverifiable.
@@ -103,13 +106,12 @@ async def generate_resume_roast(resume_text: str, job_description: str, calculat
 
     try:
         completion = await client.chat.completions.create(
-            model="openai/gpt-oss-120b",
+            model="llama-3.3-70b-versatile",
             messages=[
                 {"role": "system", "content": prompt},
                 {"role": "user", "content": f"Resume: {resume_text}\n\nJob Description: {job_description}"}
             ],
             temperature=0.3,
-            reasoning_effort="low",
             response_format={"type": "json_object"},
             stream=False
         )
@@ -120,12 +122,12 @@ async def generate_resume_roast(resume_text: str, job_description: str, calculat
             raise RuntimeError("AI returned empty response")
         return json.loads(cleaned_content)
 
-    except json.JSONDecodeError as e:
-        print("Invalid JSON from AI:", cleaned_content[:300])
+    except json.JSONDecodeError:
+        logger.error("Invalid JSON from AI: %s", cleaned_content[:300])
         return None
     except RuntimeError as e:
-        print("AI logic error:", e)
+        logger.error("AI logic error: %s", e)
         return None
     except Exception as e:
-        print(f"Error generating analysis: {e}")
+        logger.error("Resume analysis failed: %s", e)
         return None

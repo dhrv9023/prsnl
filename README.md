@@ -4,8 +4,10 @@ A modern career toolkit built with **React**, **TypeScript**, **Vite**, and **Ta
 
 ## Prerequisites
 
-- [Node.js](https://nodejs.org/) v18 or higher
-- npm (comes with Node.js)
+- **Linux App Environment** (Ubuntu/Debian)
+- **Node.js** v18 or higher & npm
+- **Python** 3.12+ (or 3.13 for `uv`)
+- **Redis Server** (`sudo apt-get install redis-server`)
 
 ## Quick Start
 
@@ -17,13 +19,11 @@ npm install
 npm run dev
 ```
 
-The app will be running at **http://localhost:8080**
+The script will check for Redis, boot it up, and start both the FastAPI backend and Vite frontend!
 
-### Or use the batch script (Windows)
-
-Double-click **`start.bat`** — it auto-installs deps if needed and starts the server.
-
-## Available Scripts
+**Access the application at:**
+- Frontend: **http://localhost:8080**
+- Backend API: **http://localhost:8000**
 
 | Command | Description |
 |---------|-------------|

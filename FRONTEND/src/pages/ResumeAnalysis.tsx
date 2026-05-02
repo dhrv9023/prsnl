@@ -107,7 +107,7 @@ function GradeBadge({ grade }: { grade: string }) {
 
 // ─── Section card ─────────────────────────────────────────────────────────────
 
-function SectionCard({ name, sec }: { name: string; sec: { score: string; feedback: string; issues?: string; missing_keywords?: string } }) {
+function SectionCard({ name, sec }: { name: string; sec: { score: string; feedback: string; issues?: string | string[]; missing_keywords?: string | string[] } }) {
     const [open, setOpen] = useState(true);
     return (
         <div className="rounded-lg border border-border/30 bg-secondary/10 overflow-hidden">
@@ -129,15 +129,24 @@ function SectionCard({ name, sec }: { name: string; sec: { score: string; feedba
                     {sec.issues && (
                         <div className="flex gap-2 p-2.5 rounded-md bg-amber-400/5 border border-amber-400/15">
                             <AlertTriangle className="w-3.5 h-3.5 text-amber-400/70 flex-shrink-0 mt-0.5" />
-                            <p className="text-xs text-amber-300/70 leading-relaxed">{sec.issues}</p>
+                            <div className="text-xs text-amber-300/70 leading-relaxed">
+                                {Array.isArray(sec.issues) ? (
+                                    <ul className="list-disc pl-4 space-y-1">
+                                        {sec.issues.map((iss, i) => <li key={i}>{iss}</li>)}
+                                    </ul>
+                                ) : (
+                                    <p>{sec.issues}</p>
+                                )}
+                            </div>
                         </div>
                     )}
                     {sec.missing_keywords && (
                         <div className="flex gap-2 p-2.5 rounded-md bg-blue-400/5 border border-blue-400/15">
                             <Info className="w-3.5 h-3.5 text-blue-400/70 flex-shrink-0 mt-0.5" />
-                            <p className="text-xs text-blue-300/70 leading-relaxed">
-                                <span className="font-medium">Missing keywords: </span>{sec.missing_keywords}
-                            </p>
+                            <div className="text-xs text-blue-300/70 leading-relaxed">
+                                <span className="font-medium">Missing keywords: </span>
+                                {Array.isArray(sec.missing_keywords) ? sec.missing_keywords.join(", ") : sec.missing_keywords}
+                            </div>
                         </div>
                     )}
                 </div>
@@ -247,8 +256,8 @@ export default function ResumeAnalysis() {
             const id = await ensureUploaded();
             const result = await apiGetAtsScore(id, jobDesc);
             setMatch(result);
-        } catch (e: any) {
-            setError(e.message ?? "ATS scoring failed.");
+        } catch (e: unknown) {
+            setError((e as Error).message ?? "ATS scoring failed.");
         } finally { setAtsLoading(false); }
     }
 
@@ -263,8 +272,8 @@ export default function ResumeAnalysis() {
             const result = await apiGetRoast(id, jobDesc, langToUse);
             setRoast(result.roast_details);
             if (!match) setMatch({ score: result.ats_math_score, raw_similarity: 0 });
-        } catch (e: any) {
-            setError(e.message ?? "Deep analysis failed.");
+        } catch (e: unknown) {
+            setError((e as Error).message ?? "Deep analysis failed.");
         } finally { setRoastLoading(false); }
     }
 
@@ -502,7 +511,7 @@ export default function ResumeAnalysis() {
                         </div>
                     ) : (
                         <div className="space-y-3">
-                            {roast!.action_items.slice(0, 5).map((item, i) => {
+                            {Array.isArray(roast!.action_items) ? roast!.action_items.slice(0, 5).map((item, i) => {
                                 const parts = item.split(":");
                                 const title = parts.length > 1 ? parts[0] + ":" : "";
                                 const desc = parts.length > 1 ? parts.slice(1).join(":") : item;
@@ -518,7 +527,16 @@ export default function ResumeAnalysis() {
                                         </div>
                                     </div>
                                 );
-                            })}
+                            }) : (
+                                <div className="flex gap-3 text-sm flex-col sm:flex-row bg-background/50 border border-border/40 rounded-lg p-4 transition-colors hover:bg-background/80">
+                                    <div className="flex items-center justify-center w-6 h-6 rounded-md bg-primary/10 text-primary text-xs font-bold flex-shrink-0">
+                                        1
+                                    </div>
+                                    <div className="flex-1 space-y-1">
+                                        <p className="text-muted-foreground leading-relaxed text-xs sm:text-sm">{(roast!.action_items as unknown as string).trim()}</p>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>

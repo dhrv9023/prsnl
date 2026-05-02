@@ -1,9 +1,13 @@
+# app/services/ai_interview.py
 import json
+import logging
 from typing import List
+
 from groq import AsyncGroq
 from app.core.config import settings
 from app.schemas.models import InterviewQuestion, AnswerEvaluation
 
+logger = logging.getLogger(__name__)
 client = AsyncGroq(api_key=settings.GROQ_API_KEY)
 
 EVAL_INSTRUCTIONS = """
@@ -50,7 +54,7 @@ async def generate_questions(role: str, experience_level: str, resume_text: str)
 
     try:
         completion = await client.chat.completions.create(
-            model="qwen/qwen3-32b",
+            model="llama-3.3-70b-versatile",
             messages=[{"role": "user", "content": prompt}],
             response_format={"type": "json_object"},
         )
@@ -64,12 +68,20 @@ async def generate_questions(role: str, experience_level: str, resume_text: str)
         return [InterviewQuestion(**q) for q in raw_qs]
 
     except Exception as e:
-        print(f"Gen Error: {e}")
+        logger.error("Question generation failed: %s", e)
         raise ValueError("Failed to generate questions.")
 
 
-async def evaluate_single_answer(role: str, question: InterviewQuestion, user_answer: str) -> AnswerEvaluation:
-    final_answer = user_answer or "No answer provided."
+async def evaluate_single_answer(role: str, question: InterviewQuestion, user_answer: str | None) -> AnswerEvaluation:
+    # Skip the AI call entirely for skipped/empty answers
+    if not user_answer or not user_answer.strip():
+        return AnswerEvaluation(
+            score=0,
+            feedback="You skipped this question.",
+            ideal_answer="You chose to skip this question. In a real interview, it's always better to attempt an answer even if you're unsure."
+        )
+
+    final_answer = user_answer
 
     if question.type == "code":
         answer_block = f"User Code:\n```\n{final_answer}\n```"
@@ -95,7 +107,7 @@ async def evaluate_single_answer(role: str, question: InterviewQuestion, user_an
 
     try:
         completion = await client.chat.completions.create(
-            model="llama3-70b-8192",
+            model="llama-3.3-70b-versatile",
             messages=[{"role": "user", "content": prompt}],
             response_format={"type": "json_object"},
         )
@@ -104,5 +116,5 @@ async def evaluate_single_answer(role: str, question: InterviewQuestion, user_an
         return AnswerEvaluation(**eval_data)
 
     except Exception as e:
-        print(f"Eval Error: {e}")
+        logger.error("Answer evaluation failed: %s", e)
         raise ValueError("Failed to evaluate answer.")

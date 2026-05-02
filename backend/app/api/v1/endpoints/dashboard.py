@@ -60,8 +60,17 @@ async def get_dashboard_summary(user: CurrentUser):
                 break
 
     # 5. Build analysis history
-    # First, create a mapping of resume_id to its original file name
-    resume_id_to_name = {r["id"]: r.get("file_name", "Unknown Document") for r in resumes}
+    # Build a mapping of resume_id → human-readable file name
+    # The file_url format is: "user_id/timestamp_filename.pdf"
+    def _extract_name(url: str) -> str:
+        parts = url.split("/")
+        name = parts[-1] if parts else "Unknown Document"
+        # Strip leading timestamp (e.g., "1712345678_resume.pdf" → "resume.pdf")
+        import re
+        name = re.sub(r"^\d+_", "", name)
+        return name
+
+    resume_id_to_name = {r["id"]: _extract_name(r.get("file_url", "")) for r in resumes}
 
     history = []
     for a in analyses:

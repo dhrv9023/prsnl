@@ -1,8 +1,12 @@
 # app/api/v1/endpoints/auth.py
+import logging
 from fastapi import APIRouter, HTTPException, Response
 from pydantic import BaseModel, EmailStr
 from app.db.supabase import get_db
 from app.api.dependencies import CurrentUser
+from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -29,17 +33,17 @@ async def sign_up(user_data: UserAuth):
         return {"msg": "User created successfully", "user_id": response.user.id}
 
     except Exception as e:
+        logger.warning("Signup failed: %s", e)
         raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.post("/login")
-async def login(user_data: UserAuth, response: Response):  # <--- Added Response parameter
+async def login(user_data: UserAuth, response: Response):
     """
     Logs in and sets a secure HttpOnly cookie.
     """
     supabase = await get_db()
     try:
-        # 1. Authenticate with Supabase
         supa_response = await supabase.auth.sign_in_with_password({
             "email": user_data.email,
             "password": user_data.password
@@ -47,14 +51,13 @@ async def login(user_data: UserAuth, response: Response):  # <--- Added Response
 
         access_token = supa_response.session.access_token
 
-        # 2. Set the Secure Cookie (The Big Tech Way)
         response.set_cookie(
             key="access_token",
             value=f"Bearer {access_token}",
-            httponly=True,   # JavaScript cannot read this (No XSS)
+            httponly=True,
             max_age=60 * 60 * 24 * 7,  # 7 days
-            samesite="lax",  # CSRF protection
-            secure=False     # Set to True ONLY if using HTTPS (Production)
+            samesite="lax",
+            secure=settings.COOKIE_SECURE,  # Reads from .env — True in production (HTTPS)
         )
 
         return {
@@ -64,9 +67,9 @@ async def login(user_data: UserAuth, response: Response):  # <--- Added Response
                 "email": supa_response.user.email
             }
         }
-        # Note: We do NOT return the access_token in the body anymore.
 
     except Exception as e:
+        logger.warning("Login failed for %s: %s", user_data.email, e)
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
 

@@ -1,24 +1,19 @@
-from groq import AsyncGroq
-from app.core.config import settings
-import json
-from app.services.resume_analyzer import clean_llm_answer
+# app/services/cover_letter_gen.py
+import logging
 import re
 
+from groq import AsyncGroq
+from app.core.config import settings
+from app.services.resume_analyzer import clean_llm_answer
+
+logger = logging.getLogger(__name__)
 client = AsyncGroq(api_key=settings.GROQ_API_KEY)
 
-# def clean_text(text: str) -> str:
-#     """Clean LLM text by removing unwanted markdown formatting and characters."""
-#     text.strip()
-#     if text.startswith("```"):
-#         text = re.sub(r"^```(json)?", "", text) # remove start code block
-#         text = re.sub(r"```$", "", text) # remove end code block
-#     return text.strip()
 
-
-# Gently corrected return type hint from dict to str
-async def cover_letter_generator(resume_text: str, job_description: str) -> str:
+async def cover_letter_generator(resume_text: str, job_description: str) -> str | None:
     """
-    Generates a cover letter based on the resume and the JD
+    Generates a professional cover letter based on the resume and the JD.
+    Returns the plain-text body of the letter, or None on failure.
     """
 
     prompt = """You are an expert writer specialized in crafting compelling cover letters that effectively highlight a candidate's qualification and aligns with the job description. Your task is to generate a professional cover letter based on the provided resume and job description.
@@ -34,7 +29,7 @@ async def cover_letter_generator(resume_text: str, job_description: str) -> str:
 
     try:
         completion = await client.chat.completions.create(
-            model="qwen/qwen3-32b",
+            model="llama-3.3-70b-versatile",
             messages=[
                 {"role": "system", "content": prompt},
                 {"role": "user", "content": f"Resume: {resume_text}\n\nJob Description: {job_description}"}
@@ -45,9 +40,8 @@ async def cover_letter_generator(resume_text: str, job_description: str) -> str:
         raw = completion.choices[0].message.content
         clean = clean_llm_answer(raw)
 
-        # Remove think tags (useful if you ever switch to a reasoning model like DeepSeek)
-        clean = re.sub(r"<think>.*?</think>", "",
-                       clean, flags=re.DOTALL).strip()
+        # Remove think tags (useful if you ever switch to a reasoning model)
+        clean = re.sub(r"<think>.*?</think>", "", clean, flags=re.DOTALL).strip()
 
         # Remove any stray markdown asterisks if the LLM ignores rule 7
         clean = clean.replace("*", "")
@@ -57,12 +51,6 @@ async def cover_letter_generator(resume_text: str, job_description: str) -> str:
 
         return clean
 
-    except json.JSONDecodeError as e:
-        print("Invalid JSON from AI:", e)
-        return None
-    except ValueError as e:
-        print("Validation error:", e)
-        return None
     except Exception as e:
-        print(f"Error generating cover letter: {e}")
+        logger.error("Cover letter generation failed: %s", e)
         return None

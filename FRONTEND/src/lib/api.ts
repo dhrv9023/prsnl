@@ -126,15 +126,15 @@ export interface MatchResult {
 export interface RoastSection {
     score: string;
     feedback: string;
-    issues?: string;
-    missing_keywords?: string;
+    issues?: string | string[];
+    missing_keywords?: string | string[];
 }
 
 export interface RoastDetails {
     overall_feedback: string;
     summary: string;
     sections: Record<string, RoastSection>;
-    action_items: string[];
+    action_items: string[] | string;
 }
 
 export interface RoastResponse {
@@ -167,11 +167,11 @@ export async function apiGetRoast(
 
 export async function apiTranslateAnalysis(
     analysis_id: string,
-    language: string = "hinglish"
-): Promise<any> {
-    return request(`/analysis/${analysis_id}/translate`, {
+    target_language: string
+): Promise<RoastDetails> {
+    return request("/analysis/translate", {
         method: "POST",
-        body: JSON.stringify({ language }),
+        body: JSON.stringify({ analysis_id, target_language }),
     });
 }
 
@@ -221,7 +221,7 @@ export interface AnalysisHistoryItem {
     type: string;           // "job_match_score" | "general_roast"
     score: number | string | null;
     created_at: string;
-    output_data?: any;      // The full JSON result (e.g. sections, action_items)
+    output_data?: unknown;      // The full JSON result (e.g. sections, action_items)
 }
 
 export interface DashboardSummary {
@@ -236,4 +236,109 @@ export interface DashboardSummary {
 
 export async function apiGetDashboard(): Promise<DashboardSummary> {
     return request("/dashboard/summary");
+}
+
+// ── Resume list (for interview setup) ────────────────────────────────────────
+
+export interface ResumeListItem {
+    id: string;
+    file_url: string;
+    resume_quality_feedback: number;
+    created_at: string;
+}
+
+export async function apiListResumes(): Promise<ResumeListItem[]> {
+    return request("/resumes/");
+}
+
+// ── Interview types ──────────────────────────────────────────────────────────
+
+export interface InterviewQuestion {
+    id: number;
+    type: "theory" | "mcq" | "code";
+    text: string;
+    options?: string[];
+    context?: string;
+}
+
+export interface AnswerEvaluation {
+    score: number;
+    feedback: string;
+    ideal_answer: string;
+    time_complexity?: string;
+    space_complexity?: string;
+    code_quality?: string;
+}
+
+export interface InterviewBreakdownItem {
+    question: string;
+    type: string;
+    user_answer: string;
+    score: number;
+    feedback: string;
+    ideal_answer: string;
+    tc?: string;
+    sc?: string;
+    quality?: string;
+}
+
+export interface InterviewReport {
+    overall_score: number;
+    qualitative_score?: string;
+    breakdown: InterviewBreakdownItem[];
+}
+
+// ── Interview endpoints ───────────────────────────────────────────────────────
+// NOTE: The interview router is mounted at /api/v1/interview directly in main.py
+
+const INTERVIEW_BASE = "/api/v1/interview";
+
+async function interviewRequest<T>(
+    path: string,
+    options: RequestInit = {}
+): Promise<T> {
+    const res = await fetch(`${INTERVIEW_BASE}${path}`, {
+        ...options,
+        credentials: "include",
+        headers: {
+            "Content-Type": "application/json",
+            ...options.headers,
+        },
+    });
+
+    if (!res.ok) {
+        let detail = `HTTP ${res.status}`;
+        try {
+            const body = await res.json();
+            detail = body?.detail ?? detail;
+        } catch { /* ignore */ }
+        throw new Error(detail);
+    }
+
+    return res.json() as Promise<T>;
+}
+
+export async function apiStartInterview(
+    resume_id: string,
+    role: string,
+    experience_level: string
+): Promise<InterviewQuestion[]> {
+    return interviewRequest("/start", {
+        method: "POST",
+        body: JSON.stringify({ resume_id, role, experience_level }),
+    });
+}
+
+export async function apiSubmitAnswer(
+    question_id: number,
+    user_answer: string | null
+): Promise<AnswerEvaluation> {
+    return interviewRequest("/submit", {
+        method: "POST",
+        body: JSON.stringify({ question_id, user_answer }),
+    });
+}
+
+export async function apiEndInterview(): Promise<InterviewReport> {
+    return interviewRequest("/end", { method: "POST" });
 }
