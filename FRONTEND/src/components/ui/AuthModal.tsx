@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Loader2, X, Mail, Lock, User, ArrowRight, AlertTriangle } from "lucide-react";
+import { Loader2, X, Mail, Lock, User, ArrowRight, AlertTriangle, Chrome } from "lucide-react";
 
 interface AuthModalProps {
     /** Called when auth succeeds. Parent can close the modal or react. */
@@ -8,6 +8,7 @@ interface AuthModalProps {
     onClose?: () => void;
     login: (email: string, password: string) => Promise<boolean>;
     signup: (email: string, password: string, name?: string) => Promise<boolean>;
+    loginWithGoogle: () => Promise<boolean>;
     isSubmitting: boolean;
     error: string;
     clearError: () => void;
@@ -18,6 +19,7 @@ export function AuthModal({
     onClose,
     login,
     signup,
+    loginWithGoogle,
     isSubmitting,
     error,
     clearError,
@@ -28,7 +30,7 @@ export function AuthModal({
     const [name, setName] = useState("");
 
     // Clear error when switching modes or typing
-    useEffect(() => { clearError(); }, [mode]);
+    useEffect(() => { clearError(); }, [mode, clearError]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -81,6 +83,24 @@ export function AuthModal({
                     </div>
 
                     {/* Form */}
+                    <div className="space-y-4">
+                        <button
+                            type="button"
+                            onClick={loginWithGoogle}
+                            disabled={isSubmitting}
+                            className="w-full h-11 bg-background border border-border/50 text-foreground rounded-lg text-sm font-semibold hover:bg-secondary/40 transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Chrome className="w-4 h-4" />}
+                            Continue with Google
+                        </button>
+
+                        <div className="flex items-center gap-3">
+                            <div className="h-px flex-1 bg-border/40" />
+                            <span className="text-xs text-muted-foreground/60">or</span>
+                            <div className="h-px flex-1 bg-border/40" />
+                        </div>
+                    </div>
+
                     <form onSubmit={handleSubmit} className="space-y-4">
                         {/* Full name – signup only */}
                         {mode === "signup" && (

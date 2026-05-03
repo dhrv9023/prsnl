@@ -1,8 +1,10 @@
 # app/api/v1/endpoints/ai_analysis.py
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from app.api.dependencies import CurrentUser
+from app.core.config import settings
+from app.core.rate_limit import ats_rate_key, limiter
 from app.db.supabase import get_db
 from app.services.math_engine import ats_score
 from app.services.resume_analyzer import generate_resume_roast
@@ -13,7 +15,8 @@ router = APIRouter()
 
 
 @router.post("/match")
-async def ats_score_calculator(request: MatchRequest, user: CurrentUser):
+@limiter.limit(settings.RATE_LIMIT_ANALYSIS, key_func=ats_rate_key)
+async def ats_score_calculator(request: Request, body: MatchRequest, user: CurrentUser):
     """
     Calculates ATS match score between a resume and job description.
     Saves the result to ai_analyses history.
@@ -21,7 +24,7 @@ async def ats_score_calculator(request: MatchRequest, user: CurrentUser):
     supabase = await get_db()
     data = await supabase.table("resumes") \
         .select("parsed_content") \
-        .eq("id", request.resume_id) \
+        .eq("id", body.resume_id) \
         .eq("user_id", user.id).execute()
 
     if not data.data:
@@ -34,17 +37,17 @@ async def ats_score_calculator(request: MatchRequest, user: CurrentUser):
 
     # Run math engine (cosine similarity via HuggingFace embeddings)
     try:
-        match_result = await ats_score(resume_text, request.job_description)
+        match_result = await ats_score(resume_text, body.job_description)
     except Exception as e:
         logger.error("ATS scoring failed: %s", e)
         raise HTTPException(status_code=500, detail="Error calculating ATS score")
 
     # Save result to history
     analysis_record = {
-        "resume_id": request.resume_id,
+        "resume_id": body.resume_id,
         "analysis_type": "job_match_score",
         "output_data": {
-            "job_description_snippet": request.job_description[:100],
+            "job_description_snippet": body.job_description[:100],
             "score": match_result["score"],
             "details": match_result
         }
@@ -59,7 +62,8 @@ async def ats_score_calculator(request: MatchRequest, user: CurrentUser):
 
 
 @router.post("/roast")
-async def roast_resume(request: RoastRequest, user: CurrentUser):
+@limiter.limit(settings.RATE_LIMIT_ANALYSIS, key_func=ats_rate_key)
+async def roast_resume(request: Request, body: RoastRequest, user: CurrentUser):
     """
     Deep analysis (roast). Calculates ATS score first, then feeds it to the LLM
     for a comprehensive section-by-section breakdown.
@@ -68,7 +72,7 @@ async def roast_resume(request: RoastRequest, user: CurrentUser):
 
     data = await supabase.table("resumes") \
         .select("parsed_content") \
-        .eq("id", request.resume_id) \
+        .eq("id", body.resume_id) \
         .eq("user_id", user.id).execute()
 
     if not data.data:
@@ -77,20 +81,20 @@ async def roast_resume(request: RoastRequest, user: CurrentUser):
 
     # 1. Calculate base ATS score
     try:
-        match_result = await ats_score(resume_text, request.job_description)
+        match_result = await ats_score(resume_text, body.job_description)
         calculated_ats_score = match_result.get("score", 0)
     except Exception as e:
         logger.error("Math engine failed: %s", e)
         raise HTTPException(status_code=500, detail="Failed to calculate base ATS score")
 
     # 2. Pass score to LLM for deep analysis
-    ai_result = await generate_resume_roast(resume_text, request.job_description, calculated_ats_score)
+    ai_result = await generate_resume_roast(resume_text, body.job_description, calculated_ats_score)
     if not ai_result:
         raise HTTPException(status_code=502, detail="AI analysis failed")
 
     # 3. Save to DB
     analysis_record = {
-        "resume_id": request.resume_id,
+        "resume_id": body.resume_id,
         "analysis_type": "general_roast",
         "output_data": ai_result
     }
@@ -101,7 +105,7 @@ async def roast_resume(request: RoastRequest, user: CurrentUser):
         # Update the resume quality badge
         await supabase.table("resumes").update({
             "resume_quality_feedback": ai_result['overall_feedback']
-        }).eq("id", request.resume_id) \
+        }).eq("id", body.resume_id) \
             .eq("user_id", user.id).execute()
 
         return {

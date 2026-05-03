@@ -23,13 +23,8 @@ import {
   Settings,
   LogOut,
   ChevronDown,
+  ShieldCheck,
 } from "lucide-react";
-
-const navLinks = [
-  { name: "Home", href: "#" },
-  { name: "Pricing", href: "/pricing" },
-  { name: "Contact", href: "#contact" },
-];
 
 const features = [
   {
@@ -78,8 +73,8 @@ const features = [
     icon: PenTool,
     name: "Cover Letter Generator",
     description: "AI-crafted cover letters from your resume",
-    href: null,
-    active: false,
+    href: "/cover-letter",
+    active: true,
   },
   {
     icon: Sparkles,
@@ -359,6 +354,13 @@ export function Navbar() {
                         Dashboard
                       </button>
                       <button
+                        onClick={() => { setIsProfileOpen(false); navigate("/admin"); }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-secondary/40 transition-colors"
+                      >
+                        <ShieldCheck className="w-4 h-4" />
+                        Admin
+                      </button>
+                      <button
                         disabled
                         className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-muted-foreground/40 cursor-not-allowed"
                       >
@@ -476,6 +478,13 @@ export function Navbar() {
                   <span className="text-base font-medium">Dashboard</span>
                 </button>
                 <button
+                  onClick={() => { setIsMobileMenuOpen(false); navigate("/admin"); }}
+                  className="w-full flex items-center gap-3 py-2.5 px-1 text-left text-foreground transition-colors"
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                  <span className="text-base font-medium">Admin</span>
+                </button>
+                <button
                   onClick={handleLogout}
                   className="w-full flex items-center gap-3 py-2.5 px-1 text-left text-red-400/80 hover:text-red-400 transition-colors"
                 >
@@ -506,6 +515,7 @@ export function Navbar() {
           onClose={() => setShowAuthModal(false)}
           login={auth.login}
           signup={auth.signup}
+          loginWithGoogle={auth.loginWithGoogle}
           isSubmitting={auth.isSubmitting}
           error={auth.error}
           clearError={auth.clearError}

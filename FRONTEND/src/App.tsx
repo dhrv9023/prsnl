@@ -10,6 +10,9 @@ import PricingPage from "./pages/Pricing";
 import ResumeAnalysis from "./pages/ResumeAnalysis";
 import DashboardPage from "./pages/DashboardPage";
 import AIInterview from "./pages/AIInterview";
+import AuthCallback from "./pages/AuthCallback";
+import AdminPage from "./pages/AdminPage";
+import CoverLetter from "./pages/CoverLetter";
 
 const queryClient = new QueryClient();
 
@@ -24,8 +27,11 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/pricing" element={<PricingPage />} />
             <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/admin" element={<AdminPage />} />
             <Route path="/resume-analysis" element={<ResumeAnalysis />} />
             <Route path="/interview" element={<AIInterview />} />
+            <Route path="/cover-letter" element={<CoverLetter />} />
+            <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>

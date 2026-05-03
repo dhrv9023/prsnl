@@ -1,0 +1,350 @@
+import { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuthContext } from "@/contexts/AuthContext";
+import { Navbar } from "@/components/layout/Navbar";
+import {
+    AlertTriangle,
+    ArrowLeft,
+    CheckCircle2,
+    Download,
+    FileText,
+    Loader2,
+    PenTool,
+    Save,
+    Upload,
+} from "lucide-react";
+import {
+    apiGenerateCoverLetter,
+    apiListResumes,
+    apiSaveCoverLetterPdf,
+    apiUploadResume,
+    type ResumeListItem,
+} from "@/lib/api";
+
+const roleExamples = [
+    "Frontend Developer",
+    "Backend Engineer",
+    "Full Stack Developer",
+    "Data Analyst",
+    "Product Manager",
+    "ML Engineer",
+];
+
+function resumeName(fileUrl: string) {
+    const parts = fileUrl.split("/");
+    return (parts[parts.length - 1] || "Resume.pdf").replace(/^\d+_/, "");
+}
+
+export default function CoverLetter() {
+    const auth = useAuthContext();
+    const navigate = useNavigate();
+
+    const [resumes, setResumes] = useState<ResumeListItem[]>([]);
+    const [selectedResume, setSelectedResume] = useState("");
+    const [loadingResumes, setLoadingResumes] = useState(true);
+    const [uploading, setUploading] = useState(false);
+    const [generating, setGenerating] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [companyName, setCompanyName] = useState("");
+    const [jobTitle, setJobTitle] = useState("");
+    const [jobDescription, setJobDescription] = useState("");
+    const [letter, setLetter] = useState("");
+    const [applicationId, setApplicationId] = useState("");
+    const [savedPdfPath, setSavedPdfPath] = useState("");
+    const [error, setError] = useState("");
+    const [notice, setNotice] = useState("");
+
+    useEffect(() => {
+        if (!auth.isLoading && !auth.isAuthenticated) {
+            navigate("/", { replace: true });
+        }
+    }, [auth.isLoading, auth.isAuthenticated, navigate]);
+
+    useEffect(() => {
+        if (!auth.isAuthenticated) return;
+        setLoadingResumes(true);
+        apiListResumes()
+            .then((items) => {
+                setResumes(items);
+                if (items[0]?.id) setSelectedResume(items[0].id);
+            })
+            .catch((e) => setError(e.message || "Failed to load resumes."))
+            .finally(() => setLoadingResumes(false));
+    }, [auth.isAuthenticated]);
+
+    const canGenerate = useMemo(() => {
+        return Boolean(selectedResume && companyName.trim() && jobTitle.trim() && jobDescription.trim());
+    }, [selectedResume, companyName, jobTitle, jobDescription]);
+
+    async function handleUpload(file: File) {
+        setUploading(true);
+        setError("");
+        setNotice("");
+        try {
+            const uploaded = await apiUploadResume(file);
+            const refreshed = await apiListResumes();
+            setResumes(refreshed);
+            setSelectedResume(uploaded.id);
+            setNotice("Resume uploaded and selected.");
+        } catch (e: unknown) {
+            setError((e as Error).message || "Resume upload failed.");
+        } finally {
+            setUploading(false);
+        }
+    }
+
+    async function handleGenerate() {
+        if (!canGenerate) {
+            setError("Select a resume and fill company, role, and job description.");
+            return;
+        }
+        setGenerating(true);
+        setError("");
+        setNotice("");
+        setSavedPdfPath("");
+        try {
+            const result = await apiGenerateCoverLetter(
+                selectedResume,
+                jobDescription.trim(),
+                companyName.trim(),
+                jobTitle.trim()
+            );
+            setApplicationId(result.application_id);
+            setLetter(result.content);
+            setNotice("Cover letter generated. You can edit it before saving.");
+        } catch (e: unknown) {
+            setError((e as Error).message || "Cover letter generation failed.");
+        } finally {
+            setGenerating(false);
+        }
+    }
+
+    async function handleSavePdf() {
+        if (!applicationId || !letter.trim()) {
+            setError("Generate a cover letter before saving PDF.");
+            return;
+        }
+        setSaving(true);
+        setError("");
+        setNotice("");
+        try {
+            const result = await apiSaveCoverLetterPdf(applicationId, letter.trim());
+            setSavedPdfPath(result.pdf_url);
+            setNotice("PDF saved to Supabase storage.");
+        } catch (e: unknown) {
+            setError((e as Error).message || "Failed to save PDF.");
+        } finally {
+            setSaving(false);
+        }
+    }
+
+    function handleDownloadText() {
+        if (!letter.trim()) return;
+        const blob = new Blob([letter], { type: "text/plain;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        const safeCompany = companyName.trim().replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "") || "company";
+        anchor.href = url;
+        anchor.download = `${safeCompany}-cover-letter.txt`;
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+        URL.revokeObjectURL(url);
+    }
+
+    if (auth.isLoading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-background">
+                <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+            </div>
+        );
+    }
+
+    if (!auth.isAuthenticated) return null;
+
+    return (
+        <div className="min-h-screen bg-background text-foreground">
+            <Navbar />
+
+            <main className="pt-24 pb-16">
+                <div className="container max-w-7xl">
+                    <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                        <div>
+                            <Link
+                                to="/dashboard"
+                                className="mb-4 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                            >
+                                <ArrowLeft className="w-4 h-4" />
+                                Dashboard
+                            </Link>
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-lg bg-primary/10 border border-primary/15 flex items-center justify-center">
+                                    <PenTool className="w-5 h-5 text-primary" />
+                                </div>
+                                <div>
+                                    <h1 className="text-2xl font-bold tracking-tight">Cover Letter Generator</h1>
+                                    <p className="text-sm text-muted-foreground/70">
+                                        Generate, edit, and save a role-specific cover letter from your resume.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {error && (
+                        <div className="mb-5 flex items-start gap-3 rounded-lg border border-destructive/20 bg-destructive/10 p-4">
+                            <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-destructive" />
+                            <p className="text-sm text-destructive">{error}</p>
+                        </div>
+                    )}
+
+                    {notice && (
+                        <div className="mb-5 flex items-start gap-3 rounded-lg border border-emerald-400/20 bg-emerald-400/10 p-4">
+                            <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-300" />
+                            <p className="text-sm text-emerald-200">{notice}</p>
+                        </div>
+                    )}
+
+                    <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
+                        <aside className="space-y-4">
+                            <section className="rounded-lg border border-border/25 bg-card/60 p-5">
+                                <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground/50">Resume</p>
+                                <div className="mt-4 space-y-2">
+                                    {loadingResumes ? (
+                                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                            Loading resumes...
+                                        </div>
+                                    ) : resumes.length > 0 ? (
+                                        resumes.map((resume) => (
+                                            <button
+                                                key={resume.id}
+                                                onClick={() => setSelectedResume(resume.id)}
+                                                className={`w-full rounded-lg border px-3 py-3 text-left transition-colors ${selectedResume === resume.id
+                                                    ? "border-primary/50 bg-primary/10"
+                                                    : "border-border/25 bg-secondary/10 hover:bg-secondary/20"
+                                                    }`}
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    <FileText className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                                                    <span className="truncate text-sm font-medium">{resumeName(resume.file_url)}</span>
+                                                </div>
+                                            </button>
+                                        ))
+                                    ) : (
+                                        <p className="text-sm text-muted-foreground/70">Upload a resume PDF to begin.</p>
+                                    )}
+
+                                    <label className={`mt-3 flex h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-border/40 text-sm text-muted-foreground hover:bg-secondary/20 ${uploading ? "pointer-events-none opacity-60" : ""}`}>
+                                        {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                                        {uploading ? "Uploading..." : "Upload PDF"}
+                                        <input
+                                            type="file"
+                                            accept=".pdf,application/pdf"
+                                            className="hidden"
+                                            disabled={uploading}
+                                            onChange={(e) => {
+                                                const file = e.target.files?.[0];
+                                                if (file) handleUpload(file);
+                                                e.currentTarget.value = "";
+                                            }}
+                                        />
+                                    </label>
+                                </div>
+                            </section>
+
+                            <section className="rounded-lg border border-border/25 bg-card/60 p-5 space-y-4">
+                                <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground/50">Job Details</p>
+                                <div className="space-y-3">
+                                    <input
+                                        value={companyName}
+                                        onChange={(e) => setCompanyName(e.target.value)}
+                                        placeholder="Company name"
+                                        className="w-full rounded-lg border border-border/30 bg-secondary/20 px-3 py-2.5 text-sm outline-none focus:border-primary/40"
+                                    />
+                                    <input
+                                        value={jobTitle}
+                                        onChange={(e) => setJobTitle(e.target.value)}
+                                        placeholder="Job title"
+                                        className="w-full rounded-lg border border-border/30 bg-secondary/20 px-3 py-2.5 text-sm outline-none focus:border-primary/40"
+                                    />
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {roleExamples.map((role) => (
+                                            <button
+                                                key={role}
+                                                onClick={() => setJobTitle(role)}
+                                                className="rounded-md border border-border/25 px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-secondary/25"
+                                            >
+                                                {role}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <textarea
+                                        value={jobDescription}
+                                        onChange={(e) => setJobDescription(e.target.value)}
+                                        placeholder="Paste the job description here"
+                                        rows={10}
+                                        className="w-full resize-none rounded-lg border border-border/30 bg-secondary/20 px-3 py-2.5 text-sm leading-relaxed outline-none focus:border-primary/40"
+                                    />
+                                </div>
+
+                                <button
+                                    onClick={handleGenerate}
+                                    disabled={!canGenerate || generating}
+                                    className="flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-primary text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
+                                >
+                                    {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <PenTool className="h-4 w-4" />}
+                                    {generating ? "Generating..." : "Generate Cover Letter"}
+                                </button>
+                            </section>
+                        </aside>
+
+                        <section className="rounded-lg border border-border/25 bg-card/60 overflow-hidden">
+                            <div className="flex flex-col gap-3 border-b border-border/15 px-5 py-4 md:flex-row md:items-center md:justify-between">
+                                <div>
+                                    <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground/50">Draft</p>
+                                    <h2 className="text-lg font-semibold">Editable Cover Letter</h2>
+                                </div>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={handleDownloadText}
+                                        disabled={!letter.trim()}
+                                        className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-border/35 px-3 text-sm text-muted-foreground hover:text-foreground hover:bg-secondary/20 disabled:cursor-not-allowed disabled:opacity-40"
+                                    >
+                                        <Download className="h-4 w-4" />
+                                        Text
+                                    </button>
+                                    <button
+                                        onClick={handleSavePdf}
+                                        disabled={!letter.trim() || !applicationId || saving}
+                                        className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
+                                    >
+                                        {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                                        Save PDF
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="p-5">
+                                <textarea
+                                    value={letter}
+                                    onChange={(e) => setLetter(e.target.value)}
+                                    placeholder="Your generated cover letter will appear here."
+                                    rows={24}
+                                    className="min-h-[560px] w-full resize-none rounded-lg border border-border/25 bg-background/60 px-4 py-4 text-sm leading-7 text-foreground outline-none focus:border-primary/35"
+                                />
+
+                                {savedPdfPath && (
+                                    <div className="mt-4 rounded-lg border border-border/20 bg-secondary/15 p-3">
+                                        <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground/50">Saved PDF path</p>
+                                        <code className="mt-1 block break-all text-xs text-muted-foreground">{savedPdfPath}</code>
+                                    </div>
+                                )}
+                            </div>
+                        </section>
+                    </div>
+                </div>
+            </main>
+        </div>
+    );
+}

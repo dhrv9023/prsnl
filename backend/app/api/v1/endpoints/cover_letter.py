@@ -3,13 +3,15 @@ import io
 import logging
 import time
 
-from fastapi import HTTPException, APIRouter
+from fastapi import HTTPException, APIRouter, Request
 from reportlab.lib.pagesizes import A4
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch
 
 from app.api.dependencies import CurrentUser
+from app.core.config import settings
+from app.core.rate_limit import ats_rate_key, limiter
 from app.db.supabase import get_db
 from app.services.cover_letter_gen import cover_letter_generator
 from app.schemas.models import CoverLetterRequest, SavePDFRequest
@@ -45,13 +47,14 @@ def create_pdf(text: str) -> bytes:
 
 
 @router.post("/generate")
-async def create_cover_letter(request: CoverLetterRequest, user: CurrentUser):
+@limiter.limit(settings.RATE_LIMIT_COVER_LETTER, key_func=ats_rate_key)
+async def create_cover_letter(request: Request, body: CoverLetterRequest, user: CurrentUser):
     """Step 1: AI generates a cover letter text draft."""
     supabase = await get_db()
 
     res_data = await supabase.table("resumes") \
         .select("parsed_content") \
-        .eq("id", request.resume_id) \
+        .eq("id", body.resume_id) \
         .eq("user_id", user.id).execute()
 
     if not res_data.data:
@@ -59,16 +62,16 @@ async def create_cover_letter(request: CoverLetterRequest, user: CurrentUser):
 
     resume_text = res_data.data[0]['parsed_content']['raw_text']
 
-    cover_letter_content = await cover_letter_generator(resume_text, request.job_description)
+    cover_letter_content = await cover_letter_generator(resume_text, body.job_description)
     if not cover_letter_content:
         raise HTTPException(502, "AI failed to generate text")
 
     app_data = {
         "user_id": user.id,
-        "resume_id": request.resume_id,
-        "company_name": request.company_name,
-        "job_title": request.job_title,
-        "job_description": request.job_description,
+        "resume_id": body.resume_id,
+        "company_name": body.company_name,
+        "job_title": body.job_title,
+        "job_description": body.job_description,
         "status": "draft",
         "cover_letter_content": cover_letter_content
     }
@@ -86,20 +89,21 @@ async def create_cover_letter(request: CoverLetterRequest, user: CurrentUser):
 
 
 @router.post("/save_pdf")
-async def save_cover_letter_pdf(request: SavePDFRequest, user: CurrentUser):
+@limiter.limit(settings.RATE_LIMIT_COVER_LETTER, key_func=ats_rate_key)
+async def save_cover_letter_pdf(request: Request, body: SavePDFRequest, user: CurrentUser):
     """Step 2: Convert final text to PDF → Upload to Storage → Link in DB."""
     supabase = await get_db()
 
     # Verify ownership before allowing the update
     verify = await supabase.table("job_applications").select("id") \
-        .eq("id", request.application_id) \
+        .eq("id", body.application_id) \
         .eq("user_id", user.id).execute()
     if not verify.data:
         raise HTTPException(403, "You don't have permission to update this application.")
 
     # Generate PDF
     try:
-        pdf_bytes = create_pdf(request.final_text)
+        pdf_bytes = create_pdf(body.final_text)
     except Exception as e:
         raise HTTPException(500, detail=f"PDF Generation failed: {e}")
 
@@ -117,7 +121,7 @@ async def save_cover_letter_pdf(request: SavePDFRequest, user: CurrentUser):
     # Update database record
     await supabase.table("job_applications").update({
         "cover_letter_file_url": filename
-    }).eq("id", request.application_id) \
+    }).eq("id", body.application_id) \
         .eq("user_id", user.id).execute()
 
     return {"msg": "PDF Saved successfully", "pdf_url": filename}

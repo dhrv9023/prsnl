@@ -2,11 +2,14 @@
 import io
 import logging
 import time
+from pathlib import Path
 
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Request
 from pypdf import PdfReader
 
 from app.api.dependencies import CurrentUser
+from app.core.config import settings
+from app.core.rate_limit import ats_rate_key, limiter
 from app.db.supabase import get_db
 
 logger = logging.getLogger(__name__)
@@ -14,15 +17,27 @@ router = APIRouter()
 
 
 @router.post("/upload")
-async def upload_resume(user: CurrentUser, file: UploadFile = File(...)):
+@limiter.limit(settings.RATE_LIMIT_UPLOAD, key_func=ats_rate_key)
+async def upload_resume(request: Request, user: CurrentUser, file: UploadFile = File(...)):
     supabase = await get_db()
 
     # 1. Validate file type
     if file.content_type != "application/pdf":
         raise HTTPException(status_code=400, detail="Only PDF files are allowed")
+    content_length = request.headers.get("content-length")
+    if content_length:
+        try:
+            if int(content_length) > settings.MAX_UPLOAD_BYTES:
+                raise HTTPException(status_code=413, detail="PDF must be 5MB or smaller")
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid Content-Length header")
 
     # 2. Read file content into memory
     file_content = await file.read()
+    if len(file_content) > settings.MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="PDF must be 5MB or smaller")
+    if not file_content.startswith(b"%PDF-"):
+        raise HTTPException(status_code=400, detail="Uploaded file is not a valid PDF")
 
     # 3. Extract text using pypdf
     try:
@@ -38,7 +53,8 @@ async def upload_resume(user: CurrentUser, file: UploadFile = File(...)):
 
     # 4. Upload to Supabase Storage with unique filename
     timestamp = int(time.time())
-    unique_filename = f"{timestamp}_{file.filename}"
+    safe_name = Path(file.filename or "resume.pdf").name.replace("/", "_").replace("\\", "_")
+    unique_filename = f"{timestamp}_{safe_name}"
     file_path = f"{user.id}/{unique_filename}"
     try:
         await supabase.storage.from_("Resumes").upload(

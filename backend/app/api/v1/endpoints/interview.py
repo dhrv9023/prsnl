@@ -1,9 +1,11 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from typing import List, Dict, Any
 
 from app.api.dependencies import CurrentUser
+from app.core.config import settings
+from app.core.rate_limit import ats_rate_key, limiter
 from app.db.supabase import get_db
-from app.db.redis_client import save_session, load_session, delete_session, refresh_session_ttl
+from app.db.redis_client import save_session, load_session, delete_session
 from app.schemas.models import (
     StartInterviewRequest,
     InterviewQuestion,
@@ -28,8 +30,10 @@ router = APIRouter()
 
 
 @router.post("/start")
+@limiter.limit(settings.RATE_LIMIT_INTERVIEW, key_func=ats_rate_key)
 async def start_interview_route(
-    request: StartInterviewRequest,
+    request: Request,
+    body: StartInterviewRequest,
     user: CurrentUser,
 ) -> List[InterviewQuestion]:
     user_id_str = str(user.id)
@@ -38,7 +42,7 @@ async def start_interview_route(
     supabase = await get_db()
     res_data = await supabase.table("resumes")\
         .select("parsed_content")\
-        .eq("id", request.resume_id)\
+        .eq("id", body.resume_id)\
         .eq("user_id", user_id_str)\
         .execute()
 
@@ -54,15 +58,15 @@ async def start_interview_route(
     # 2. Setup Session State
     session = InterviewSession(
         resume_text=resume_text,
-        role=request.role,
-        experience_level=request.experience_level,
+        role=body.role,
+        experience_level=body.experience_level,
     )
 
     # 3. Request AI Generation
     try:
         questions = await generate_questions(
-            role=request.role,
-            experience_level=request.experience_level,
+            role=body.role,
+            experience_level=body.experience_level,
             resume_text=resume_text
         )
     except ValueError as e:
@@ -77,7 +81,9 @@ async def start_interview_route(
 
 
 @router.post("/submit")
+@limiter.limit(settings.RATE_LIMIT_INTERVIEW, key_func=ats_rate_key)
 async def submit_answer_route(
+    request: Request,
     data: AnswerSubmission,
     user: CurrentUser,
 ) -> AnswerEvaluation:
@@ -118,7 +124,8 @@ async def submit_answer_route(
 
 
 @router.post("/end")
-async def end_interview_route(user: CurrentUser) -> InterviewReport:
+@limiter.limit(settings.RATE_LIMIT_INTERVIEW, key_func=ats_rate_key)
+async def end_interview_route(request: Request, user: CurrentUser) -> InterviewReport:
     user_id_str = str(user.id)
 
     # Load from Redis

@@ -78,6 +78,16 @@ export async function apiGetMe(): Promise<AuthMeResponse> {
     return request("/auth/me");
 }
 
+export async function apiExchangeOAuthSession(
+    code: string,
+    code_verifier: string
+): Promise<{ msg: string; user: AuthUser }> {
+    return request("/auth/oauth/session", {
+        method: "POST",
+        body: JSON.stringify({ code, code_verifier }),
+    });
+}
+
 // ── Resume types ─────────────────────────────────────────────────────────────
 
 export interface UploadResumeResponse {

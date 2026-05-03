@@ -1,8 +1,13 @@
 import logging
-from fastapi import FastAPI, APIRouter
+from fastapi import Depends, FastAPI, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+
 from app.core.config import settings
-from app.api.v1.endpoints import ai_analysis, auth, resumes, cover_letter, interview, dashboard
+from app.core.csrf import csrf_protect
+from app.core.rate_limit import limiter
+from app.api.v1.endpoints import ai_analysis, ats_score, auth, resumes, cover_letter, interview, dashboard
 
 # ── Logging Setup ─────────────────────────────────────────────────────────────
 # All backend modules should use `logging.getLogger(__name__)` instead of print()
@@ -18,7 +23,10 @@ logger = logging.getLogger("kareerist")
 app = FastAPI(
     title=settings.PROJECT_NAME,
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
+    dependencies=[Depends(csrf_protect)],
 )
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # ── Routes ────────────────────────────────────────────────────────────────────
 
@@ -31,6 +39,7 @@ api_router.include_router(dashboard.router, prefix="/dashboard", tags=["Dashboar
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
 app.include_router(interview.router, prefix="/api/v1/interview", tags=["AI Interview"])
+app.include_router(ats_score.router, prefix="/api/ats", tags=["ATS Resume Analyzer"])
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
 

@@ -2,6 +2,7 @@
 import logging
 from typing import Annotated
 from fastapi import Depends, HTTPException, status, Request
+from app.core.config import settings
 from app.db.supabase import get_db
 
 logger = logging.getLogger(__name__)
@@ -12,7 +13,7 @@ async def get_current_user(request: Request):
     Dependency: Extracts the JWT from the HttpOnly cookie
     and verifies it with Supabase.
     """
-    token = request.cookies.get("access_token")
+    token = request.cookies.get(settings.AUTH_ACCESS_COOKIE_NAME)
     supabase = await get_db()
 
     if not token:

@@ -1,14 +1,26 @@
 # app/api/v1/endpoints/auth.py
 import logging
-from fastapi import APIRouter, HTTPException, Response
-from pydantic import BaseModel, EmailStr
-from app.db.supabase import get_db
+from fastapi import APIRouter, HTTPException, Response, Request
+from pydantic import BaseModel, EmailStr, Field
+from app.db.supabase import get_db, get_supabase_anon
 from app.api.dependencies import CurrentUser
 from app.core.config import settings
+from app.core.auth_cookies import clear_session_cookies, set_session_cookies
+from app.core.rate_limit import limiter
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+# Phase 5 — HttpOnly cookies only (no localStorage): access + refresh JWTs.
+#
+# Email/password: POST /login sets cookies.
+# OAuth (Google, etc.): use Supabase PKCE from the SPA, then POST the `code` + `code_verifier`
+# from the callback URL to /oauth/session so the backend can exchange and set the same cookies.
+# Requires SUPABASE_ANON_KEY on the server for exchange_code_for_session.
+#
+# Dashboard: enable provider + redirect URLs (Auth → URL configuration). public.profiles sync
+# applies to all signups (Phase 4 trigger).
 
 
 class UserAuth(BaseModel):
@@ -18,7 +30,8 @@ class UserAuth(BaseModel):
 
 
 @router.post("/signup")
-async def sign_up(user_data: UserAuth):
+@limiter.limit(settings.RATE_LIMIT_AUTH)
+async def sign_up(request: Request, user_data: UserAuth):
     try:
         supabase = await get_db()
         response = await supabase.auth.sign_up({
@@ -38,9 +51,10 @@ async def sign_up(user_data: UserAuth):
 
 
 @router.post("/login")
-async def login(user_data: UserAuth, response: Response):
+@limiter.limit(settings.RATE_LIMIT_AUTH)
+async def login(request: Request, user_data: UserAuth, response: Response):
     """
-    Logs in and sets a secure HttpOnly cookie.
+    Logs in and sets HttpOnly access + refresh cookies (no tokens in JSON).
     """
     supabase = await get_db()
     try:
@@ -49,16 +63,10 @@ async def login(user_data: UserAuth, response: Response):
             "password": user_data.password
         })
 
-        access_token = supa_response.session.access_token
-
-        response.set_cookie(
-            key="access_token",
-            value=f"Bearer {access_token}",
-            httponly=True,
-            max_age=60 * 60 * 24 * 7,  # 7 days
-            samesite="lax",
-            secure=settings.COOKIE_SECURE,  # Reads from .env — True in production (HTTPS)
-        )
+        sess = supa_response.session
+        if not sess:
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+        set_session_cookies(response, sess.access_token, getattr(sess, "refresh_token", None))
 
         return {
             "msg": "Login successful",
@@ -68,27 +76,108 @@ async def login(user_data: UserAuth, response: Response):
             }
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.warning("Login failed for %s: %s", user_data.email, e)
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
 
+class OAuthSessionExchange(BaseModel):
+    """PKCE callback payload from the SPA (query `code` + stored `code_verifier`)."""
+
+    code: str = Field(..., min_length=8)
+    code_verifier: str = Field(..., min_length=8)
+
+
+@router.post("/oauth/session")
+@limiter.limit(settings.RATE_LIMIT_AUTH)
+async def oauth_exchange_session(request: Request, body: OAuthSessionExchange, response: Response):
+    """
+    Exchange Supabase OAuth PKCE `code` for a session and mirror it into HttpOnly cookies.
+    Call this once from your OAuth redirect page; do not persist tokens in localStorage.
+    """
+    anon = await get_supabase_anon()
+    if anon is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Server missing SUPABASE_ANON_KEY; cannot complete OAuth exchange.",
+        )
+    try:
+        exchanged = await anon.auth.exchange_code_for_session({
+            "auth_code": body.code,
+            "code_verifier": body.code_verifier,
+        })
+    except Exception as e:
+        logger.warning("OAuth code exchange failed: %s", e)
+        raise HTTPException(status_code=401, detail="Invalid or expired OAuth code")
+
+    sess = exchanged.session
+    user = exchanged.user
+    if not sess or not user:
+        raise HTTPException(status_code=401, detail="OAuth exchange returned no session")
+
+    set_session_cookies(response, sess.access_token, getattr(sess, "refresh_token", None))
+    return {
+        "msg": "Session established",
+        "user": {"id": user.id, "email": user.email},
+    }
+
+
+@router.post("/refresh")
+@limiter.limit(settings.RATE_LIMIT_AUTH)
+async def refresh_session(request: Request, response: Response):
+    """
+    Rotate access (and refresh) tokens using the HttpOnly refresh cookie.
+    """
+    raw = request.cookies.get(settings.AUTH_REFRESH_COOKIE_NAME)
+    if not raw:
+        raise HTTPException(status_code=401, detail="No refresh token")
+
+    supabase = await get_db()
+    try:
+        refreshed = await supabase.auth.refresh_session(raw)
+    except Exception as e:
+        logger.warning("Refresh failed: %s", e)
+        clear_session_cookies(response)
+        raise HTTPException(status_code=401, detail="Refresh token invalid or expired")
+
+    sess = refreshed.session
+    if not sess:
+        clear_session_cookies(response)
+        raise HTTPException(status_code=401, detail="No session after refresh")
+
+    set_session_cookies(response, sess.access_token, getattr(sess, "refresh_token", None))
+    return {"msg": "Session refreshed"}
+
+
 @router.post("/logout")
-def logout(response: Response):
-    """
-    Clears the cookie to log the user out.
-    """
-    response.delete_cookie("access_token")
+async def logout(response: Response):
+    """Clears HttpOnly access + refresh cookies (client session ends here)."""
+    clear_session_cookies(response)
     return {"msg": "Logged out successfully"}
 
 
 @router.get("/me")
-def get_current_user_profile(user: CurrentUser):
+async def get_current_user_profile(user: CurrentUser):
     """
-    Protected Route: Only accessible if you have a valid HttpOnly cookie.
+    Protected route: valid HttpOnly session cookie.
+    Includes `profile` from public.profiles when the Phase 4 migration has been applied.
     """
+    supabase = await get_db()
+    profile = None
+    try:
+        uid = getattr(user, "id", None)
+        if uid is not None:
+            res = await supabase.table("profiles").select("*").eq("id", str(uid)).limit(1).execute()
+            if res.data:
+                profile = res.data[0]
+    except Exception as e:
+        logger.warning("Could not load public.profiles for /me: %s", e)
+
     return {
-        "id": user.id,
-        "email": user.email,
-        "msg": "You are fully authenticated!"
+        "id": getattr(user, "id", None),
+        "email": getattr(user, "email", None),
+        "profile": profile,
+        "msg": "You are fully authenticated!",
     }
