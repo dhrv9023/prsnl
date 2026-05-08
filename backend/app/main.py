@@ -1,11 +1,15 @@
 import logging
-from fastapi import Depends, FastAPI, APIRouter
+import os
+
+from fastapi import FastAPI, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request as StarletteRequest
+from starlette.responses import Response
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from app.core.config import settings
-from app.core.csrf import csrf_protect
 from app.core.rate_limit import limiter
 from app.api.v1.endpoints import ai_analysis, ats_score, auth, resumes, cover_letter, interview, dashboard
 
@@ -18,12 +22,62 @@ logging.basicConfig(
 )
 logger = logging.getLogger("kareerist")
 
+# ── Security Headers Middleware ───────────────────────────────────────────────
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Adds standard security headers to every response."""
+
+    async def dispatch(self, request: StarletteRequest, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'none'; "
+            "frame-ancestors 'none';"
+        )
+        # HSTS — only meaningful over HTTPS; skip for plain HTTP dev server
+        if request.url.scheme == "https":
+            response.headers["Strict-Transport-Security"] = (
+                "max-age=31536000; includeSubDomains; preload"
+            )
+        return response
+
+
+_MAX_JSON_BODY = 1 * 1024 * 1024  # 1 MB — stops oversized JSON payloads on non-upload routes
+
+
+class BodySizeLimitMiddleware(BaseHTTPMiddleware):
+    """Rejects requests whose Content-Length exceeds 1 MB for non-file routes."""
+
+    _UPLOAD_PATHS = {"/api/v1/resumes/upload"}
+
+    async def dispatch(self, request: StarletteRequest, call_next) -> Response:
+        if request.url.path not in self._UPLOAD_PATHS:
+            cl = request.headers.get("content-length")
+            if cl and int(cl) > _MAX_JSON_BODY:
+                return Response(
+                    content='{"detail":"Request body too large"}',
+                    status_code=413,
+                    media_type="application/json",
+                )
+        return await call_next(request)
+
+
 # ── FastAPI App ───────────────────────────────────────────────────────────────
+
+_is_prod = settings.ENVIRONMENT == "production"
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
-    openapi_url=f"{settings.API_V1_STR}/openapi.json",
-    dependencies=[Depends(csrf_protect)],
+    openapi_url=None if _is_prod else f"{settings.API_V1_STR}/openapi.json",
+    docs_url=None if _is_prod else "/docs",
+    redoc_url=None if _is_prod else "/redoc",
+    # CSRF is handled by SameSite=Lax cookies (set in auth endpoints).
+    # A custom origin-check middleware is redundant and breaks Vite proxy setups.
 )
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -49,9 +103,13 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
 )
+
+# Security headers — added AFTER CORSMiddleware so it wraps all responses
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(BodySizeLimitMiddleware)
 
 # ── Health & Root ─────────────────────────────────────────────────────────────
 

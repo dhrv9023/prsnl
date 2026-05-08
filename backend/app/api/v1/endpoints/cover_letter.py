@@ -14,7 +14,8 @@ from app.core.config import settings
 from app.core.rate_limit import ats_rate_key, limiter
 from app.db.supabase import get_db
 from app.services.cover_letter_gen import cover_letter_generator
-from app.schemas.models import CoverLetterRequest, SavePDFRequest
+from app.services.humanizer import humanize_text
+from app.schemas.models import CoverLetterRequest, HumanizeRequest, SavePDFRequest
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -79,7 +80,8 @@ async def create_cover_letter(request: Request, body: CoverLetterRequest, user: 
     try:
         result = await supabase.table("job_applications").insert(app_data).execute()
     except Exception as e:
-        raise HTTPException(400, detail=f"Database Insert Error: {str(e)}")
+        logger.error("Cover letter DB insert failed for user %s: %s", user.id, e)
+        raise HTTPException(400, detail="An internal error occurred while saving the record.")
 
     return {
         "msg": "Cover Letter Generated",
@@ -105,7 +107,8 @@ async def save_cover_letter_pdf(request: Request, body: SavePDFRequest, user: Cu
     try:
         pdf_bytes = create_pdf(body.final_text)
     except Exception as e:
-        raise HTTPException(500, detail=f"PDF Generation failed: {e}")
+        logger.error("PDF generation failed for user %s: %s", user.id, e)
+        raise HTTPException(500, detail="An internal error occurred during PDF generation.")
 
     # Upload to Supabase Storage
     filename = f"{user.id}/cover_letters/{int(time.time())}_cl.pdf"
@@ -116,7 +119,8 @@ async def save_cover_letter_pdf(request: Request, body: SavePDFRequest, user: Cu
             file_options={"content-type": "application/pdf"}
         )
     except Exception as e:
-        raise HTTPException(500, detail=f"Storage Upload failed: {e}")
+        logger.error("Cover letter storage upload failed for user %s: %s", user.id, e)
+        raise HTTPException(500, detail="An internal error occurred while storing the file.")
 
     # Update database record
     await supabase.table("job_applications").update({
@@ -144,3 +148,19 @@ async def get_application(app_id: str, user: CurrentUser):
     if not res.data:
         raise HTTPException(404, "Not found")
     return res.data[0]
+
+
+@router.post("/humanize")
+@limiter.limit("5/hour", key_func=ats_rate_key)
+async def humanize_cover_letter(request: Request, body: HumanizeRequest, user: CurrentUser):
+    """Rewrites an AI-generated cover letter to sound more natural and human."""
+    if not body.text or len(body.text.strip()) < 50:
+        raise HTTPException(400, "Cover letter text is too short to humanize.")
+    if len(body.text) > 5000:
+        raise HTTPException(400, "Cover letter text exceeds maximum length.")
+
+    result = await humanize_text(body.text)
+    if not result:
+        raise HTTPException(502, "AI failed to humanize the text. Please try again.")
+
+    return {"humanized_text": result}

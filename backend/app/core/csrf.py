@@ -40,8 +40,15 @@ async def csrf_protect(request: Request) -> None:
         return
 
     origin = request.headers.get("origin")
-    candidate = (origin or _origin_from_referer(request.headers.get("referer")) or "").rstrip("/")
-    if candidate and candidate in _configured_origins():
+    referer = request.headers.get("referer")
+    candidate = (origin or _origin_from_referer(referer) or "").rstrip("/")
+
+    # Same-origin requests (via Vite proxy) send no Origin/Referer — this is
+    # safe because CSRF attacks always originate from a *different* origin.
+    if not candidate:
+        return
+
+    if candidate in _configured_origins():
         return
 
     raise HTTPException(

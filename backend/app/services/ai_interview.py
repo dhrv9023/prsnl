@@ -66,6 +66,7 @@ async def generate_questions(role: str, experience_level: str, resume_text: str)
             model="llama-3.3-70b-versatile",
             messages=[{"role": "user", "content": prompt}],
             response_format={"type": "json_object"},
+            timeout=30,
         )
         data = json.loads(completion.choices[0].message.content)
 
@@ -125,6 +126,7 @@ async def evaluate_single_answer(role: str, question: InterviewQuestion, user_an
             model="llama-3.3-70b-versatile",
             messages=[{"role": "user", "content": prompt}],
             response_format={"type": "json_object"},
+            timeout=30,
         )
 
         eval_data = json.loads(completion.choices[0].message.content)

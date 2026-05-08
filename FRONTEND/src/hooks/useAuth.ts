@@ -11,6 +11,7 @@ import { SUPABASE_CODE_VERIFIER_KEY, isSupabaseOAuthConfigured, supabase } from 
 
 interface AuthState {
     user: AuthUser | null;
+    isAdmin: boolean;
     isLoading: boolean;      // true while the initial /auth/me check is in-flight
     isSubmitting: boolean;   // true during login/signup actions
     error: string;
@@ -25,6 +26,7 @@ function extractError(e: unknown, fallback: string): string {
 export function useAuth() {
     const [state, setState] = useState<AuthState>({
         user: null,
+        isAdmin: false,
         isLoading: true,
         isSubmitting: false,
         error: "",
@@ -33,8 +35,8 @@ export function useAuth() {
     // ── On mount: check if a valid session cookie already exists ─────────────
     useEffect(() => {
         apiGetMe()
-            .then((me) => setState({ user: { id: me.id, email: me.email }, isLoading: false, isSubmitting: false, error: "" }))
-            .catch(() => setState({ user: null, isLoading: false, isSubmitting: false, error: "" }));
+            .then((me) => setState({ user: { id: me.id, email: me.email }, isAdmin: me.is_admin ?? false, isLoading: false, isSubmitting: false, error: "" }))
+            .catch(() => setState({ user: null, isAdmin: false, isLoading: false, isSubmitting: false, error: "" }));
     }, []);
 
     // ── Login ────────────────────────────────────────────────────────────────
@@ -42,7 +44,7 @@ export function useAuth() {
         setState((s) => ({ ...s, isSubmitting: true, error: "" }));
         try {
             const res = await apiLogin(email, password);
-            setState({ user: res.user, isLoading: false, isSubmitting: false, error: "" });
+            setState({ user: res.user, isAdmin: false, isLoading: false, isSubmitting: false, error: "" });
             return true;
         } catch (e: unknown) {
             const msg = extractError(e, "Invalid email or password. Please try again.");
@@ -58,7 +60,7 @@ export function useAuth() {
             await apiSignup(email, password, name);
             // Auto-login after successful signup
             const res = await apiLogin(email, password);
-            setState({ user: res.user, isLoading: false, isSubmitting: false, error: "" });
+            setState({ user: res.user, isAdmin: false, isLoading: false, isSubmitting: false, error: "" });
             return true;
         } catch (e: unknown) {
             const msg = extractError(e, "Signup failed. Please try again.");
@@ -100,24 +102,36 @@ export function useAuth() {
     const completeOAuthLogin = useCallback(async (code: string) => {
         setState((s) => ({ ...s, isSubmitting: true, error: "" }));
         try {
-            const verifier = window.localStorage.getItem(SUPABASE_CODE_VERIFIER_KEY);
+            let verifier = window.localStorage.getItem(SUPABASE_CODE_VERIFIER_KEY);
             if (!verifier) throw new Error("OAuth verifier missing. Please try Google sign-in again.");
+
+            // Remove quotes if supabase-js stringified it
+            verifier = verifier.replace(/^"|"$/g, "");
 
             const res = await apiExchangeOAuthSession(code, verifier);
             window.localStorage.removeItem(SUPABASE_CODE_VERIFIER_KEY);
-            setState({ user: res.user, isLoading: false, isSubmitting: false, error: "" });
+            setState({ user: res.user, isAdmin: false, isLoading: false, isSubmitting: false, error: "" });
             return true;
         } catch (e: unknown) {
             const msg = extractError(e, "Google sign-in failed. Please try again.");
-            setState({ user: null, isLoading: false, isSubmitting: false, error: msg });
+            setState({ user: null, isAdmin: false, isLoading: false, isSubmitting: false, error: msg });
             return false;
         }
+    }, []);
+
+    /**
+     * Directly set the authenticated user (used by AuthCallback after
+     * a successful exchangeWithRetry so we don't re-call the backend
+     * with an already-consumed OAuth code).
+     */
+    const setAuthUser = useCallback((user: AuthUser) => {
+        setState({ user, isAdmin: false, isLoading: false, isSubmitting: false, error: "" });
     }, []);
 
     // ── Logout ───────────────────────────────────────────────────────────────
     const logout = useCallback(async () => {
         await apiLogout().catch(() => { });
-        setState({ user: null, isLoading: false, isSubmitting: false, error: "" });
+        setState({ user: null, isAdmin: false, isLoading: false, isSubmitting: false, error: "" });
     }, []);
 
     // ── Clear error helper ────────────────────────────────────────────────────
@@ -127,6 +141,7 @@ export function useAuth() {
 
     return {
         user: state.user,
+        isAdmin: state.isAdmin,
         isLoading: state.isLoading,
         isSubmitting: state.isSubmitting,
         error: state.error,
@@ -135,6 +150,7 @@ export function useAuth() {
         signup,
         loginWithGoogle,
         completeOAuthLogin,
+        setAuthUser,
         logout,
         clearError,
     };

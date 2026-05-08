@@ -1,7 +1,9 @@
 # app/api/v1/endpoints/auth.py
 import logging
+import re
+
 from fastapi import APIRouter, HTTPException, Response, Request
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from app.db.supabase import get_db, get_supabase_anon
 from app.api.dependencies import CurrentUser
 from app.core.config import settings
@@ -25,8 +27,19 @@ router = APIRouter()
 
 class UserAuth(BaseModel):
     email: EmailStr
-    password: str
+    password: str = Field(..., min_length=8)
     full_name: str | None = None
+
+    @field_validator("password")
+    @classmethod
+    def password_strength(cls, v: str) -> str:
+        if not re.search(r"[A-Z]", v):
+            raise ValueError("Password must contain at least one uppercase letter.")
+        if not re.search(r"[a-z]", v):
+            raise ValueError("Password must contain at least one lowercase letter.")
+        if not re.search(r"\d", v):
+            raise ValueError("Password must contain at least one digit.")
+        return v
 
 
 @router.post("/signup")
@@ -47,7 +60,10 @@ async def sign_up(request: Request, user_data: UserAuth):
 
     except Exception as e:
         logger.warning("Signup failed: %s", e)
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(
+            status_code=400,
+            detail="Registration failed. The email address may already be in use or is invalid.",
+        )
 
 
 @router.post("/login")
@@ -153,7 +169,13 @@ async def refresh_session(request: Request, response: Response):
 
 @router.post("/logout")
 async def logout(response: Response):
-    """Clears HttpOnly access + refresh cookies (client session ends here)."""
+    """Invalidates the server-side session and clears HttpOnly cookies."""
+    # Invalidate the JWT on Supabase's side so stolen tokens stop working
+    try:
+        supabase = await get_db()
+        await supabase.auth.sign_out()
+    except Exception as e:
+        logger.warning("Server-side sign-out failed (cookies will still be cleared): %s", e)
     clear_session_cookies(response)
     return {"msg": "Logged out successfully"}
 
@@ -163,15 +185,18 @@ async def get_current_user_profile(user: CurrentUser):
     """
     Protected route: valid HttpOnly session cookie.
     Includes `profile` from public.profiles when the Phase 4 migration has been applied.
+    Returns `is_admin: bool` so the frontend can enforce role-based access.
     """
     supabase = await get_db()
     profile = None
+    is_admin = False
     try:
         uid = getattr(user, "id", None)
         if uid is not None:
             res = await supabase.table("profiles").select("*").eq("id", str(uid)).limit(1).execute()
             if res.data:
                 profile = res.data[0]
+                is_admin = bool(profile.get("is_admin", False))
     except Exception as e:
         logger.warning("Could not load public.profiles for /me: %s", e)
 
@@ -179,5 +204,6 @@ async def get_current_user_profile(user: CurrentUser):
         "id": getattr(user, "id", None),
         "email": getattr(user, "email", None),
         "profile": profile,
+        "is_admin": is_admin,
         "msg": "You are fully authenticated!",
     }

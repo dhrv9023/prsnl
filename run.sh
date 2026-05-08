@@ -62,9 +62,17 @@ cd "$ROOT_DIR/backend"
 
 if [ ! -d ".venv" ]; then
     echo "   [setup] Creating virtual environment..."
-    python3 -m venv .venv
+    if ! python3 -m venv .venv; then
+        echo -e "   ${RED}[error] Virtual environment creation failed.${NC}"
+        echo -e "   ${YELLOW}Please follow the instructions above (e.g., run 'sudo apt install python3-venv').${NC}"
+        rm -rf .venv
+        exit 1
+    fi
     echo "   [setup] Installing dependencies..."
-    .venv/bin/pip install -r requirements.txt -q
+    if ! .venv/bin/pip install -r requirements.txt -q; then
+        echo -e "   ${RED}[error] Failed to install backend dependencies.${NC}"
+        exit 1
+    fi
 else
     # Ensure redis Python package is installed in the venv
     if ! .venv/bin/python3 -c "import redis" &>/dev/null; then
@@ -74,7 +82,33 @@ else
 fi
 
 echo "   [ok] Starting FastAPI server..."
-.venv/bin/python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload &
+# setsid creates a new process group so the backend survives shell transitions on WSL.
+# --no-reload is already the default (no flag needed); output to backend.log for post-mortem.
+setsid .venv/bin/python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000 > backend.log 2>&1 &
+BACKEND_PID=$!
+
+# Give the backend enough time to fully initialise (Supabase + Redis client setup can take a few seconds)
+echo "   [wait] Waiting for backend to initialise (up to 20 s)..."
+READY=0
+for i in $(seq 1 10); do
+    sleep 2
+    if ! kill -0 $BACKEND_PID 2>/dev/null; then
+        echo -e "   ${RED}[error] Backend process died! Last 15 lines of backend.log:${NC}"
+        tail -n 15 backend.log
+        exit 1
+    fi
+    if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
+        READY=1
+        break
+    fi
+    echo "   [wait] Not ready yet (attempt $i/10)..."
+done
+
+if [ "$READY" -eq 1 ]; then
+    echo -e "   ${GREEN}[ok] Backend is healthy on http://localhost:8000${NC}"
+else
+    echo -e "   ${YELLOW}[warn] Backend took too long to respond. It may still be starting. Check backend.log.${NC}"
+fi
 
 # ─── 2. Frontend Setup & Start ────────────────────────────────────────────────
 sleep 2
@@ -86,6 +120,11 @@ if [ ! -d "node_modules" ]; then
     echo "   [setup] Installing npm packages..."
     npm install
 fi
+
+# Fix WSL2 localhost port forwarding issue when Vite runs via Windows Node executable
+echo "   [setup] Configuring proxy IP for WSL2 networking..."
+WSL_IP=$(hostname -I | awk '{print $1}')
+echo "VITE_WSL_IP=$WSL_IP" > .env.local
 
 echo "   [ok] Starting Vite dev server..."
 npm run dev &

@@ -1,5 +1,6 @@
 """
 slowapi limiter + composite keys (IP + optional verified user id) for Phase 6.
+Uses Redis as the storage backend so limits persist across restarts.
 """
 
 from __future__ import annotations
@@ -9,20 +10,29 @@ import logging
 import jwt
 from fastapi import Request
 from slowapi import Limiter
-from slowapi.util import get_remote_address
 
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-limiter = Limiter(key_func=get_remote_address)
+
+def _get_real_client_ip(request: Request) -> str:
+    """Return the direct connection IP. Never trust X-Forwarded-For from
+    untrusted clients — only a trusted reverse proxy should set it."""
+    if request.client:
+        return request.client.host or "unknown"
+    return "unknown"
+
+
+limiter = Limiter(
+    key_func=_get_real_client_ip,
+    storage_uri=settings.REDIS_URL,
+)
 
 
 def get_client_ip(request: Request) -> str:
-    """Use X-Forwarded-For first when behind a trusted reverse proxy."""
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
+    """Return the direct connection IP (safe default).
+    Only trust X-Forwarded-For when deployed behind a known reverse proxy."""
     if request.client:
         return request.client.host or "unknown"
     return "unknown"

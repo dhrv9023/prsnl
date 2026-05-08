@@ -261,7 +261,7 @@ export default function ResumeAnalysis() {
         } finally { setAtsLoading(false); }
     }
 
-    // ── Action 2: Deep Analysis / Roast ──────────────────────────────────────
+    // ── Action 2: Deep Roast ─────────────────────────────────────────────────
     async function handleRoast(forceLanguage?: "english" | "hinglish") {
         if (!file) { setError("Please upload a resume PDF first."); return; }
         if (!jobDesc.trim()) { setError("Please paste the target job description."); return; }
@@ -341,13 +341,13 @@ export default function ResumeAnalysis() {
                 >
                     {roastLoading
                         ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Analyzing…</>
-                        : <><FlaskConical className="w-3.5 h-3.5" />{roast ? "Re-analyze" : "Deep Analysis"}</>
+                        : <><FlaskConical className="w-3.5 h-3.5" />{roast ? "Re-analyze" : "Deep Roast"}</>
                     }
                 </button>
             </div>
 
             <p className="text-[10px] text-muted-foreground/25 text-center pt-1 leading-relaxed">
-                ATS Score = instant · Deep Analysis = ~15–30s
+                ATS Score = instant · Deep Roast = ~15–30s
             </p>
         </nav>
     );
@@ -415,7 +415,7 @@ export default function ResumeAnalysis() {
                                 <span className="text-xs text-muted-foreground/30 ml-2">Extracted Text — editable locally</span>
                             </div>
                             <textarea
-                                value={editText || (roast ? `${roast.summary}\n\n[Upload your resume to see extracted text]` : "Upload your resume then run Deep Analysis to extract text.\n\nYou can edit this text locally — changes are not sent to the server.")}
+                                value={editText || (roast ? `${roast.summary}\n\n[Upload your resume to see extracted text]` : "Upload your resume then run Deep Roast to extract text.\n\nYou can edit this text locally — changes are not sent to the server.")}
                                 onChange={(e) => setEditText(e.target.value)}
                                 className="w-full bg-background text-foreground text-sm leading-relaxed p-4 md:p-8 resize-none focus:outline-none font-mono"
                                 style={{ height: "calc(100vh - 180px)", minHeight: "400px" }}
@@ -577,7 +577,7 @@ export default function ResumeAnalysis() {
                             </div>
                         ))}
                         <p className="text-xs text-muted-foreground/35 text-center pt-1">
-                            Run <span className="text-foreground/30 font-medium">Deep Analysis</span> to unlock
+                            Run <span className="text-foreground/30 font-medium">Deep Roast</span> to unlock
                         </p>
                     </div>
                 )}

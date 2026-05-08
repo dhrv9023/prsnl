@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, HTTPException, Request
 from typing import List, Dict, Any
 
@@ -20,6 +22,7 @@ from app.services.ai_interview import (
 )
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 # ── Session state is now persisted in Redis (not in-memory) ──────────────────
 # Benefits:
@@ -75,7 +78,11 @@ async def start_interview_route(
     session.questions = questions
 
     # 4. Persist to Redis (replaces: active_sessions[user_id_str] = session)
-    await save_session(user_id_str, session)
+    try:
+        await save_session(user_id_str, session)
+    except Exception as e:
+        logger.error("Redis save_session failed for user %s: %s", user_id_str, e)
+        raise HTTPException(status_code=503, detail="Session service is temporarily unavailable. Please try again.")
 
     return session.questions
 
@@ -90,7 +97,11 @@ async def submit_answer_route(
     user_id_str = str(user.id)
 
     # Load from Redis (replaces: active_sessions.get(user_id_str))
-    session = await load_session(user_id_str)
+    try:
+        session = await load_session(user_id_str)
+    except Exception as e:
+        logger.error("Redis load_session failed for user %s: %s", user_id_str, e)
+        raise HTTPException(status_code=503, detail="Session service is temporarily unavailable. Please try again.")
 
     if not session:
         raise HTTPException(
@@ -118,7 +129,11 @@ async def submit_answer_route(
     session.evaluations[data.question_id] = evaluation
 
     # Write updated state back to Redis + refresh TTL so active sessions don't expire
-    await save_session(user_id_str, session)
+    try:
+        await save_session(user_id_str, session)
+    except Exception as e:
+        logger.error("Redis save_session (submit) failed for user %s: %s", user_id_str, e)
+        raise HTTPException(status_code=503, detail="Session service is temporarily unavailable. Please try again.")
 
     return evaluation
 
@@ -129,7 +144,11 @@ async def end_interview_route(request: Request, user: CurrentUser) -> InterviewR
     user_id_str = str(user.id)
 
     # Load from Redis
-    session = await load_session(user_id_str)
+    try:
+        session = await load_session(user_id_str)
+    except Exception as e:
+        logger.error("Redis load_session (end) failed for user %s: %s", user_id_str, e)
+        raise HTTPException(status_code=503, detail="Session service is temporarily unavailable. Please try again.")
 
     if not session:
         raise HTTPException(
@@ -183,6 +202,9 @@ async def end_interview_route(request: Request, user: CurrentUser) -> InterviewR
     )
 
     # Explicitly delete from Redis (replaces: del active_sessions[user_id_str])
-    await delete_session(user_id_str)
+    try:
+        await delete_session(user_id_str)
+    except Exception as e:
+        logger.warning("Redis delete_session failed for user %s: %s", user_id_str, e)
 
     return report

@@ -52,7 +52,8 @@ async def cover_letter_generator(resume_text: str, job_description: str) -> str 
                 }
             ],
             temperature=0.4,
-            stream=False
+            stream=False,
+            timeout=30,
         )
         raw = completion.choices[0].message.content
         clean = clean_llm_answer(raw)

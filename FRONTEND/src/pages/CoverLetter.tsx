@@ -11,10 +11,12 @@ import {
     Loader2,
     PenTool,
     Save,
+    Sparkles,
     Upload,
 } from "lucide-react";
 import {
     apiGenerateCoverLetter,
+    apiHumanizeCoverLetter,
     apiListResumes,
     apiSaveCoverLetterPdf,
     apiUploadResume,
@@ -44,6 +46,7 @@ export default function CoverLetter() {
     const [loadingResumes, setLoadingResumes] = useState(true);
     const [uploading, setUploading] = useState(false);
     const [generating, setGenerating] = useState(false);
+    const [humanizing, setHumanizing] = useState(false);
     const [saving, setSaving] = useState(false);
     const [companyName, setCompanyName] = useState("");
     const [jobTitle, setJobTitle] = useState("");
@@ -118,6 +121,23 @@ export default function CoverLetter() {
             setGenerating(false);
         }
     }
+
+    const handleHumanize = async () => {
+        if (!letter.trim()) return;
+        setHumanizing(true);
+        setError("");
+        setNotice("");
+        try {
+            const { humanized_text } = await apiHumanizeCoverLetter(letter);
+            setLetter(humanized_text);
+            setNotice("Cover letter humanized successfully.");
+            setTimeout(() => setNotice(""), 3000);
+        } catch (e: any) {
+            setError(e.message || "Failed to humanize cover letter.");
+        } finally {
+            setHumanizing(false);
+        }
+    };
 
     async function handleSavePdf() {
         if (!applicationId || !letter.trim()) {
@@ -305,7 +325,15 @@ export default function CoverLetter() {
                                     <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground/50">Draft</p>
                                     <h2 className="text-lg font-semibold">Editable Cover Letter</h2>
                                 </div>
-                                <div className="flex gap-2">
+                                <div className="flex flex-wrap gap-2 mt-3 md:mt-0">
+                                    <button
+                                        onClick={handleHumanize}
+                                        disabled={!letter.trim() || humanizing}
+                                        className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 text-sm font-medium text-amber-500 hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                                    >
+                                        {humanizing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                                        Humanize AI Tone
+                                    </button>
                                     <button
                                         onClick={handleDownloadText}
                                         disabled={!letter.trim()}
@@ -335,9 +363,12 @@ export default function CoverLetter() {
                                 />
 
                                 {savedPdfPath && (
-                                    <div className="mt-4 rounded-lg border border-border/20 bg-secondary/15 p-3">
-                                        <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground/50">Saved PDF path</p>
-                                        <code className="mt-1 block break-all text-xs text-muted-foreground">{savedPdfPath}</code>
+                                    <div className="mt-4 flex items-start gap-3 rounded-lg border border-emerald-400/20 bg-emerald-400/8 p-4">
+                                        <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-400" />
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-medium text-emerald-300">PDF saved to Supabase Storage</p>
+                                            <p className="mt-0.5 text-xs text-muted-foreground/60 truncate">{savedPdfPath}</p>
+                                        </div>
                                     </div>
                                 )}
                             </div>

@@ -10,25 +10,24 @@
     content="Stop guessing your career path. Kareerist uses AI to analyze your profile, simulate real hiring standards, and guide your career with clarity." />
   <meta name="author" content="Kareerist" />
 
+  <!-- CSP is enforced by the backend SecurityHeadersMiddleware in production.
+       A meta CSP tag here would break Vite HMR in dev mode, so it is omitted. -->
+
+  <!-- Google Fonts — Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+
   <meta property="og:title" content="KAREERIST – Build Your Career With Confidence" />
   <meta property="og:description"
     content="AI-powered career intelligence for students and early professionals. Resume analysis, mock interviews, and personalized roadmaps." />
   <meta property="og:type" content="website" />
 
-
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:site" content="@Kareerist" />
 
-  <!-- Inline theme init: prevents flash of wrong theme before React loads -->
-  <script>
-    (function () {
-      var saved = localStorage.getItem('theme');
-      // Default to dark mode unless user explicitly chose light
-      if (saved !== 'light') {
-        document.documentElement.classList.add('dark');
-      }
-    })();
-  </script>
+  <!-- External theme init: prevents flash of wrong theme before React loads (no inline script needed) -->
+  <script src="/theme-init.js"></script>
 </head>
 
 <body>

@@ -617,7 +617,7 @@ function ReportStep({
                 </div>
 
                 {/* Actions */}
-                <div className="flex gap-3 pb-8">
+                <div className="flex flex-col sm:flex-row gap-3 pb-8">
                     <button
                         onClick={onRestart}
                         className="flex-1 h-11 flex items-center justify-center gap-2 bg-secondary border border-border/30 rounded-xl text-sm font-semibold text-foreground hover:bg-secondary/70 transition-colors"

@@ -45,6 +45,7 @@ export interface AuthUser {
 
 export interface AuthMeResponse extends AuthUser {
     msg: string;
+    is_admin?: boolean;
 }
 
 // ── Auth endpoints ───────────────────────────────────────────────────────────
@@ -209,6 +210,15 @@ export async function apiGenerateCoverLetter(
     return request("/cover_letter/generate", {
         method: "POST",
         body: JSON.stringify({ resume_id, job_description, company_name, job_title }),
+    });
+}
+
+export async function apiHumanizeCoverLetter(
+    text: string
+): Promise<{ humanized_text: string }> {
+    return request("/cover_letter/humanize", {
+        method: "POST",
+        body: JSON.stringify({ text }),
     });
 }
 

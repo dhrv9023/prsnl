@@ -19,11 +19,24 @@ def clean_llm_answer(text: str) -> str:
     return text.strip()
 
 
-async def generate_resume_roast(resume_text: str, job_description: str, calculated_ats_score: int) -> dict:
+async def generate_resume_roast(
+    resume_text: str,
+    job_description: str,
+    calculated_ats_score: int,
+    language: str = "english",
+) -> dict:
     """
     Performs a deep-dive analysis (roast + section breakdown).
     Returns a complex JSON structure with overall_feedback, summary, sections, and action_items.
     """
+
+    language_instruction = ""
+    if language.lower() != "english":
+        language_instruction = (
+            f"\n\nIMPORTANT: Write ALL feedback, summary, issues, and action_items "
+            f"in {language} (a mix of Hindi and English using Latin script). "
+            f"Keep JSON keys in English, but all value text must be in {language}."
+        )
 
     prompt = f"""You are a senior career coach about different fields and industries and an expert on reviewing resumes 
     of what recruiters look for in resumes in different domains. Your task is to provide a brutal critique of the following resume
@@ -108,6 +121,7 @@ async def generate_resume_roast(resume_text: str, job_description: str, calculat
         "List the most critical fixes the candidate should address immediately, prioritized by hiring impact."
     ]
     }}
+    {language_instruction}
     """
 
     try:
@@ -130,7 +144,8 @@ async def generate_resume_roast(resume_text: str, job_description: str, calculat
             ],
             temperature=0.3,
             response_format={"type": "json_object"},
-            stream=False
+            stream=False,
+            timeout=30,
         )
         raw_content = completion.choices[0].message.content
         cleaned_content = clean_llm_answer(raw_content)

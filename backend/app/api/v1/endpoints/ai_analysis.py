@@ -8,7 +8,7 @@ from app.core.rate_limit import ats_rate_key, limiter
 from app.db.supabase import get_db
 from app.services.math_engine import ats_score
 from app.services.resume_analyzer import generate_resume_roast
-from app.schemas.models import MatchRequest, RoastRequest
+from app.schemas.models import MatchRequest, RoastRequest, TranslateRequest
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -88,7 +88,7 @@ async def roast_resume(request: Request, body: RoastRequest, user: CurrentUser):
         raise HTTPException(status_code=500, detail="Failed to calculate base ATS score")
 
     # 2. Pass score to LLM for deep analysis
-    ai_result = await generate_resume_roast(resume_text, body.job_description, calculated_ats_score)
+    ai_result = await generate_resume_roast(resume_text, body.job_description, calculated_ats_score, body.language)
     if not ai_result:
         raise HTTPException(status_code=502, detail="AI analysis failed")
 
@@ -114,7 +114,8 @@ async def roast_resume(request: Request, body: RoastRequest, user: CurrentUser):
         }
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Database Save Error: {str(e)}")
+        logger.error("Database save failed for analysis on resume %s: %s", body.resume_id, e)
+        raise HTTPException(status_code=500, detail="An internal error occurred while saving the analysis.")
 
 
 @router.get("/history/{resume_id}")
@@ -130,3 +131,55 @@ async def get_analysis_history(resume_id: str, user: CurrentUser):
     history_res = await supabase.table("ai_analyses").select("*") \
         .eq("resume_id", resume_id).order("created_at", desc=True).execute()
     return history_res.data
+
+
+@router.post("/translate")
+@limiter.limit(settings.RATE_LIMIT_ANALYSIS, key_func=ats_rate_key)
+async def translate_analysis(request: Request, body: TranslateRequest, user: CurrentUser):
+    """
+    Re-generates an existing analysis in a different language (e.g. Hinglish).
+    Fetches the original analysis, extracts resume text + job description,
+    then calls the LLM with the new language.
+    """
+    supabase = await get_db()
+
+    # Fetch the existing analysis
+    analysis_res = await supabase.table("ai_analyses").select("*") \
+        .eq("id", body.analysis_id).execute()
+    if not analysis_res.data:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+
+    analysis = analysis_res.data[0]
+    resume_id = analysis["resume_id"]
+
+    # Verify the user owns the resume
+    resume_res = await supabase.table("resumes").select("parsed_content") \
+        .eq("id", resume_id).eq("user_id", user.id).execute()
+    if not resume_res.data:
+        raise HTTPException(status_code=403, detail="You don't have access to this analysis.")
+
+    resume_text = resume_res.data[0]["parsed_content"]["raw_text"]
+
+    # Extract the job description snippet from the original output_data
+    output = analysis.get("output_data", {})
+    job_desc_snippet = ""
+    if isinstance(output, dict):
+        job_desc_snippet = output.get("job_description_snippet", "")
+        # For roast analyses, the output IS the roast details — use the existing score
+        existing_score = output.get("details", {}).get("score", 50) if analysis["analysis_type"] == "job_match_score" else 50
+    else:
+        existing_score = 50
+
+    # Re-generate in the target language
+    try:
+        translated = await generate_resume_roast(
+            resume_text, job_desc_snippet, existing_score, body.target_language
+        )
+    except Exception as e:
+        logger.error("Translation failed: %s", e)
+        raise HTTPException(status_code=502, detail="Translation failed")
+
+    if not translated:
+        raise HTTPException(status_code=502, detail="AI returned empty translation")
+
+    return translated

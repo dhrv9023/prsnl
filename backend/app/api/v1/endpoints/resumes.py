@@ -39,12 +39,24 @@ async def upload_resume(request: Request, user: CurrentUser, file: UploadFile = 
     if not file_content.startswith(b"%PDF-"):
         raise HTTPException(status_code=400, detail="Uploaded file is not a valid PDF")
 
-    # 3. Extract text using pypdf
+    # 3. Extract text using pypdf (max 20 pages to prevent decompression abuse)
+    MAX_PAGES = 20
+    MAX_TEXT_CHARS = 100_000
     try:
         pdf_reader = PdfReader(io.BytesIO(file_content))
+        if len(pdf_reader.pages) > MAX_PAGES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"PDF must not exceed {MAX_PAGES} pages.",
+            )
         extracted_text = ""
         for page in pdf_reader.pages:
             extracted_text += page.extract_text() + "\n"
+            if len(extracted_text) > MAX_TEXT_CHARS:
+                extracted_text = extracted_text[:MAX_TEXT_CHARS]
+                break
+    except HTTPException:
+        raise
     except Exception:
         raise HTTPException(status_code=400, detail="Failed to parse PDF text.")
 
@@ -63,7 +75,8 @@ async def upload_resume(request: Request, user: CurrentUser, file: UploadFile = 
             file_options={"content-type": "application/pdf"}
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Storage Error: {str(e)}")
+        logger.error("Storage upload failed for user %s: %s", user.id, e)
+        raise HTTPException(status_code=500, detail="An internal error occurred while storing the file.")
 
     # 5. Save metadata & text to database
     try:
@@ -80,7 +93,8 @@ async def upload_resume(request: Request, user: CurrentUser, file: UploadFile = 
             "extracted_length": len(extracted_text)
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Database Error: {str(e)}")
+        logger.error("Database insert failed for user %s: %s", user.id, e)
+        raise HTTPException(status_code=500, detail="An internal error occurred while saving the record.")
 
 
 @router.get("/")
@@ -135,6 +149,9 @@ async def delete_resume(resume_id: str, user: CurrentUser):
             logger.warning("Storage cleanup warning: %s", e)
 
     # 4. Delete database records
+    # NOTE: resume ownership is already verified above (line 111-116).
+    # The ai_analyses table does not have a user_id column, but the
+    # resume_id is guaranteed to belong to this user by the ownership check.
     try:
         await supabase.table("job_applications").delete() \
             .eq("resume_id", resume_id).eq("user_id", user.id).execute()
@@ -143,6 +160,7 @@ async def delete_resume(resume_id: str, user: CurrentUser):
         await supabase.table("resumes").delete() \
             .eq("id", resume_id).eq("user_id", user.id).execute()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Database Deletion Error: {str(e)}")
+        logger.error("Database deletion failed for resume %s: %s", resume_id, e)
+        raise HTTPException(status_code=500, detail="An internal error occurred while deleting the record.")
 
     return {"msg": "Resume and all associated data successfully deleted."}

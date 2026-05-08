@@ -156,7 +156,7 @@ function HistoryItem({
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                         <p className="text-sm font-medium text-foreground/80 truncate">
-                            {item.type === "general_roast" ? "Deep Analysis" : "ATS Score"}
+                            {item.type === "general_roast" ? "Deep Roast" : "ATS Score"}
                         </p>
                         {item.resume_name && (
                             <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-secondary text-muted-foreground truncate max-w-[150px] md:max-w-xs">

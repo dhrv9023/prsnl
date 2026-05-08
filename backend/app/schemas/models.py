@@ -11,11 +11,18 @@ class RoastRequest(BaseModel):
     job_description: str
     language: str = "english"
 
+class TranslateRequest(BaseModel):
+    analysis_id: str
+    target_language: str
+
 class CoverLetterRequest(BaseModel):
     resume_id: str
     job_description: str
     company_name: str  # <--- Added: Required by DB
     job_title: str     # <--- Added: Likely required by DB too
+
+class HumanizeRequest(BaseModel):
+    text: str  # the cover letter text to humanize
 
 class SavePDFRequest(BaseModel):
     application_id: str

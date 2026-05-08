@@ -3,7 +3,6 @@ import { Link, useNavigate } from "react-router-dom";
 import { Navbar } from "@/components/layout/Navbar";
 import { useAuthContext } from "@/contexts/AuthContext";
 import {
-    AlertTriangle,
     CheckCircle2,
     Clock3,
     Cookie,
@@ -17,6 +16,7 @@ import {
     Sparkles,
     Upload,
 } from "lucide-react";
+
 
 const securityControls = [
     { name: "HttpOnly cookie auth", status: "Active", icon: Cookie, tone: "emerald" },
@@ -97,6 +97,36 @@ export default function AdminPage() {
 
     if (!auth.isAuthenticated) return null;
 
+    // ❌ Non-admin users — show 403 screen (DO NOT render the ops console)
+    if (!auth.isAdmin) {
+        return (
+            <div className="min-h-screen bg-background text-foreground">
+                <Navbar />
+                <main className="pt-24 pb-16">
+                    <div className="container max-w-lg text-center space-y-6">
+                        <div className="w-16 h-16 rounded-2xl bg-destructive/10 border border-destructive/20 flex items-center justify-center mx-auto">
+                            <Lock className="w-8 h-8 text-destructive" />
+                        </div>
+                        <div>
+                            <h1 className="text-2xl font-bold tracking-tight">Access Denied</h1>
+                            <p className="mt-2 text-sm text-muted-foreground/70">
+                                You do not have permission to view this page. Admin access requires the
+                                <code className="mx-1 px-1.5 py-0.5 rounded bg-secondary text-xs">is_admin</code>
+                                role in your account profile.
+                            </p>
+                        </div>
+                        <Link
+                            to="/dashboard"
+                            className="inline-flex h-10 items-center gap-2 px-5 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 transition-opacity"
+                        >
+                            Back to Dashboard
+                        </Link>
+                    </div>
+                </main>
+            </div>
+        );
+    }
+
     return (
         <div className="min-h-screen bg-background text-foreground">
             <Navbar />
@@ -121,18 +151,6 @@ export default function AdminPage() {
                         >
                             Back to Dashboard
                         </Link>
-                    </div>
-
-                    <div className="rounded-lg border border-amber-400/20 bg-amber-400/5 p-4">
-                        <div className="flex gap-3">
-                            <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-300" />
-                            <div>
-                                <p className="text-sm font-medium text-amber-200">Admin access is currently auth-gated only.</p>
-                                <p className="mt-1 text-xs leading-relaxed text-amber-100/70">
-                                    This page is useful for MVP operations, but a real production admin panel should check a server-side role such as `profiles.is_admin`.
-                                </p>
-                            </div>
-                        </div>
                     </div>
 
                     <div className="grid gap-4 md:grid-cols-3">

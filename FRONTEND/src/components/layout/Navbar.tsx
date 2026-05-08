@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 
 const features = [
+  // ── LIVE features ──────────────────────────────────────────────────────────
   {
     icon: FileText,
     name: "Resume Analysis",
@@ -35,18 +36,26 @@ const features = [
     active: true,
   },
   {
-    icon: Target,
-    name: "ATS Scoring",
-    description: "Check how your resume scores with ATS systems",
-    href: null,
-    active: false,
-  },
-  {
     icon: MessageSquare,
     name: "AI Mock Interviews",
     description: "Practice with AI-generated interview questions",
     href: "/interview",
     active: true,
+  },
+  {
+    icon: PenTool,
+    name: "Cover Letter Generator",
+    description: "AI-crafted cover letters from your resume",
+    href: "/cover-letter",
+    active: true,
+  },
+  // ── Coming Soon ────────────────────────────────────────────────────────────
+  {
+    icon: Target,
+    name: "ATS Scoring",
+    description: "Check how your resume scores with ATS systems",
+    href: null,
+    active: false,
   },
   {
     icon: TrendingUp,
@@ -68,13 +77,6 @@ const features = [
     description: "Extract key requirements from any job posting",
     href: null,
     active: false,
-  },
-  {
-    icon: PenTool,
-    name: "Cover Letter Generator",
-    description: "AI-crafted cover letters from your resume",
-    href: "/cover-letter",
-    active: true,
   },
   {
     icon: Sparkles,
