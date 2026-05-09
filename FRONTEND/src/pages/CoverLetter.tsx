@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuthContext } from "@/contexts/AuthContext";
+import { useRoastMode } from "@/contexts/RoastModeContext";
 import { Navbar } from "@/components/layout/Navbar";
 import {
     AlertTriangle,
@@ -16,6 +17,7 @@ import {
 } from "lucide-react";
 import {
     apiGenerateCoverLetter,
+    apiGenerateRoastCoverLetter,
     apiHumanizeCoverLetter,
     apiListResumes,
     apiSaveCoverLetterPdf,
@@ -40,6 +42,7 @@ function resumeName(fileUrl: string) {
 export default function CoverLetter() {
     const auth = useAuthContext();
     const navigate = useNavigate();
+    const { isRoastMode, roastLanguage } = useRoastMode();
 
     const [resumes, setResumes] = useState<ResumeListItem[]>([]);
     const [selectedResume, setSelectedResume] = useState("");
@@ -106,15 +109,23 @@ export default function CoverLetter() {
         setNotice("");
         setSavedPdfPath("");
         try {
-            const result = await apiGenerateCoverLetter(
-                selectedResume,
-                jobDescription.trim(),
-                companyName.trim(),
-                jobTitle.trim()
-            );
+            const result = isRoastMode
+                ? await apiGenerateRoastCoverLetter(
+                    selectedResume,
+                    jobDescription.trim(),
+                    companyName.trim(),
+                    jobTitle.trim(),
+                    roastLanguage
+                  )
+                : await apiGenerateCoverLetter(
+                    selectedResume,
+                    jobDescription.trim(),
+                    companyName.trim(),
+                    jobTitle.trim()
+                  );
             setApplicationId(result.application_id);
             setLetter(result.content);
-            setNotice("Cover letter generated. You can edit it before saving.");
+            setNotice(isRoastMode ? "🔥 Roast cover letter generated! Edit it before saving." : "Cover letter generated. You can edit it before saving.");
         } catch (e: unknown) {
             setError((e as Error).message || "Cover letter generation failed.");
         } finally {
@@ -202,11 +213,16 @@ export default function CoverLetter() {
                                     <PenTool className="w-5 h-5 text-primary" />
                                 </div>
                                 <div>
-                                    <h1 className="text-2xl font-bold tracking-tight">Cover Letter Generator</h1>
-                                    <p className="text-sm text-muted-foreground/70">
-                                        Generate, edit, and save a role-specific cover letter from your resume.
-                                    </p>
-                                </div>
+                                <h1 className="text-2xl font-bold tracking-tight">
+                                    {isRoastMode ? "🔥 Roast Cover Letter" : "Cover Letter Generator"}
+                                </h1>
+                                <p className="text-sm text-muted-foreground/70">
+                                    {isRoastMode
+                                        ? "Savage, self-aware cover letters that make hiring managers laugh."
+                                        : "Generate, edit, and save a role-specific cover letter from your resume."
+                                    }
+                                </p>
+                            </div>
                             </div>
                         </div>
                     </div>
@@ -311,10 +327,18 @@ export default function CoverLetter() {
                                 <button
                                     onClick={handleGenerate}
                                     disabled={!canGenerate || generating}
-                                    className="flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-primary text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
+                                    className={`flex h-11 w-full items-center justify-center gap-2 rounded-lg text-sm font-semibold transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45 ${
+                                        isRoastMode
+                                            ? "bg-red-600 text-white roast-glow"
+                                            : "bg-primary text-primary-foreground"
+                                    }`}
                                 >
-                                    {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <PenTool className="h-4 w-4" />}
-                                    {generating ? "Generating..." : "Generate Cover Letter"}
+                                    {generating
+                                        ? <><Loader2 className="h-4 w-4 animate-spin" />{isRoastMode ? "Roasting..." : "Generating..."}</>
+                                        : isRoastMode
+                                            ? <><span className="flame-flicker">🔥</span>{letter ? "Re-Roast" : "Roast My Letter"}</>
+                                            : <><PenTool className="h-4 w-4" />Generate Cover Letter</>
+                                    }
                                 </button>
                             </section>
                         </aside>

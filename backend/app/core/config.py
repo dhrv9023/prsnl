@@ -30,10 +30,10 @@ class Settings(BaseSettings):
     MIN_PASSWORD_LENGTH: int = 8
     RATE_LIMIT_AUTH: str = "5/minute"
     RATE_LIMIT_UPLOAD: str = "5/day"
-    RATE_LIMIT_ANALYSIS: str = "2/hour"  # slowapi: e.g. 3/day, 30/minute
-    RATE_LIMIT_COVER_LETTER: str = "2/hour"
-    RATE_LIMIT_INTERVIEW: str = "2/hour"
-    RATE_LIMIT_ATS: str = "2/hour"
+    RATE_LIMIT_ANALYSIS: str = "5/hour"
+    RATE_LIMIT_COVER_LETTER: str = "5/hour"
+    RATE_LIMIT_INTERVIEW: str = "5/hour"
+    RATE_LIMIT_ATS: str = "5/hour"
     MAX_UPLOAD_BYTES: int = 5 * 1024 * 1024
     REDIS_URL: str = "redis://localhost:6379/0"  # Override in .env if Redis on another host
 

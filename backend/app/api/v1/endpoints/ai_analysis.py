@@ -7,8 +7,8 @@ from app.core.config import settings
 from app.core.rate_limit import ats_rate_key, limiter
 from app.db.supabase import get_db
 from app.services.math_engine import ats_score
-from app.services.resume_analyzer import generate_resume_roast
-from app.schemas.models import MatchRequest, RoastRequest, TranslateRequest
+from app.services.resume_analyzer import generate_resume_roast, generate_deep_roast
+from app.schemas.models import MatchRequest, RoastRequest, DeepRoastRequest, TranslateRequest
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -183,3 +183,62 @@ async def translate_analysis(request: Request, body: TranslateRequest, user: Cur
         raise HTTPException(status_code=502, detail="AI returned empty translation")
 
     return translated
+
+
+@router.post("/deep-roast")
+@limiter.limit(settings.RATE_LIMIT_ANALYSIS, key_func=ats_rate_key)
+async def deep_roast_resume(request: Request, body: DeepRoastRequest, user: CurrentUser):
+    """
+    SAVAGE Deep Roast mode — no filters, any language, brutal honesty.
+    Calculates ATS score first, then feeds it to the savage roast LLM.
+    Returns the same JSON shape as /roast so the frontend can reuse rendering.
+    """
+    supabase = await get_db()
+
+    data = await supabase.table("resumes") \
+        .select("parsed_content") \
+        .eq("id", body.resume_id) \
+        .eq("user_id", user.id).execute()
+
+    if not data.data:
+        raise HTTPException(status_code=404, detail="Resume not found")
+    resume_text = data.data[0]['parsed_content']['raw_text']
+
+    # 1. Calculate base ATS score (same math engine)
+    try:
+        match_result = await ats_score(resume_text, body.job_description)
+        calculated_ats_score = match_result.get("score", 0)
+    except Exception as e:
+        logger.error("Math engine failed during deep roast: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to calculate base ATS score")
+
+    # 2. Pass score to SAVAGE roast LLM
+    ai_result = await generate_deep_roast(
+        resume_text, body.job_description, calculated_ats_score, body.language
+    )
+    if not ai_result:
+        raise HTTPException(status_code=502, detail="Deep roast AI failed — try again")
+
+    # 3. Save to DB (tagged as deep_roast for history differentiation)
+    analysis_record = {
+        "resume_id": body.resume_id,
+        "analysis_type": "deep_roast",
+        "output_data": ai_result
+    }
+
+    try:
+        await supabase.table("ai_analyses").insert(analysis_record).execute()
+
+        await supabase.table("resumes").update({
+            "resume_quality_feedback": ai_result.get('overall_feedback', '')
+        }).eq("id", body.resume_id) \
+            .eq("user_id", user.id).execute()
+
+        return {
+            "ats_math_score": calculated_ats_score,
+            "roast_details": ai_result
+        }
+
+    except Exception as e:
+        logger.error("DB save failed for deep roast on resume %s: %s", body.resume_id, e)
+        raise HTTPException(status_code=500, detail="Internal error saving deep roast.")

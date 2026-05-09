@@ -4,6 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { AuthModal } from "@/components/ui/AuthModal";
 import { useAuthContext } from "@/contexts/AuthContext";
+import { useRoastMode } from "@/contexts/RoastModeContext";
 import {
   Menu,
   X,
@@ -131,6 +132,7 @@ export function Navbar() {
   const profileRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const auth = useAuthContext();
+  const { isRoastMode, toggleRoastMode } = useRoastMode();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -308,6 +310,60 @@ export function Navbar() {
         <div className="flex items-center gap-3">
           <ThemeToggle />
 
+          {/* 🔥 Deep Roast Mode — pill toggle switch */}
+          <div
+            id="roast-mode-toggle"
+            role="switch"
+            aria-checked={isRoastMode}
+            title={isRoastMode ? "Exit Deep Roast Mode" : "Enter Deep Roast Mode"}
+            onClick={toggleRoastMode}
+            className="hidden md:flex items-center gap-2.5 cursor-pointer select-none group"
+          >
+            {/* Label */}
+            <span className={`text-xs font-semibold transition-colors duration-300 ${
+              isRoastMode ? "text-red-400" : "text-muted-foreground group-hover:text-foreground"
+            }`}>
+              {isRoastMode ? "Roast ON" : "Roast"}
+            </span>
+
+            {/* Track */}
+            <motion.div
+              className={`relative w-12 h-6 rounded-full border transition-all duration-300 flex-shrink-0 ${
+                isRoastMode
+                  ? "border-red-500/50 roast-glow"
+                  : "border-border/50 bg-secondary/60 group-hover:border-border/80"
+              }`}
+              style={isRoastMode ? {
+                background: "linear-gradient(135deg, #b91c1c 0%, #dc2626 50%, #ef4444 100%)",
+              } : {}}
+            >
+              {/* Thumb */}
+              <motion.div
+                className={`absolute top-0.5 w-5 h-5 rounded-full flex items-center justify-center text-[11px] shadow-md ${
+                  isRoastMode
+                    ? "bg-white shadow-red-900/40"
+                    : "bg-foreground/90 shadow-black/20"
+                }`}
+                animate={{ x: isRoastMode ? 24 : 2 }}
+                transition={{ type: "spring", stiffness: 500, damping: 35 }}
+              >
+                {isRoastMode
+                  ? <span className="flame-flicker leading-none">🔥</span>
+                  : <span className="text-background/70 leading-none text-[8px] font-bold">OFF</span>
+                }
+              </motion.div>
+
+              {/* Active pulse ring */}
+              {isRoastMode && (
+                <motion.div
+                  className="absolute inset-0 rounded-full border border-red-400/50"
+                  animate={{ opacity: [0.6, 0, 0.6] }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                />
+              )}
+            </motion.div>
+          </div>
+
           {/* Sign In Button — when logged out */}
           {!auth.isLoading && !auth.isAuthenticated && (
             <button
@@ -465,6 +521,45 @@ export function Navbar() {
             >
               Contact
             </Link>
+
+            {/* Mobile Roast Mode Toggle — pill switch */}
+            <div className="border-t border-border/30 pt-4 mt-2">
+              <div
+                onClick={() => { toggleRoastMode(); }}
+                className="w-full flex items-center gap-3 py-2.5 px-1 cursor-pointer"
+              >
+                {/* Mini pill track */}
+                <div
+                  className={`relative w-11 h-5 rounded-full border flex-shrink-0 transition-all duration-300 ${
+                    isRoastMode
+                      ? "border-red-500/50 roast-glow"
+                      : "border-border/50 bg-secondary/60"
+                  }`}
+                  style={isRoastMode ? {
+                    background: "linear-gradient(135deg, #b91c1c 0%, #dc2626 60%, #ef4444 100%)",
+                  } : {}}
+                >
+                  <motion.div
+                    className={`absolute top-0.5 w-4 h-4 rounded-full flex items-center justify-center text-[9px] shadow ${
+                      isRoastMode ? "bg-white shadow-red-900/40" : "bg-foreground/90"
+                    }`}
+                    animate={{ x: isRoastMode ? 21 : 2 }}
+                    transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                  >
+                    {isRoastMode
+                      ? <span className="flame-flicker leading-none">🔥</span>
+                      : null
+                    }
+                  </motion.div>
+                </div>
+
+                <span className={`text-base font-medium transition-colors duration-300 ${
+                  isRoastMode ? "text-red-400" : "text-muted-foreground"
+                }`}>
+                  {isRoastMode ? "Deep Roast Mode: ON" : "Deep Roast Mode: OFF"}
+                </span>
+              </div>
+            </div>
 
             {/* Mobile auth section */}
             {auth.isAuthenticated && auth.user ? (

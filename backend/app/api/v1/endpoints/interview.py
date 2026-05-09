@@ -19,6 +19,8 @@ from app.schemas.models import (
 from app.services.ai_interview import (
     generate_questions,
     evaluate_single_answer,
+    generate_roast_questions,
+    evaluate_roast_answer,
 )
 
 router = APIRouter()
@@ -65,17 +67,27 @@ async def start_interview_route(
         experience_level=body.experience_level,
     )
 
-    # 3. Request AI Generation
+    # 3. Request AI Generation (normal or roast mode)
     try:
-        questions = await generate_questions(
-            role=body.role,
-            experience_level=body.experience_level,
-            resume_text=resume_text
-        )
+        if body.roast_mode:
+            questions = await generate_roast_questions(
+                role=body.role,
+                experience_level=body.experience_level,
+                resume_text=resume_text,
+                language=body.language,
+            )
+        else:
+            questions = await generate_questions(
+                role=body.role,
+                experience_level=body.experience_level,
+                resume_text=resume_text
+            )
     except ValueError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
     session.questions = questions
+    # Store roast_mode + language on the session so submit can use it
+    session.role = f"{'[ROAST]' if body.roast_mode else ''}[LANG:{body.language}]{body.role}"
 
     # 4. Persist to Redis (replaces: active_sessions[user_id_str] = session)
     try:
@@ -114,13 +126,23 @@ async def submit_answer_route(
     if not question:
         raise HTTPException(status_code=404, detail="Question not found")
 
-    # Evaluate answer via AI
+    # Evaluate answer via AI (detect roast mode from session.role prefix)
+    roast_mode = session.role.startswith("[ROAST]")
+    lang_tag = session.role.split("][LANG:")[-1].split("]")[0] if "[LANG:" in session.role else "english"
     try:
-        evaluation = await evaluate_single_answer(
-            role=session.role,
-            question=question,
-            user_answer=data.user_answer
-        )
+        if roast_mode:
+            evaluation = await evaluate_roast_answer(
+                role=session.role.split("]" )[-1],
+                question=question,
+                user_answer=data.user_answer,
+                language=lang_tag,
+            )
+        else:
+            evaluation = await evaluate_single_answer(
+                role=session.role,
+                question=question,
+                user_answer=data.user_answer
+            )
     except ValueError as e:
         raise HTTPException(status_code=500, detail=str(e))
 

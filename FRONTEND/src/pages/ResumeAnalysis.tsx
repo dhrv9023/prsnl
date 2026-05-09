@@ -1,10 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuthContext } from "@/contexts/AuthContext";
+import { useRoastMode } from "@/contexts/RoastModeContext";
 import {
     apiUploadResume,
     apiGetAtsScore,
     apiGetRoast,
+    apiGetDeepRoast,
     type MatchResult,
     type RoastDetails,
 } from "@/lib/api";
@@ -165,6 +167,7 @@ type MobileTab = "controls" | "canvas" | "analysis";
 export default function ResumeAnalysis() {
     const auth = useAuthContext();
     const navigate = useNavigate();
+    const { isRoastMode, roastLanguage } = useRoastMode();
 
     // ── Auth Gate ─────────────────────────────────────────────────────────────
     useEffect(() => {
@@ -261,19 +264,22 @@ export default function ResumeAnalysis() {
         } finally { setAtsLoading(false); }
     }
 
-    // ── Action 2: Deep Roast ─────────────────────────────────────────────────
-    async function handleRoast(forceLanguage?: "english" | "hinglish") {
+    // ── Action 2: Deep Analysis / Deep Roast ─────────────────────────────────
+    async function handleRoast(forceLanguage?: string) {
         if (!file) { setError("Please upload a resume PDF first."); return; }
         if (!jobDesc.trim()) { setError("Please paste the target job description."); return; }
         setError(""); setRoastLoading(true);
-        const langToUse = forceLanguage || analysisLanguage;
+        const langToUse = forceLanguage || (isRoastMode ? roastLanguage : analysisLanguage);
         try {
             const id = await ensureUploaded();
-            const result = await apiGetRoast(id, jobDesc, langToUse);
+            // In roast mode → call savage endpoint; otherwise → normal analysis
+            const result = isRoastMode
+                ? await apiGetDeepRoast(id, jobDesc, langToUse)
+                : await apiGetRoast(id, jobDesc, langToUse);
             setRoast(result.roast_details);
             if (!match) setMatch({ score: result.ats_math_score, raw_similarity: 0 });
         } catch (e: unknown) {
-            setError((e as Error).message ?? "Deep analysis failed.");
+            setError((e as Error).message ?? (isRoastMode ? "Deep roast failed." : "Deep analysis failed."));
         } finally { setRoastLoading(false); }
     }
 
@@ -337,17 +343,26 @@ export default function ResumeAnalysis() {
                 <button
                     onClick={() => handleRoast()}
                     disabled={isAnything}
-                    className="w-full h-9 flex items-center justify-center gap-2 bg-primary text-primary-foreground rounded-lg text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+                    className={`w-full h-9 flex items-center justify-center gap-2 rounded-lg text-xs font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                        isRoastMode
+                            ? "bg-red-600 text-white hover:bg-red-500 roast-glow"
+                            : "bg-primary text-primary-foreground hover:opacity-90"
+                    }`}
                 >
                     {roastLoading
-                        ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Analyzing…</>
-                        : <><FlaskConical className="w-3.5 h-3.5" />{roast ? "Re-analyze" : "Deep Roast"}</>
+                        ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />{isRoastMode ? "Roasting..." : "Analyzing…"}</>
+                        : isRoastMode
+                            ? <><span className="flame-flicker">🔥</span>{roast ? "Re-Roast" : "Roast Me"}</>
+                            : <><FlaskConical className="w-3.5 h-3.5" />{roast ? "Re-analyze" : "Deep Analysis"}</>
                     }
                 </button>
             </div>
 
             <p className="text-[10px] text-muted-foreground/25 text-center pt-1 leading-relaxed">
-                ATS Score = instant · Deep Roast = ~15–30s
+                {isRoastMode
+                    ? "🔥 Roast mode ON — brace yourself"
+                    : "ATS Score = instant · Deep Analysis = ~15–30s"
+                }
             </p>
         </nav>
     );
@@ -430,12 +445,20 @@ export default function ResumeAnalysis() {
     const analysisContent = (
         <div className="overflow-y-auto flex-1 p-4 md:p-6 space-y-6">
 
+            {/* Roast Mode Banner */}
+            {isRoastMode && (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-600/15 border border-red-500/30 roast-border-pulse">
+                    <span className="flame-flicker text-sm">🔥</span>
+                    <p className="text-xs font-semibold text-red-400">Deep Roast Mode Active — no filter, just facts</p>
+                </div>
+            )}
+
             {/* Panel Header Settings */}
             <div className="flex flex-col gap-3 pb-2 border-b border-border/20">
                 <div className="flex items-center justify-between">
                     <h2 className="text-lg font-semibold tracking-tight text-foreground flex items-center gap-2">
                         <ChartBar className="w-5 h-5 text-primary" />
-                        Analysis Workspace
+                        {isRoastMode ? "🔥 Roast Results" : "Analysis Workspace"}
                     </h2>
 
                     <div className="flex items-center gap-2">
@@ -560,7 +583,9 @@ export default function ResumeAnalysis() {
                 {roastLoading ? (
                     <div className="flex items-center gap-2 py-3">
                         <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
-                        <span className="text-xs text-muted-foreground">Running deep analysis…</span>
+                        <span className="text-xs text-muted-foreground">
+                            {isRoastMode ? "Roasting your resume... 🔥" : "Running deep analysis…"}
+                        </span>
                     </div>
                 ) : roast ? (
                     <div className="space-y-2">
@@ -577,7 +602,9 @@ export default function ResumeAnalysis() {
                             </div>
                         ))}
                         <p className="text-xs text-muted-foreground/35 text-center pt-1">
-                            Run <span className="text-foreground/30 font-medium">Deep Roast</span> to unlock
+                            Run <span className="text-foreground/30 font-medium">
+                                {isRoastMode ? "Roast Me" : "Deep Analysis"}
+                            </span> to unlock
                         </p>
                     </div>
                 )}

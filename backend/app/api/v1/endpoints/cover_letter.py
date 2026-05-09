@@ -13,9 +13,9 @@ from app.api.dependencies import CurrentUser
 from app.core.config import settings
 from app.core.rate_limit import ats_rate_key, limiter
 from app.db.supabase import get_db
-from app.services.cover_letter_gen import cover_letter_generator
+from app.services.cover_letter_gen import cover_letter_generator, roast_cover_letter_generator
 from app.services.humanizer import humanize_text
-from app.schemas.models import CoverLetterRequest, HumanizeRequest, SavePDFRequest
+from app.schemas.models import CoverLetterRequest, CoverLetterRoastRequest, HumanizeRequest, SavePDFRequest
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -85,6 +85,51 @@ async def create_cover_letter(request: Request, body: CoverLetterRequest, user: 
 
     return {
         "msg": "Cover Letter Generated",
+        "application_id": result.data[0]['id'],
+        "content": cover_letter_content
+    }
+
+
+@router.post("/generate-roast")
+@limiter.limit(settings.RATE_LIMIT_COVER_LETTER, key_func=ats_rate_key)
+async def create_roast_cover_letter(request: Request, body: CoverLetterRoastRequest, user: CurrentUser):
+    """Step 1 (Roast Mode): AI generates a savage, self-aware cover letter draft."""
+    supabase = await get_db()
+
+    res_data = await supabase.table("resumes") \
+        .select("parsed_content") \
+        .eq("id", body.resume_id) \
+        .eq("user_id", user.id).execute()
+
+    if not res_data.data:
+        raise HTTPException(404, "Resume not found")
+
+    resume_text = res_data.data[0]['parsed_content']['raw_text']
+
+    cover_letter_content = await roast_cover_letter_generator(
+        resume_text, body.job_description, body.language
+    )
+    if not cover_letter_content:
+        raise HTTPException(502, "AI failed to generate roast cover letter")
+
+    app_data = {
+        "user_id": user.id,
+        "resume_id": body.resume_id,
+        "company_name": body.company_name,
+        "job_title": body.job_title,
+        "job_description": body.job_description,
+        "status": "draft",
+        "cover_letter_content": cover_letter_content
+    }
+
+    try:
+        result = await supabase.table("job_applications").insert(app_data).execute()
+    except Exception as e:
+        logger.error("Roast cover letter DB insert failed for user %s: %s", user.id, e)
+        raise HTTPException(400, detail="An internal error occurred while saving the record.")
+
+    return {
+        "msg": "Roast Cover Letter Generated 🔥",
         "application_id": result.data[0]['id'],
         "content": cover_letter_content
     }

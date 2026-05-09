@@ -176,6 +176,17 @@ export async function apiGetRoast(
     });
 }
 
+export async function apiGetDeepRoast(
+    resume_id: string,
+    job_description: string,
+    language: string = "english"
+): Promise<RoastResponse> {
+    return request("/analysis/deep-roast", {
+        method: "POST",
+        body: JSON.stringify({ resume_id, job_description, language }),
+    });
+}
+
 export async function apiTranslateAnalysis(
     analysis_id: string,
     target_language: string
@@ -210,6 +221,19 @@ export async function apiGenerateCoverLetter(
     return request("/cover_letter/generate", {
         method: "POST",
         body: JSON.stringify({ resume_id, job_description, company_name, job_title }),
+    });
+}
+
+export async function apiGenerateRoastCoverLetter(
+    resume_id: string,
+    job_description: string,
+    company_name: string,
+    job_title: string,
+    language: string = "english"
+): Promise<CoverLetterResponse> {
+    return request("/cover_letter/generate-roast", {
+        method: "POST",
+        body: JSON.stringify({ resume_id, job_description, company_name, job_title, language }),
     });
 }
 
@@ -341,11 +365,13 @@ async function interviewRequest<T>(
 export async function apiStartInterview(
     resume_id: string,
     role: string,
-    experience_level: string
+    experience_level: string,
+    roast_mode: boolean = false,
+    language: string = "english"
 ): Promise<InterviewQuestion[]> {
     return interviewRequest("/start", {
         method: "POST",
-        body: JSON.stringify({ resume_id, role, experience_level }),
+        body: JSON.stringify({ resume_id, role, experience_level, roast_mode, language }),
     });
 }
 

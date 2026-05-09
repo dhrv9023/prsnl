@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuthContext } from "@/contexts/AuthContext";
+import { useRoastMode } from "@/contexts/RoastModeContext";
 import {
     apiListResumes,
     apiUploadResume,
@@ -68,8 +69,12 @@ function TypeBadge({ type }: { type: string }) {
 
 function SetupStep({
     onStart,
+    isRoastMode,
+    roastLanguage,
 }: {
     onStart: (resumeId: string, role: string, level: string) => Promise<void>;
+    isRoastMode: boolean;
+    roastLanguage: string;
 }) {
     const [resumes, setResumes] = useState<ResumeListItem[]>([]);
     const [loadingResumes, setLoadingResumes] = useState(true);
@@ -241,16 +246,25 @@ function SetupStep({
                     <button
                         onClick={handleStart}
                         disabled={starting || uploading || loadingResumes}
-                        className="w-full h-12 flex items-center justify-center gap-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+                        className={`w-full h-12 flex items-center justify-center gap-2.5 rounded-xl text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed ${
+                            isRoastMode
+                                ? "bg-red-600 text-white roast-glow"
+                                : "bg-primary text-primary-foreground"
+                        }`}
                     >
                         {starting
-                            ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating Questions…</>
-                            : <><Zap className="w-4 h-4" /> Start Interview</>
+                            ? <><Loader2 className="w-4 h-4 animate-spin" /> {isRoastMode ? "Generating Roast Questions…" : "Generating Questions…"}</>
+                            : isRoastMode
+                                ? <><span className="flame-flicker">🔥</span> Start Roast Interview</>
+                                : <><Zap className="w-4 h-4" /> Start Interview</>
                         }
                     </button>
 
                     <p className="text-xs text-muted-foreground/30 text-center">
-                        6 questions · Theory + MCQ + Code · ~10–20 min
+                        {isRoastMode
+                            ? "6 savage questions · Theory + MCQ + Code · 🔥 Roast mode ON"
+                            : "6 questions · Theory + MCQ + Code · ~10–20 min"
+                        }
                     </p>
                 </div>
             </div>
@@ -643,6 +657,7 @@ type Step = "setup" | "interview" | "report";
 export default function AIInterview() {
     const auth = useAuthContext();
     const navigate = useNavigate();
+    const { isRoastMode, roastLanguage } = useRoastMode();
 
     // Auth guard
     useEffect(() => {
@@ -656,10 +671,10 @@ export default function AIInterview() {
     const [report, setReport] = useState<InterviewReport | null>(null);
 
     const handleStart = useCallback(async (resumeId: string, role: string, level: string) => {
-        const qs = await apiStartInterview(resumeId, role, level);
+        const qs = await apiStartInterview(resumeId, role, level, isRoastMode, roastLanguage);
         setQuestions(qs);
         setStep("interview");
-    }, []);
+    }, [isRoastMode, roastLanguage]);
 
     const handleComplete = useCallback((r: InterviewReport) => {
         setReport(r);
@@ -703,7 +718,13 @@ export default function AIInterview() {
                     <span className="font-semibold text-foreground/70">AI Mock Interview</span>
                 </div>
 
-                <div className="ml-auto flex items-center gap-2">
+                <div className="ml-auto flex items-center gap-3">
+                    {/* Roast mode indicator in header */}
+                    {isRoastMode && (
+                        <span className="hidden sm:flex items-center gap-1.5 text-xs font-semibold text-red-400 bg-red-400/10 px-2 py-1 rounded-lg border border-red-400/20">
+                            <span className="flame-flicker">🔥</span> Roast Mode
+                        </span>
+                    )}
                     {/* Step indicator */}
                     {["setup", "interview", "report"].map((s, i) => (
                         <div key={s} className="flex items-center gap-1">
@@ -714,7 +735,7 @@ export default function AIInterview() {
             </header>
 
             {/* Steps */}
-            {step === "setup" && <SetupStep onStart={handleStart} />}
+            {step === "setup" && <SetupStep onStart={handleStart} isRoastMode={isRoastMode} roastLanguage={roastLanguage} />}
             {step === "interview" && questions.length > 0 && (
                 <InterviewStep questions={questions} onComplete={handleComplete} />
             )}

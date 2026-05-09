@@ -11,6 +11,11 @@ class RoastRequest(BaseModel):
     job_description: str
     language: str = "english"
 
+class DeepRoastRequest(BaseModel):
+    resume_id: str
+    job_description: str
+    language: str = "english"  # no restrictions — any language accepted
+
 class TranslateRequest(BaseModel):
     analysis_id: str
     target_language: str
@@ -18,8 +23,15 @@ class TranslateRequest(BaseModel):
 class CoverLetterRequest(BaseModel):
     resume_id: str
     job_description: str
-    company_name: str  # <--- Added: Required by DB
-    job_title: str     # <--- Added: Likely required by DB too
+    company_name: str
+    job_title: str
+
+class CoverLetterRoastRequest(BaseModel):
+    resume_id: str
+    job_description: str
+    company_name: str
+    job_title: str
+    language: str = "english"  # any language accepted in roast mode
 
 class HumanizeRequest(BaseModel):
     text: str  # the cover letter text to humanize
@@ -53,10 +65,14 @@ class StartInterviewRequest(BaseModel):
     resume_id: str
     role: str
     experience_level: str
+    roast_mode: bool = False
+    language: str = "english"
 
 class AnswerSubmission(BaseModel):
     question_id: int
     user_answer: Optional[str] = None
+    roast_mode: bool = False
+    language: str = "english"
 
 class InterviewSession(BaseModel):
     resume_text: str = ""
