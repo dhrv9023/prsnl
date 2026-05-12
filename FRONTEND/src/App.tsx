@@ -8,17 +8,35 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { CreditProvider } from "@/contexts/CreditContext";
 import { Loader2 } from "lucide-react";
 
-// Lazy-loaded pages
-const Index = lazy(() => import("./pages/Index"));
-const NotFound = lazy(() => import("./pages/NotFound"));
-const ResumeAnalysis = lazy(() => import("./pages/ResumeAnalysis"));
-const DashboardPage = lazy(() => import("./pages/DashboardPage"));
-const AIInterview = lazy(() => import("./pages/AIInterview"));
-const AuthCallback = lazy(() => import("./pages/AuthCallback"));
-const AdminPage = lazy(() => import("./pages/AdminPage"));
-const CoverLetter = lazy(() => import("./pages/CoverLetter"));
-const CreditsPage = lazy(() => import("./pages/CreditsPage"));
-const InterviewHistory = lazy(() => import("./pages/InterviewHistory"));
+// Retry dynamic imports — handles stale chunks after Vercel redeploys
+function lazyWithRetry(importFn: () => Promise<{ default: React.ComponentType }>) {
+  return lazy(() =>
+    importFn().catch(() => {
+      // Chunk is missing (new deploy invalidated old hashes) — reload once
+      const hasReloaded = sessionStorage.getItem("chunk-reload");
+      if (!hasReloaded) {
+        sessionStorage.setItem("chunk-reload", "1");
+        window.location.reload();
+        return { default: () => null } as never;
+      }
+      sessionStorage.removeItem("chunk-reload");
+      // If reload didn't fix it, show a fallback
+      return { default: () => null } as { default: React.ComponentType };
+    })
+  );
+}
+
+// Lazy-loaded pages (with retry on chunk failure)
+const Index = lazyWithRetry(() => import("./pages/Index"));
+const NotFound = lazyWithRetry(() => import("./pages/NotFound"));
+const ResumeAnalysis = lazyWithRetry(() => import("./pages/ResumeAnalysis"));
+const DashboardPage = lazyWithRetry(() => import("./pages/DashboardPage"));
+const AIInterview = lazyWithRetry(() => import("./pages/AIInterview"));
+const AuthCallback = lazyWithRetry(() => import("./pages/AuthCallback"));
+const AdminPage = lazyWithRetry(() => import("./pages/AdminPage"));
+const CoverLetter = lazyWithRetry(() => import("./pages/CoverLetter"));
+const CreditsPage = lazyWithRetry(() => import("./pages/CreditsPage"));
+const InterviewHistory = lazyWithRetry(() => import("./pages/InterviewHistory"));
 
 const queryClient = new QueryClient();
 
