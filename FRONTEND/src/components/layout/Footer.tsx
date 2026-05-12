@@ -37,6 +37,7 @@ export function Footer() {
             <h4 className="font-semibold text-foreground mb-6">Support</h4>
             <ul className="space-y-3.5 text-sm">
               <li><a href="/#contact" className="text-muted-foreground hover:text-foreground transition-colors">Contact</a></li>
+              <li><a href="https://docs.google.com/forms/d/e/1FAIpQLSf0cFl_6uiYMP7iadg8EgSXz-x69usj5AcGy3kmduyl5I7mBA/viewform" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors">Give Feedback</a></li>
               <li><a href="#" className="text-muted-foreground/50 cursor-not-allowed">Pricing <span className="text-[10px] ml-1 opacity-50">Soon</span></a></li>
             </ul>
           </div>

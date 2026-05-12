@@ -1,15 +1,15 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuthContext } from "@/contexts/AuthContext";
-import { apiGetDashboard, type DashboardSummary, type AnalysisHistoryItem, type HiringIntelResponse, type DeepAnalysisResult } from "@/lib/api";
+import { apiGetDashboard, apiGetInterviewHistory, type DashboardSummary, type AnalysisHistoryItem, type HiringIntelResponse, type DeepAnalysisResult, type InterviewHistoryItem } from "@/lib/api";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
-import { CreditCard, FeaturePricingTable } from "@/components/ui/CreditDisplay";
+import { CreditCard } from "@/components/ui/CreditDisplay";
 import { HinglishToggle } from "@/components/ui/HinglishToggle";
 import {
     BarChart3, FileText, Loader2, ArrowRight, Zap,
     TrendingUp, CheckCircle2, Clock, AlertTriangle,
-    Sparkles, Target, Upload, ChevronDown, Brain, Layers
+    Sparkles, Target, Upload, ChevronDown, Brain, Layers, Mic2, MessageSquare
 } from "lucide-react";
 
 // ── Skeleton loader ──────────────────────────────────────────────────────────
@@ -272,6 +272,7 @@ const DashboardPage = () => {
     const [data, setData] = useState<DashboardSummary | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
+    const [interviews, setInterviews] = useState<InterviewHistoryItem[]>([]);
 
     // Auth gate: redirect if not logged in
     useEffect(() => {
@@ -280,12 +281,15 @@ const DashboardPage = () => {
         }
     }, [auth.isLoading, auth.isAuthenticated, navigate]);
 
-    // Fetch dashboard data
+    // Fetch dashboard data + interview history
     useEffect(() => {
         if (!auth.isAuthenticated) return;
         setLoading(true);
-        apiGetDashboard()
-            .then((d) => { setData(d); setError(""); })
+        Promise.all([
+            apiGetDashboard(),
+            apiGetInterviewHistory().catch(() => [] as InterviewHistoryItem[]),
+        ])
+            .then(([d, hist]) => { setData(d); setInterviews(hist); setError(""); })
             .catch((e) => setError(e.message || "Failed to load dashboard"))
             .finally(() => setLoading(false));
     }, [auth.isAuthenticated]);
@@ -437,10 +441,49 @@ const DashboardPage = () => {
                                 />
                             </div>
 
-                            {/* SECTION 2b: Credits */}
+                            {/* SECTION 2b: Credits + Interview History */}
                             <div className="grid gap-4 md:grid-cols-2">
                                 <CreditCard />
-                                <FeaturePricingTable />
+                                {/* Interview History */}
+                                <div className="rounded-xl border border-border/20 bg-card/60 overflow-hidden">
+                                    <div className="px-5 py-3 border-b border-border/15 flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <Mic2 className="w-3.5 h-3.5 text-muted-foreground/50" />
+                                            <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground/60">Interview History</p>
+                                        </div>
+                                        {interviews.length > 3 && (
+                                            <Link to="/interview/history" className="text-xs text-muted-foreground/50 hover:text-foreground transition-colors">
+                                                View all →
+                                            </Link>
+                                        )}
+                                    </div>
+                                    <div className="divide-y divide-border/10">
+                                        {interviews.length > 0 ? (
+                                            interviews.slice(0, 4).map((item) => (
+                                                <div key={item.id} className="flex items-center justify-between px-5 py-3">
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-sm font-medium text-foreground/80 truncate">
+                                                            {item.role?.replace(/^\[ROAST\]/, "").replace(/\[LANG:[^\]]+\]/, "").trim() || "Mock Interview"}
+                                                        </p>
+                                                        <p className="text-xs text-muted-foreground/40 mt-0.5">{timeAgo(item.created_at)}</p>
+                                                    </div>
+                                                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${
+                                                        item.overall_score >= 7 ? "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-600/25"
+                                                        : item.overall_score >= 5 ? "text-amber-600 dark:text-amber-400 bg-amber-500/10 border-amber-600/25"
+                                                        : "text-red-600 dark:text-red-400 bg-red-500/10 border-red-600/25"
+                                                    }`}>
+                                                        {item.overall_score.toFixed(1)}/10
+                                                    </span>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <div className="px-5 py-6 text-center">
+                                                <p className="text-sm text-muted-foreground/50">No interviews yet</p>
+                                                <Link to="/interview" className="text-xs text-primary/70 hover:text-primary mt-1 inline-block">Start your first →</Link>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
                             </div>
 
                             {/* SECTION 3: Analysis History */}
@@ -520,6 +563,27 @@ const DashboardPage = () => {
                                 </div>
                             )}
 
+                        </div>
+                    )}
+
+                    {/* Feedback CTA */}
+                    {!loading && !error && data && (
+                        <div className="mt-8 rounded-xl border border-border/20 bg-secondary/20 p-5 flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-3">
+                                <MessageSquare className="w-5 h-5 text-primary/60 flex-shrink-0" />
+                                <div>
+                                    <p className="text-sm font-medium text-foreground/80">Help us improve Kareerist</p>
+                                    <p className="text-xs text-muted-foreground/50">Takes 2 minutes — your feedback shapes what we build next</p>
+                                </div>
+                            </div>
+                            <a
+                                href="https://docs.google.com/forms/d/e/1FAIpQLSf0cFl_6uiYMP7iadg8EgSXz-x69usj5AcGy3kmduyl5I7mBA/viewform"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex-shrink-0 inline-flex items-center gap-1.5 h-8 px-3.5 bg-primary text-primary-foreground rounded-lg text-xs font-semibold hover:opacity-90 transition-opacity"
+                            >
+                                Give Feedback
+                            </a>
                         </div>
                     )}
                 </div>

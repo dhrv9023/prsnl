@@ -344,6 +344,7 @@ export interface DashboardSummary {
     total_resumes: number;
     total_analyses: number;
     latest_ats_score: number | null;
+    latest_ats_mode: "general" | "jd_match" | null;
     latest_intel: HiringIntelResponse | null;
     latest_deep_analysis: DeepAnalysisResult | null;
     analysis_history: AnalysisHistoryItem[];

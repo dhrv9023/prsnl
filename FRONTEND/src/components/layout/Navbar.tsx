@@ -23,7 +23,6 @@ import {
   LogOut,
   ChevronDown,
   ShieldCheck,
-  Mic2,
 } from "lucide-react";
 
 const features = [
@@ -332,13 +331,6 @@ export function Navbar() {
                         <LayoutDashboard className="w-4 h-4" />
                         Dashboard
                       </button>
-                      <button
-                        onClick={() => { setIsProfileOpen(false); navigate("/interview/history"); }}
-                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-secondary/40 transition-colors"
-                      >
-                        <Mic2 className="w-4 h-4" />
-                        Interview History
-                      </button>
                       {auth.isAdmin && (
                         <button
                           onClick={() => { setIsProfileOpen(false); navigate("/admin"); }}
@@ -464,13 +456,6 @@ export function Navbar() {
                 >
                   <LayoutDashboard className="w-4 h-4" />
                   <span className="text-base font-medium">Dashboard</span>
-                </button>
-                <button
-                  onClick={() => { setIsMobileMenuOpen(false); navigate("/interview/history"); }}
-                  className="w-full flex items-center gap-3 py-2.5 px-1 text-left text-foreground transition-colors"
-                >
-                  <Mic2 className="w-4 h-4" />
-                  <span className="text-base font-medium">Interview History</span>
                 </button>
                 {auth.isAdmin && (
                   <button
