@@ -15,6 +15,7 @@ import { friendlyError } from "@/lib/errors";
 import { HiringIntelPanel } from "@/components/analysis/HiringIntelPanel";
 import { DeepAnalysisPanel } from "@/components/analysis/DeepAnalysisPanel";
 import { InsufficientCreditsWarning } from "@/components/ui/CreditDisplay";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
     Upload, FileText, Loader2, AlertTriangle,
     Download, Zap, RotateCcw, Eye, Edit3, LogOut,
@@ -583,6 +584,28 @@ export default function ResumeAnalysis() {
                                 Click <span className="text-foreground/30 font-medium">ATS Score</span> to calculate.
                                 JD is optional — without it you get a general quality score.
                             </p>
+                        )}
+                        {/* Loading skeleton while scoring */}
+                        {atsLoading && !match && (
+                            <div className="space-y-3 pt-2 animate-in fade-in duration-300">
+                                <div className="flex flex-col items-center gap-2 text-center">
+                                    <p className="text-sm text-muted-foreground">Analyzing your resume…</p>
+                                    <p className="text-xs text-muted-foreground/40">
+                                        {jobDesc.trim() ? "Comparing against job description (3-5 seconds)" : "Evaluating quality signals (1-2 seconds)"}
+                                    </p>
+                                </div>
+                                <div className="space-y-2 pt-2">
+                                    {[1, 2, 3, 4, 5, 6].map((i) => (
+                                        <div key={i} className="space-y-1">
+                                            <div className="flex justify-between">
+                                                <Skeleton className="h-2.5 w-24" />
+                                                <Skeleton className="h-2.5 w-8" />
+                                            </div>
+                                            <Skeleton className="h-1.5 w-full rounded-full" />
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
                         )}
                     </div>
                 )}
