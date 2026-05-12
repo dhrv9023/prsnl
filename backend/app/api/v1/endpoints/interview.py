@@ -306,7 +306,8 @@ async def end_interview_route(request: Request, user: CurrentUser) -> InterviewR
 
 
 @router.get("/history")
-async def get_interview_history(user: CurrentUser):    """
+async def get_interview_history(user: CurrentUser):
+    """
     Returns the last 20 persisted interview reports for the current user,
     newest first. Reads from the interview_reports Supabase table.
     """
