@@ -216,7 +216,8 @@ async def submit_answer_route(
 
 
 @router.post("/end")
-async def end_interview_route(request: Request, user: CurrentUser) -> InterviewReport:    user_id_str = str(user.id)
+async def end_interview_route(request: Request, user: CurrentUser) -> InterviewReport:
+    user_id_str = str(user.id)
 
     # Load from Redis
     try:
