@@ -107,7 +107,17 @@ supabase/.temp/
 # ─────────────────────────────────────────────────────────────────────────────
 # Documentation & Deployment Guides (local reference only, not pushed to GitHub)
 # ─────────────────────────────────────────────────────────────────────────────
-# These are development/reference docs only — exclude from GitHub
+# All documentation files are local reference only — exclude from GitHub
+*.md
+*.txt
+*.docx
+*.doc
+*.pdf
+*.xlsx
+*.xls
+kareerist_sofar/
+docs/
+documentation/
 DEPLOYMENT_READY.txt
 DEPLOYMENT_QUICK_START.md
 NEXT_STEPS_WITH_SENTRY.md
@@ -117,6 +127,9 @@ FUTURE_DEPLOYMENT_BUGS.md
 Kareerist Bugs docs.docx
 codes.txt
 backend.log
+INDEX.md
+LATEST_UPDATES.md
+KAREERIST_MASTER_DOCUMENTATION.md
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Misc
