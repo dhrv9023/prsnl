@@ -158,8 +158,19 @@ async def ats_score(resume_text: str, job_description: str | None) -> dict:
         vec_b = np.array(jd_vec).reshape(1, -1)
         similarity = cosine_similarity(vec_a, vec_b)[0][0]
 
+        # Raw cosine similarity for text embeddings typically falls in 0.2–0.7.
+        # Mapping it linearly to 0–100 produces scores that feel too low.
+        # We rescale the realistic range [0.25, 0.70] to [25, 95]:
+        #   cosine 0.40 → ~48,  0.50 → ~64,  0.60 → ~79,  0.65 → ~87
+        # This keeps the JD score honest (a poor match still scores low)
+        # while avoiding the jarring 78→40 drop users see today.
+        LOW, HIGH = 0.25, 0.70
+        OUT_LOW, OUT_HIGH = 25, 95
+        clamped = max(LOW, min(HIGH, float(similarity)))
+        scaled = round(OUT_LOW + (clamped - LOW) / (HIGH - LOW) * (OUT_HIGH - OUT_LOW))
+
         return {
-            "score": round(similarity * 100),
+            "score": max(0, min(100, scaled)),
             "raw_similarity": float(similarity),
             "mode": "jd_match",
         }
