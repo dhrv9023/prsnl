@@ -105,15 +105,18 @@ supabase/.branches/
 supabase/.temp/
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Documentation & Deployment Guides (keep in repo but not in deployments)
+# Documentation & Deployment Guides (local reference only, not pushed to GitHub)
 # ─────────────────────────────────────────────────────────────────────────────
-# Keep kareerist_sofar/ for reference, but exclude from production builds
-# These are development/reference docs only
+# These are development/reference docs only — exclude from GitHub
 DEPLOYMENT_READY.txt
 DEPLOYMENT_QUICK_START.md
 NEXT_STEPS_WITH_SENTRY.md
 SUPABASE_MIGRATION_FIXED.md
+GITHUB_PUSH_GUIDE.md
+FUTURE_DEPLOYMENT_BUGS.md
+Kareerist Bugs docs.docx
 codes.txt
+README.md
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Misc
