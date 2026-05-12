@@ -109,6 +109,7 @@ supabase/.temp/
 # ─────────────────────────────────────────────────────────────────────────────
 # All documentation files are local reference only — exclude from GitHub
 *.md
+!README.md
 *.txt
 *.docx
 *.doc
