@@ -3,7 +3,7 @@ import logging
 from fastapi import APIRouter, HTTPException, Request
 from typing import List, Dict, Any
 
-from app.api.dependencies import CurrentUser
+from app.api.dependencies import CurrentUser, require_credits
 from app.core.config import settings
 from app.core.rate_limit import ats_rate_key, limiter
 from app.db.supabase import get_db
@@ -40,6 +40,7 @@ async def start_interview_route(
     request: Request,
     body: StartInterviewRequest,
     user: CurrentUser,
+    _credits=require_credits("interview", 25),
 ) -> List[InterviewQuestion]:
     user_id_str = str(user.id)
 
@@ -60,7 +61,61 @@ async def start_interview_route(
         raise HTTPException(
             status_code=400, detail="Extracted resume text is too short or invalid.")
 
-    # 2. Setup Session State
+    # 2. Fetch latest deep analysis data for this resume (action items, weak sections)
+    #    so questions can be targeted at the candidate's known weak spots.
+    #    Only uses general_roast (deep analysis), not roast mode or ATS score.
+    analysis_context: str | None = None
+    try:
+        analysis_resp = await supabase.table("ai_analyses") \
+            .select("output_data, analysis_type") \
+            .eq("resume_id", body.resume_id) \
+            .eq("analysis_type", "general_roast") \
+            .order("created_at", desc=True) \
+            .limit(1) \
+            .execute()
+
+        if analysis_resp.data:
+            analysis_type = analysis_resp.data[0].get("analysis_type", "")
+            output_data = analysis_resp.data[0].get("output_data") or {}
+
+            parts = []
+            # Pull the overall feedback, summary, and action items for context
+            if isinstance(output_data, dict):
+                if output_data.get("overall_feedback"):
+                    parts.append(f"Overall Feedback: {output_data['overall_feedback']}")
+                if output_data.get("summary"):
+                    parts.append(f"Summary: {output_data['summary']}")
+                if output_data.get("action_items"):
+                    items = output_data["action_items"]
+                    if isinstance(items, list):
+                        parts.append("Action Items: " + "; ".join(items))
+                    else:
+                        parts.append(f"Action Items: {items}")
+                # Pull section-level weak spots
+                if output_data.get("sections") and isinstance(output_data["sections"], dict):
+                    weak = []
+                    for section, details in output_data["sections"].items():
+                        if isinstance(details, dict):
+                            score = details.get("score", "")
+                            issues = details.get("issues", "")
+                            missing = details.get("missing_keywords", "")
+                            if issues or missing:
+                                weak.append(
+                                    f"{section} (score: {score}): "
+                                    f"Issues={issues}; Missing={missing}"
+                                )
+                    if weak:
+                        parts.append("Weak Sections:\n" + "\n".join(weak))
+
+            if parts:
+                analysis_context = "\n".join(parts)
+                logger.info(
+                    "Enriched interview with analysis context (%s chars) for resume %s",
+                    len(analysis_context), body.resume_id
+                )
+    except Exception as e:
+        logger.warning("Could not fetch analysis context for interview: %s", e)
+        # Non-fatal — fall back to resume text only
     session = InterviewSession(
         resume_text=resume_text,
         role=body.role,
@@ -80,7 +135,8 @@ async def start_interview_route(
             questions = await generate_questions(
                 role=body.role,
                 experience_level=body.experience_level,
-                resume_text=resume_text
+                resume_text=resume_text,
+                analysis_context=analysis_context,
             )
     except ValueError as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -100,7 +156,6 @@ async def start_interview_route(
 
 
 @router.post("/submit")
-@limiter.limit(settings.RATE_LIMIT_INTERVIEW, key_func=ats_rate_key)
 async def submit_answer_route(
     request: Request,
     data: AnswerSubmission,
@@ -161,9 +216,7 @@ async def submit_answer_route(
 
 
 @router.post("/end")
-@limiter.limit(settings.RATE_LIMIT_INTERVIEW, key_func=ats_rate_key)
-async def end_interview_route(request: Request, user: CurrentUser) -> InterviewReport:
-    user_id_str = str(user.id)
+async def end_interview_route(request: Request, user: CurrentUser) -> InterviewReport:    user_id_str = str(user.id)
 
     # Load from Redis
     try:
@@ -223,6 +276,25 @@ async def end_interview_route(request: Request, user: CurrentUser) -> InterviewR
         breakdown=breakdown
     )
 
+    # ── Persist the report to Supabase before deleting from Redis ──────────
+    try:
+        supabase = await get_db()
+        report_record = {
+            "user_id": user_id_str,
+            "overall_score": overall,
+            "qualitative_score": qual_score,
+            "breakdown": breakdown,
+            "role": session.role,
+            "experience_level": session.experience_level,
+            "questions_count": len(session.questions),
+            "answers_count": count,
+        }
+        await supabase.table("interview_reports").insert(report_record).execute()
+        logger.info("Interview report persisted for user %s (score: %s)", user_id_str, overall)
+    except Exception as e:
+        # Non-fatal — the user still gets their report in the response
+        logger.warning("Failed to persist interview report for user %s: %s", user_id_str, e)
+
     # Explicitly delete from Redis (replaces: del active_sessions[user_id_str])
     try:
         await delete_session(user_id_str)
@@ -230,3 +302,56 @@ async def end_interview_route(request: Request, user: CurrentUser) -> InterviewR
         logger.warning("Redis delete_session failed for user %s: %s", user_id_str, e)
 
     return report
+
+
+@router.get("/history")
+async def get_interview_history(user: CurrentUser):    """
+    Returns the last 20 persisted interview reports for the current user,
+    newest first. Reads from the interview_reports Supabase table.
+    """
+    user_id_str = str(user.id)
+    supabase = await get_db()
+
+    try:
+        res = await supabase.table("interview_reports") \
+            .select("id, overall_score, qualitative_score, breakdown, role, experience_level, questions_count, answers_count, created_at") \
+            .eq("user_id", user_id_str) \
+            .order("created_at", desc=True) \
+            .limit(20) \
+            .execute()
+        return res.data or []
+    except Exception as e:
+        logger.error("Failed to fetch interview history for user %s: %s", user_id_str, e)
+        raise HTTPException(status_code=500, detail="Failed to load interview history.")
+
+
+@router.get("/session")
+async def get_active_session(user: CurrentUser):
+    """
+    Returns the active interview session from Redis if one exists.
+    Used by the frontend to offer a resume option when the user navigates back.
+    Returns { active: bool, questions: list|null, answered_count: int, role: str|null }
+    """
+    user_id_str = str(user.id)
+    try:
+        session = await load_session(user_id_str)
+    except Exception as e:
+        logger.warning("Redis load_session (GET /session) failed for user %s: %s", user_id_str, e)
+        return {"active": False, "questions": None, "answered_count": 0, "role": None}
+
+    if not session:
+        return {"active": False, "questions": None, "answered_count": 0, "role": None}
+
+    # Strip encoding prefixes from role for display
+    import re as _re
+    display_role = _re.sub(r'^\[ROAST\]', '', session.role)
+    display_role = _re.sub(r'\[LANG:[^\]]+\]', '', display_role).strip()
+
+    return {
+        "active": True,
+        "questions": session.questions,
+        "answered_count": len(session.evaluations),
+        "total_questions": len(session.questions),
+        "role": display_role or None,
+        "experience_level": session.experience_level,
+    }

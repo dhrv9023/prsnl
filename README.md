@@ -8,25 +8,32 @@ A full-stack career toolkit built with **FastAPI** (backend) + **React / Vite** 
 
 ```
 kareerist/
-├── backend/                # FastAPI application
+├── backend/                    # FastAPI application
 │   ├── app/
-│   │   ├── api/v1/         # Route endpoints (resume, interview, auth…)
-│   │   ├── core/           # Settings, security, middleware
-│   │   ├── services/       # AI logic (roast, ATS, cover letter, interview)
-│   │   └── main.py         # App factory + middleware stack
+│   │   ├── api/v1/endpoints/   # Route handlers (auth, resumes, interview, credits, admin…)
+│   │   ├── core/               # Settings, security, middleware, rate limiting
+│   │   ├── services/           # AI logic (deep analysis, hiring intel, cover letter, interview)
+│   │   ├── db/                 # Supabase + Redis clients
+│   │   ├── schemas/            # Pydantic models
+│   │   └── main.py             # App factory + middleware stack
+│   ├── SUPABASE_MIGRATION_interview_reports.sql
 │   ├── requirements.txt
-│   └── .env                # ← you create this (see below)
-├── FRONTEND/               # React + Vite application
+│   └── app/.env                # ← you create this (see below)
+├── FRONTEND/                   # React + Vite application
 │   ├── src/
-│   │   ├── components/     # Navbar, Footer, UI primitives
-│   │   ├── pages/          # All route pages
-│   │   ├── contexts/       # AuthContext
-│   │   ├── lib/api.ts      # Centralised API client
-│   │   └── App.tsx         # Router + lazy loading
-│   └── .env.local          # ← auto-created by run.sh (WSL2 IP)
-├── supabase/               # DB migration files
-├── kareerist_sofar/        # 📖 Full project documentation (8 chapters)
-├── run.sh                  # One-command launcher (WSL / Linux)
+│   │   ├── components/         # Navbar, Footer, CreditBadge, analysis panels
+│   │   ├── pages/              # All route pages
+│   │   ├── contexts/           # AuthContext, CreditContext
+│   │   ├── hooks/              # useAuth
+│   │   ├── lib/api.ts          # Centralised API client
+│   │   └── App.tsx             # Router + lazy loading
+│   ├── .env                    # Supabase public keys (committed)
+│   └── .env.local              # WSL IP + VITE_API_BASE (gitignored)
+├── supabase/                   # DB migration files
+├── kareerist_sofar/            # 📖 Full project documentation (9 chapters)
+├── SUPABASE_MIGRATION.sql      # Credit system DB migration
+├── FUTURE_DEPLOYMENT_BUGS.md   # Deployment bug tracker (all fixed)
+├── run.sh                      # One-command launcher (WSL / Linux only)
 └── .gitignore
 ```
 
@@ -37,57 +44,66 @@ kareerist/
 | Tool | Version | Notes |
 |------|---------|-------|
 | **WSL 2** (Ubuntu 22.04+) | Any | Windows users run everything inside WSL |
-| **Python** | 3.12 + | Backend runtime |
-| **Node.js** | 18 + | Frontend build |
+| **Python** | 3.12+ | Backend runtime |
+| **Node.js** | 18+ | Frontend build |
 | **Redis** | Any | Session store — `run.sh` installs it automatically |
 
 ---
 
 ## 🔑 Environment Setup
 
-### Backend — `backend/.env`
-
-Create this file before running for the first time:
-
-```bash
-cp backend/.env.example backend/.env   # if .env.example exists
-# OR create manually:
-touch backend/.env
-```
-
-Fill in the following variables:
+### Backend — `backend/app/.env`
 
 ```env
 # ── Supabase ──────────────────────────────────────────────────────
 SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE=your-service-role-key
 SUPABASE_ANON_KEY=your-anon-key
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 SUPABASE_JWT_SECRET=your-jwt-secret
 
 # ── AI Services ───────────────────────────────────────────────────
 GROQ_API_KEY=your-groq-api-key
 HUGGINGFACE_API_KEY=your-hf-api-key
 
-# ── Redis (local dev) ─────────────────────────────────────────────
-REDIS_URL=redis://localhost:6379
+# ── Redis ─────────────────────────────────────────────────────────
+REDIS_URL=redis://localhost:6379/0
 
 # ── Auth / Cookies ────────────────────────────────────────────────
-COOKIE_SECRET=any-long-random-string
 COOKIE_SECURE=false          # set to true in production (HTTPS only)
 ENVIRONMENT=development      # or "production"
 
 # ── CORS ──────────────────────────────────────────────────────────
-CORS_ORIGINS=http://localhost:8080
+CORS_ORIGINS=http://localhost:8080,http://localhost:5173
 ```
 
-> **Where to get keys:**
-> - Supabase: [supabase.com](https://supabase.com) → Project → Settings → API
-> - Groq: [console.groq.com](https://console.groq.com)
-> - HuggingFace: [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens)
+### Frontend — `FRONTEND/.env` (already committed with public keys)
+
+```env
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
+```
+
+### Frontend — `FRONTEND/.env.local` (gitignored, auto-created by run.sh)
+
+```env
+VITE_WSL_IP=172.xx.xx.xx   # Auto-set by run.sh
+
+# For production (set in Vercel):
+# VITE_API_BASE=https://your-backend.onrender.com
+```
 
 ---
 
-## 🚀 Running Locally (Recommended — One Command)
+## 🗄️ Database Setup (Supabase)
+
+Run these SQL files in the Supabase SQL Editor **before** starting the app:
+
+1. **`SUPABASE_MIGRATION.sql`** — Credit system: adds credit columns to `profiles`, creates `credit_transactions`, `ip_credit_claims`, `grant_credits` RPC, `deduct_credits` RPC, and signup trigger
+2. **`backend/SUPABASE_MIGRATION_interview_reports.sql`** — Creates `interview_reports` table for persisting interview reports
+
+---
+
+## 🚀 Running Locally (One Command)
 
 From **inside WSL**, run:
 
@@ -98,7 +114,7 @@ bash run.sh
 The script automatically:
 1. Checks for Redis — installs it if missing, starts it if not running
 2. Creates a Python virtual environment (`backend/.venv`) if absent
-3. Installs backend dependencies from `requirements.txt`
+3. Installs backend dependencies
 4. Starts **FastAPI** on `http://localhost:8000` and waits for `/health`
 5. Installs npm packages if missing
 6. Detects the WSL2 IP and writes `FRONTEND/.env.local`
@@ -106,54 +122,28 @@ The script automatically:
 
 Press **Ctrl+C** to shut down all services cleanly.
 
-**Access the app:**
-
 | Service | URL |
 |---------|-----|
 | Frontend | http://localhost:8080 |
 | Backend API | http://localhost:8000 |
-| API Docs (dev) | http://localhost:8000/docs |
+| API Docs (dev only) | http://localhost:8000/docs |
 
 ---
 
-## 🛠️ Manual Setup (Step-by-Step)
+## 💳 Credit System
 
-If you prefer running each service yourself:
+New users receive **100 free credits** on signup. Credits are deducted atomically via PostgreSQL RPC before each AI feature runs.
 
-### 1. Backend
+| Feature | Cost |
+|---------|------|
+| ATS Match Score | 5 credits |
+| Deep Analysis | 15 credits |
+| Hiring Intelligence | 25 credits |
+| AI Mock Interview | 25 credits |
+| Cover Letter Generator | 10 credits |
+| Humanize AI Tone | 15 credits |
 
-```bash
-cd backend
-
-# Create and activate virtual environment
-python3 -m venv .venv
-source .venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Start Redis (separate terminal)
-redis-server --port 6379
-
-# Start FastAPI
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-```
-
-### 2. Frontend
-
-```bash
-cd FRONTEND
-
-# Install Node packages
-npm install
-
-# For WSL2 users — set the backend proxy IP
-WSL_IP=$(hostname -I | awk '{print $1}')
-echo "VITE_WSL_IP=$WSL_IP" > .env.local
-
-# Start Vite dev server
-npm run dev
-```
+Admin users with `is_unlimited = true` bypass all credit deductions.
 
 ---
 
@@ -165,7 +155,6 @@ npm run dev
 |---------|-------------|
 | `npm run dev` | Start dev server (port 8080) |
 | `npm run build` | Production bundle |
-| `npm run preview` | Preview the production build |
 | `npm run lint` | Run ESLint |
 
 ### Backend
@@ -178,19 +167,9 @@ npm run dev
 
 ---
 
-## 🗄️ Database (Supabase)
-
-All SQL migrations are in `supabase/`. Run them in order via the Supabase Dashboard SQL Editor or the Supabase CLI:
-
-```bash
-supabase db push   # if using Supabase CLI
-```
-
----
-
 ## 📖 Documentation
 
-All technical documentation is in [`kareerist_sofar/`](./kareerist_sofar/README.md) — 8 detailed chapters covering architecture, security, AI features, and deployment.
+All technical documentation is in [`kareerist_sofar/`](./kareerist_sofar/README.md) — 9 detailed chapters covering architecture, security, AI features, credit system, and deployment.
 
 ---
 
@@ -198,11 +177,10 @@ All technical documentation is in [`kareerist_sofar/`](./kareerist_sofar/README.
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | React 18, TypeScript, Vite, Tailwind CSS, Framer Motion |
+| Frontend | React 18, TypeScript, Vite, Tailwind CSS, Framer Motion, shadcn/ui |
 | Backend | FastAPI, Python 3.12+, Uvicorn |
-| Auth | Supabase Auth (Google OAuth + Email) — HttpOnly cookies |
+| Auth | Supabase Auth (Google OAuth PKCE + Email) — HttpOnly cookies |
 | Database | Supabase (PostgreSQL) |
 | Session Store | Redis (interview state, rate limiting) |
-| AI | Groq (LLaMA 3), HuggingFace (sentence-transformers) |
+| AI | Groq (LLaMA 3.3 70B), HuggingFace (sentence-transformers) |
 | Deployment | Vercel (frontend) + Render (backend) + Upstash (Redis) |
-

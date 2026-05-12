@@ -13,7 +13,7 @@ async def get_dashboard_summary(user: CurrentUser):
     - User's resumes count
     - Total analyses count
     - Latest ATS score
-    - Latest deep analysis (roast)
+    - Latest hiring intelligence report
     - Analysis history list
     """
     user_id = user.id
@@ -33,7 +33,8 @@ async def get_dashboard_summary(user: CurrentUser):
 
     analyses = []
     latest_ats_score = None
-    latest_roast = None
+    latest_intel = None
+    latest_deep_analysis = None
 
     if resume_ids:
         analyses_resp = await supabase.table("ai_analyses") \
@@ -53,10 +54,16 @@ async def get_dashboard_summary(user: CurrentUser):
                     pass
                 break  # first match is latest (sorted desc)
 
-        # 4. Extract latest roast
+        # 4. Extract latest hiring intel
         for a in analyses:
-            if a["analysis_type"] == "general_roast":
-                latest_roast = a["output_data"]
+            if a["analysis_type"] == "hiring_intel":
+                latest_intel = a["output_data"]
+                break
+
+        # 5. Extract latest deep analysis
+        for a in analyses:
+            if a["analysis_type"] == "deep_analysis":
+                latest_deep_analysis = a["output_data"]
                 break
 
     # 5. Build analysis history
@@ -86,8 +93,9 @@ async def get_dashboard_summary(user: CurrentUser):
         try:
             if a["analysis_type"] == "job_match_score":
                 item["score"] = a["output_data"]["score"]
-            elif a["analysis_type"] == "general_roast":
-                # Try to extract overall feedback as the "score" label
+            elif a["analysis_type"] == "hiring_intel":
+                item["score"] = a["output_data"].get("report", {}).get("final_verdict", {}).get("hiring_readiness")
+            elif a["analysis_type"] == "deep_analysis":
                 item["score"] = a["output_data"].get("overall_feedback")
         except (KeyError, TypeError):
             pass
@@ -97,6 +105,7 @@ async def get_dashboard_summary(user: CurrentUser):
         "total_resumes": len(resumes),
         "total_analyses": len(analyses),
         "latest_ats_score": latest_ats_score,
-        "latest_roast": latest_roast,
-        "analysis_history": history[:20],  # cap at 20 items
+        "latest_intel": latest_intel,
+        "latest_deep_analysis": latest_deep_analysis,
+        "analysis_history": history[:20],
     }

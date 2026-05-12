@@ -1,13 +1,15 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuthContext } from "@/contexts/AuthContext";
-import { apiGetDashboard, type DashboardSummary, type AnalysisHistoryItem, type RoastDetails, type RoastSection } from "@/lib/api";
+import { apiGetDashboard, type DashboardSummary, type AnalysisHistoryItem, type HiringIntelResponse, type DeepAnalysisResult } from "@/lib/api";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
+import { CreditCard, FeaturePricingTable } from "@/components/ui/CreditDisplay";
+import { HinglishToggle } from "@/components/ui/HinglishToggle";
 import {
     BarChart3, FileText, Loader2, ArrowRight, Zap,
     TrendingUp, CheckCircle2, Clock, AlertTriangle,
-    Sparkles, Target, Upload, ChevronDown, Repeat
+    Sparkles, Target, Upload, ChevronDown, Brain, Layers
 } from "lucide-react";
 
 // ── Skeleton loader ──────────────────────────────────────────────────────────
@@ -84,20 +86,53 @@ function MetricCard({
     );
 }
 
-// ── Language Helper ──────────────────────────────────────────────────────────
+// No language helper needed anymore
 
-function detectLanguage(text?: string): "english" | "hinglish" {
-    if (!text) return "english";
-    const lower = text.toLowerCase();
-    const hinglishWords = ["hai", "aur", "mein", "ka", "ke", "ki", "karo", "liye", "bana"];
-    let score = 0;
-    hinglishWords.forEach(word => {
-        if (new RegExp(`\\b${word}\\b`).test(lower)) score++;
-    });
-    return score >= 2 ? "hinglish" : "english";
+// ── InsightWithHinglish ──────────────────────────────────────────────────────
+
+function InsightWithHinglish({
+    insightTitle,
+    insightSummary,
+    intelData,
+    deepData,
+}: {
+    insightTitle: string | null;
+    insightSummary: string;
+    intelData: HiringIntelResponse | null;
+    deepData: DeepAnalysisResult | null;
+}) {
+    const [displayText, setDisplayText] = useState(insightSummary);
+
+    return (
+        <div>
+            <div className="flex items-start justify-between gap-3 mb-2">
+                <h2 className="text-lg font-semibold text-foreground">{insightTitle}</h2>
+                <HinglishToggle
+                    originalText={insightSummary}
+                    onConverted={setDisplayText}
+                    label="Hinglish mein"
+                />
+            </div>
+            <p className="text-sm text-muted-foreground/80 leading-relaxed max-w-2xl">{displayText}</p>
+            {intelData?.report.highest_impact_improvements.length && (
+                <div className="mt-4 flex items-start gap-2.5 p-3 rounded-lg bg-primary/5 border border-primary/10">
+                    <Zap className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
+                    <p className="text-sm text-foreground/80">
+                        <strong className="text-foreground">Top priority:</strong> {intelData.report.highest_impact_improvements[0].improvement}
+                    </p>
+                </div>
+            )}
+            {!intelData && deepData?.action_items?.[0] && (
+                <div className="mt-4 flex items-start gap-2.5 p-3 rounded-lg bg-primary/5 border border-primary/10">
+                    <Zap className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
+                    <p className="text-sm text-foreground/80">{deepData.action_items[0]}</p>
+                </div>
+            )}
+        </div>
+    );
 }
 
-// ── History Item Component ───────────────────────────────────────────────────
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 function HistoryItem({
     item,
@@ -107,56 +142,33 @@ function HistoryItem({
     isLast: boolean;
 }) {
     const [expanded, setExpanded] = useState(false);
+    const outputData = item.output_data as HiringIntelResponse | DeepAnalysisResult | { score: number } | null;
 
-    // Auto-detect the initial language based on the loaded summary
-    const initialLang = detectLanguage((item.output_data as RoastDetails)?.summary);
-    const [language, setLanguage] = useState<"english" | "hinglish">(initialLang);
-    const [translating, setTranslating] = useState(false);
-    const [outputData, setOutputData] = useState<RoastDetails | null>(item.output_data as RoastDetails | null);
-
-    // If it's just an ATS score, we generally don't have deep sections to expand
-    // But we still allow clicking if we want to add future details.
-    const isRoast = item.type === "general_roast";
-    const canExpand = isRoast && outputData != null;
-
-    const handleTranslate = async () => {
-        if (!canExpand || translating) return;
-        setTranslating(true);
-        try {
-            const targetLang = language === "english" ? "hinglish" : "english";
-            // If going back to English, we might just rely on the originally loaded data (which is English)
-            // But if we translated it to Hinglish, we might have lost the English data in state,
-            // so let's just make the API call to toggle it fully to be safe.
-            const { apiTranslateAnalysis } = await import('@/lib/api');
-            const data = await apiTranslateAnalysis(item.id, targetLang) as RoastDetails;
-            setOutputData(data);
-            setLanguage(targetLang);
-        } catch (e) {
-            console.error("Translation failed", e);
-        } finally {
-            setTranslating(false);
-        }
-    };
+    const isIntel = item.type === "hiring_intel";
+    const isDeep = item.type === "deep_analysis";
+    const canExpand = (isIntel || isDeep) && outputData != null;
 
     return (
         <div className={`flex flex-col py-4 ${!isLast ? "border-b border-border/10" : ""}`}>
-            {/* Header row (always visible) */}
+            {/* Header row */}
             <div
                 className={`flex items-center gap-4 ${canExpand ? "cursor-pointer group" : ""}`}
                 onClick={() => canExpand && setExpanded(!expanded)}
             >
                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0
-                    ${item.type === "general_roast" ? "bg-purple-400/10" : "bg-blue-400/10"}`}
+                    ${isIntel ? "bg-purple-400/10" : isDeep ? "bg-blue-400/10" : "bg-emerald-400/10"}`}
                 >
-                    {item.type === "general_roast"
-                        ? <Sparkles className="w-3.5 h-3.5 text-purple-400" />
-                        : <Target className="w-3.5 h-3.5 text-blue-400" />
+                    {isIntel
+                        ? <Brain className="w-3.5 h-3.5 text-purple-400" />
+                        : isDeep
+                        ? <Layers className="w-3.5 h-3.5 text-blue-400" />
+                        : <Target className="w-3.5 h-3.5 text-emerald-400" />
                     }
                 </div>
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                         <p className="text-sm font-medium text-foreground/80 truncate">
-                            {item.type === "general_roast" ? "Deep Roast" : "ATS Score"}
+                            {isIntel ? "Hiring Intelligence" : isDeep ? "Deep Analysis" : "ATS Score"}
                         </p>
                         {item.resume_name && (
                             <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-secondary text-muted-foreground truncate max-w-[150px] md:max-w-xs">
@@ -171,10 +183,10 @@ function HistoryItem({
                     {item.score != null && (
                         <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border
                             ${typeof item.score === "number"
-                                ? (item.score >= 75 ? "text-emerald-600 border-emerald-600/20 bg-emerald-600/10 dark:text-emerald-400 dark:bg-emerald-400/10 dark:border-emerald-400/20"
-                                    : item.score >= 50 ? "text-amber-600 border-amber-600/20 bg-amber-600/10 dark:text-amber-400 dark:bg-amber-400/10 dark:border-amber-400/20"
-                                        : "text-red-600 border-red-600/20 bg-red-600/10 dark:text-red-400 dark:bg-red-400/10 dark:border-red-400/20")
-                                : "text-blue-600 border-blue-600/20 bg-blue-600/10 dark:text-blue-400 dark:bg-blue-400/10 dark:border-blue-400/20"
+                                ? (item.score >= 75 ? "text-emerald-600 border-emerald-600/20 bg-emerald-600/10"
+                                    : item.score >= 50 ? "text-amber-600 border-amber-600/20 bg-amber-600/10"
+                                        : "text-red-600 border-red-600/20 bg-red-600/10")
+                                : "text-blue-600 border-blue-600/20 bg-blue-600/10"
                             }`}
                         >
                             {typeof item.score === "number" ? `${item.score}/100` : item.score}
@@ -190,114 +202,61 @@ function HistoryItem({
             {expanded && canExpand && outputData && (
                 <div className="mt-4 pl-12 pr-2 animate-in slide-in-from-top-2 fade-in duration-200">
                     <div className="rounded-xl border border-border/20 bg-secondary/10 p-4 space-y-4">
-
-                        {/* Language Toggle Header */}
                         <div className="flex items-center justify-between border-b border-border/10 pb-3">
-                            <p className="text-xs font-mono uppercase text-muted-foreground/60">Analysis Details</p>
-                            <button
-                                onClick={handleTranslate}
-                                disabled={translating}
-                                className="inline-flex items-center justify-center gap-1.5 px-3 py-1 bg-secondary rounded-full text-xs font-medium text-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors"
-                            >
-                                {translating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Repeat className="w-3 h-3 text-muted-foreground" />}
-                                {language === "hinglish" ? "Translate to English" : "Translate to Hinglish"}
-                            </button>
+                            <p className="text-xs font-mono uppercase text-muted-foreground/60">
+                                {isIntel ? "Intelligence Overview" : "Deep Analysis Overview"}
+                            </p>
                         </div>
 
-                        {/* Summary */}
-                        {outputData.summary && (
-                            <div>
-                                <p className="text-xs text-muted-foreground/50 mb-1.5 font-medium">Summary</p>
-                                <p className="text-sm text-foreground/80 leading-relaxed">{outputData.summary}</p>
-                            </div>
-                        )}
-
-                        {/* Section Details - fully expanded */}
-                        {outputData.sections && Object.keys(outputData.sections).length > 0 && (
-                            <div className="space-y-4">
-                                <p className="text-xs text-muted-foreground/50 font-medium border-b border-border/10 pb-1">Detailed Breakdown</p>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {Object.entries(outputData.sections as Record<string, RoastSection>).map(([key, sec]) => {
-                                        const grade = sec.score?.toLowerCase() || "";
-                                        const color = grade === "excellent" || grade === "very good" ? "text-emerald-500 bg-emerald-500/10 border-emerald-500/15"
-                                            : grade === "good" ? "text-blue-500 bg-blue-500/10 border-blue-500/15"
-                                                : grade === "fair" ? "text-amber-500 bg-amber-500/10 border-amber-500/15"
-                                                    : "text-red-500 bg-red-500/10 border-red-500/15";
-
-                                        return (
-                                            <div key={key} className="rounded-lg border border-border/20 bg-background/50 p-3 flex flex-col gap-2">
-                                                <div className="flex items-center justify-between">
-                                                    <p className="text-sm font-semibold text-foreground capitalize">{key}</p>
-                                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide border ${color}`}>
-                                                        {sec.score}
-                                                    </span>
-                                                </div>
-
-                                                {sec.feedback && (
-                                                    <p className="text-xs text-muted-foreground/80 leading-relaxed text-balance">
-                                                        {sec.feedback}
-                                                    </p>
-                                                )}
-
-                                                {(sec.issues?.length > 0 || sec.missing_keywords?.length > 0) && (
-                                                    <div className="mt-2 pt-2 border-t border-border/10 grid grid-cols-1 gap-2">
-                                                        {sec.issues?.length > 0 && (
-                                                            <div>
-                                                                <p className="text-[10px] uppercase font-mono text-destructive/80 mb-1">Issues</p>
-                                                                <ul className="space-y-1">
-                                                                    {Array.isArray(sec.issues) ? sec.issues.map((iss: string, idx: number) => (
-                                                                        <li key={idx} className="text-[11px] text-muted-foreground flex gap-1.5"><AlertTriangle className="w-3 h-3 text-destructive/60 flex-shrink-0 mt-0.5" /> {iss}</li>
-                                                                    )) : (
-                                                                        <li className="text-[11px] text-muted-foreground flex gap-1.5"><AlertTriangle className="w-3 h-3 text-destructive/60 flex-shrink-0 mt-0.5" /> {sec.issues}</li>
-                                                                    )}
-                                                                </ul>
-                                                            </div>
-                                                        )}
-                                                        {sec.missing_keywords?.length > 0 && (
-                                                            <div>
-                                                                <p className="text-[10px] uppercase font-mono text-blue-400/80 mb-1">Missing Keywords</p>
-                                                                <div className="flex flex-wrap gap-1">
-                                                                    {Array.isArray(sec.missing_keywords) ? sec.missing_keywords.map((kw: string, idx: number) => (
-                                                                        <span key={idx} className="px-1.5 py-0.5 rounded bg-blue-500/10 border border-blue-500/10 text-[10px] text-blue-500/80">
-                                                                            {kw}
-                                                                        </span>
-                                                                    )) : (
-                                                                        <span className="px-1.5 py-0.5 rounded bg-blue-500/10 border border-blue-500/10 text-[10px] text-blue-500/80">
-                                                                            {sec.missing_keywords}
-                                                                        </span>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
+                        {/* Hiring Intel expanded */}
+                        {isIntel && "report" in outputData && (
+                            <>
+                                <div>
+                                    <p className="text-xs text-muted-foreground/50 mb-1.5 font-medium">Verdict</p>
+                                    <p className="text-sm text-foreground/80 leading-relaxed">{(outputData as HiringIntelResponse).report.final_verdict.summary}</p>
                                 </div>
-                            </div>
+                                {(outputData as HiringIntelResponse).report.highest_impact_improvements.length > 0 && (
+                                    <div>
+                                        <p className="text-xs text-muted-foreground/50 mb-2 font-medium">Top Priority Improvements</p>
+                                        <ul className="space-y-2">
+                                            {(outputData as HiringIntelResponse).report.highest_impact_improvements.slice(0, 3).map((imp, i) => (
+                                                <li key={i} className="flex gap-2 text-sm text-muted-foreground/80 leading-relaxed">
+                                                    <Zap className="w-3.5 h-3.5 text-amber-500 flex-shrink-0 mt-0.5" />
+                                                    <span><strong className="text-foreground/70">{imp.improvement}:</strong> {imp.why}</span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+                            </>
                         )}
 
-                        {/* Action Items */}
-                        {outputData.action_items && outputData.action_items.length > 0 && (
-                            <div>
-                                <p className="text-xs text-muted-foreground/50 mb-2 font-medium">Top Priority Items</p>
-                                <ul className="space-y-1.5">
-                                    {Array.isArray(outputData.action_items) ? outputData.action_items.slice(0, 3).map((item: string, i: number) => (
-                                        <li key={i} className="flex gap-2 text-sm text-muted-foreground/80">
-                                            <Zap className="w-3.5 h-3.5 text-amber-500 flex-shrink-0 mt-0.5" />
-                                            <span>{item}</span>
-                                        </li>
-                                    )) : (
-                                        <li className="flex gap-2 text-sm text-muted-foreground/80">
-                                            <Zap className="w-3.5 h-3.5 text-amber-500 flex-shrink-0 mt-0.5" />
-                                            <span>{outputData.action_items}</span>
-                                        </li>
-                                    )}
-                                </ul>
-                            </div>
+                        {/* Deep Analysis expanded */}
+                        {isDeep && "summary" in outputData && (
+                            <>
+                                <div>
+                                    <p className="text-xs text-muted-foreground/50 mb-1.5 font-medium">Summary</p>
+                                    <p className="text-sm text-foreground/80 leading-relaxed">{(outputData as DeepAnalysisResult).summary}</p>
+                                </div>
+                                {(outputData as DeepAnalysisResult).action_items?.length > 0 && (
+                                    <div>
+                                        <p className="text-xs text-muted-foreground/50 mb-2 font-medium">Top Action Items</p>
+                                        <ul className="space-y-2">
+                                            {(outputData as DeepAnalysisResult).action_items.slice(0, 3).map((item, i) => (
+                                                <li key={i} className="flex gap-2 text-sm text-muted-foreground/80 leading-relaxed">
+                                                    <Zap className="w-3.5 h-3.5 text-amber-500 flex-shrink-0 mt-0.5" />
+                                                    {item}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+                            </>
                         )}
 
+                        <div className="pt-2 text-right">
+                            <Link to="/resume-analysis" className="text-xs text-primary/80 hover:text-primary transition-colors">Run full analysis →</Link>
+                        </div>
                     </div>
                 </div>
             )}
@@ -333,35 +292,11 @@ const DashboardPage = () => {
 
     const hasAnalyzed = data && data.total_analyses > 0;
     const atsScore = data?.latest_ats_score;
-    // We store roast in state to allow translating it directly
-    const [roastData, setRoastData] = useState<RoastDetails | null>(null);
-    const [roastLang, setRoastLang] = useState<"english" | "hinglish">("english");
-    const [isTranslatingRoast, setIsTranslatingRoast] = useState(false);
-
-    // Initialize roast data when dashboard data loads
-    useEffect(() => {
-        if (data?.latest_roast) {
-            setRoastData(data.latest_roast);
-            setRoastLang(detectLanguage(data.latest_roast.summary));
-        }
-    }, [data]);
-
-    const handleTranslateDashboardRoast = async () => {
-        if (!roastData || !data?.analysis_history?.[0]?.id || isTranslatingRoast) return;
-        setIsTranslatingRoast(true);
-        try {
-            const targetLang = roastLang === "english" ? "hinglish" : "english";
-            const { apiTranslateAnalysis } = await import('@/lib/api');
-            // Assuming latest roast is the very first item in analysis_history
-            const translated = await apiTranslateAnalysis(data.analysis_history[0].id, targetLang) as RoastDetails;
-            setRoastData(translated);
-            setRoastLang(targetLang);
-        } catch (e) {
-            console.error("Dashboard translation failed", e);
-        } finally {
-            setIsTranslatingRoast(false);
-        }
-    };
+    const intelData = data?.latest_intel;
+    const deepData = data?.latest_deep_analysis;
+    // Show intel if available, else fall back to deep analysis summary
+    const insightSummary = intelData?.report?.final_verdict?.summary ?? deepData?.summary ?? null;
+    const insightTitle = intelData ? "Your latest hiring verdict:" : deepData ? "Deep resume analysis:" : null;
 
     // Don't render until auth check completes
     if (auth.isLoading) {
@@ -434,36 +369,18 @@ const DashboardPage = () => {
                             <div className="rounded-xl border border-border/20 bg-card/60 backdrop-blur-sm overflow-hidden">
                                 <div className="px-6 py-4 flex items-center justify-between border-b border-border/15">
                                     <div className="flex items-center gap-2">
-                                        <Sparkles className="w-4 h-4 text-amber-400" />
-                                        <p className="text-xs font-mono uppercase tracking-widest text-amber-400/80">System Insight</p>
+                                        <Sparkles className="w-4 h-4 text-primary" />
+                                        <p className="text-xs font-mono uppercase tracking-widest text-primary/80">Career Intelligence</p>
                                     </div>
-                                    {hasAnalyzed && roastData && (
-                                        <button
-                                            onClick={handleTranslateDashboardRoast}
-                                            disabled={isTranslatingRoast}
-                                            className="inline-flex items-center justify-center gap-1.5 px-3 py-1 bg-secondary rounded-full text-xs font-medium text-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors"
-                                        >
-                                            {isTranslatingRoast ? <Loader2 className="w-3 h-3 animate-spin" /> : <Repeat className="w-3 h-3 text-muted-foreground" />}
-                                            {roastLang === "hinglish" ? "Translate to English" : "Translate to Hinglish"}
-                                        </button>
-                                    )}
                                 </div>
                                 <div className="px-6 pb-6 pt-4">
-                                    {hasAnalyzed && roastData ? (
-                                        <div>
-                                            <h2 className="text-lg font-semibold text-foreground mb-2">
-                                                Your biggest unlock right now:
-                                            </h2>
-                                            <p className="text-sm text-muted-foreground/80 leading-relaxed max-w-2xl">
-                                                {roastData.summary}
-                                            </p>
-                                            {roastData.action_items && (roastData.action_items.length > 0) && (
-                                                <div className="mt-4 flex items-start gap-2.5 p-3 rounded-lg bg-primary/5 border border-primary/10">
-                                                    <Zap className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
-                                                    <p className="text-sm text-foreground/80">{Array.isArray(roastData.action_items) ? roastData.action_items[0] : roastData.action_items}</p>
-                                                </div>
-                                            )}
-                                        </div>
+                                    {hasAnalyzed && insightSummary ? (
+                                        <InsightWithHinglish
+                                            insightTitle={insightTitle}
+                                            insightSummary={insightSummary}
+                                            intelData={intelData ?? null}
+                                            deepData={deepData ?? null}
+                                        />
                                     ) : (
                                         <div className="py-4">
                                             <div className="flex items-center gap-3 mb-3">
@@ -471,15 +388,15 @@ const DashboardPage = () => {
                                                     <FileText className="w-5 h-5 text-muted-foreground/40" />
                                                 </div>
                                                 <div>
-                                                    <p className="text-sm font-medium text-foreground/70">No resume analyzed yet</p>
-                                                    <p className="text-xs text-muted-foreground/50">Upload your resume to unlock insights</p>
+                                                    <p className="text-sm font-medium text-foreground/70">No insights yet</p>
+                                                    <p className="text-xs text-muted-foreground/50">Run Deep Analysis or Hiring Intel to unlock</p>
                                                 </div>
                                             </div>
                                             <Link
                                                 to="/resume-analysis"
                                                 className="inline-flex items-center gap-2 h-9 px-4 bg-primary text-primary-foreground rounded-lg text-sm font-semibold hover:opacity-90 transition-opacity"
                                             >
-                                                <Upload className="w-3.5 h-3.5" />
+                                                <Brain className="w-3.5 h-3.5" />
                                                 Analyze Resume
                                             </Link>
                                         </div>
@@ -490,18 +407,18 @@ const DashboardPage = () => {
                             {/* SECTION 2: User Metrics */}
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                 <MetricCard
-                                    label="Resume Score"
+                                    label="ATS Match"
                                     value={atsScore != null ? `${atsScore}` : "--"}
                                     subtext={atsScore != null ? (atsScore >= 75 ? "Strong match" : atsScore >= 50 ? "Moderate fit" : "Needs work") : "Run ATS scoring"}
                                     icon={Target}
                                     color={atsScore != null ? (atsScore >= 75 ? "text-emerald-600 dark:text-emerald-400" : atsScore >= 50 ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400") : "text-muted-foreground"}
                                 />
                                 <MetricCard
-                                    label="Overall Grade"
-                                    value={roastData?.overall_feedback ?? "--"}
-                                    subtext={roastData ? "Based on deep analysis" : "Run deep analysis"}
+                                    label="Readiness"
+                                    value={intelData?.report?.final_verdict?.hiring_readiness ?? deepData?.overall_feedback ?? "--"}
+                                    subtext={intelData ? "Based on hiring intel" : deepData ? "Based on deep analysis" : "Run analysis"}
                                     icon={BarChart3}
-                                    color={roastData ? "text-blue-600 dark:text-blue-400" : "text-muted-foreground"}
+                                    color={(intelData || deepData) ? "text-blue-600 dark:text-blue-400" : "text-muted-foreground"}
                                 />
                                 <MetricCard
                                     label="Resumes"
@@ -517,6 +434,12 @@ const DashboardPage = () => {
                                     icon={TrendingUp}
                                     color={data.total_analyses > 0 ? "text-foreground" : "text-muted-foreground"}
                                 />
+                            </div>
+
+                            {/* SECTION 2b: Credits */}
+                            <div className="grid gap-4 md:grid-cols-2">
+                                <CreditCard />
+                                <FeaturePricingTable />
                             </div>
 
                             {/* SECTION 3: Analysis History */}
@@ -560,8 +483,8 @@ const DashboardPage = () => {
                                 </div>
                             </div>
 
-                            {/* SECTION 4: Improvement Tracker (only if roast exists) */}
-                            {hasAnalyzed && roastData && (roastData.action_items?.length > 1 || Object.keys(roastData.sections || {}).length > 0) && (
+                            {/* SECTION 4: Improvement Tracker (intel or deep) */}
+                            {hasAnalyzed && (intelData || deepData) && (
                                 <div className="rounded-xl border border-border/20 bg-card/60 backdrop-blur-sm overflow-hidden">
                                     <div className="px-6 py-4 border-b border-border/15">
                                         <div className="flex items-center gap-2">
@@ -570,51 +493,28 @@ const DashboardPage = () => {
                                         </div>
                                     </div>
                                     <div className="px-6 py-4 space-y-4">
-                                        {/* Section grades */}
-                                        {Object.keys(roastData.sections || {}).length > 0 && (
-                                            <div>
-                                                <p className="text-xs text-muted-foreground/50 mb-3">Section Breakdown</p>
-                                                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                                                    {Object.entries(roastData.sections).map(([key, sec]: [string, RoastSection]) => {
-                                                        const grade = sec.score?.toLowerCase() || "";
-                                                        const color =
-                                                            grade === "excellent" || grade === "very good" ? "text-emerald-600 bg-emerald-600/10 border-emerald-600/15 dark:text-emerald-400 dark:bg-emerald-400/10 dark:border-emerald-400/15"
-                                                                : grade === "good" ? "text-blue-600 bg-blue-600/10 border-blue-600/15 dark:text-blue-400 dark:bg-blue-400/10 dark:border-blue-400/15"
-                                                                    : grade === "fair" ? "text-amber-600 bg-amber-600/10 border-amber-600/15 dark:text-amber-400 dark:bg-amber-400/10 dark:border-amber-400/15"
-                                                                        : "text-red-600 bg-red-600/10 border-red-600/15 dark:text-red-400 dark:bg-red-400/10 dark:border-red-400/15";
-
-                                                        return (
-                                                            <div key={key} className={`rounded-lg border p-3 text-center ${color}`}>
-                                                                <p className="text-[11px] text-muted-foreground/50 uppercase tracking-wider mb-1 capitalize">{key}</p>
-                                                                <p className="text-sm font-semibold">{sec.score}</p>
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        {/* Action items */}
-                                        {roastData.action_items?.length > 1 && (
-                                            <div>
-                                                <p className="text-xs text-muted-foreground/50 mb-3">Top Improvement Areas</p>
-                                                <ol className="space-y-2.5">
-                                                    {Array.isArray(roastData.action_items) ? roastData.action_items.slice(0, 5).map((item: string, i: number) => (
+                                        <div>
+                                            <p className="text-xs text-muted-foreground/50 mb-3">Top Improvement Areas</p>
+                                            <ol className="space-y-2.5">
+                                                {intelData ? (
+                                                    intelData.report.highest_impact_improvements.slice(0, 5).map((item, i) => (
                                                         <li key={i} className="flex gap-3 text-sm text-muted-foreground/70 leading-relaxed">
                                                             <span className="font-mono text-xs text-foreground/20 flex-shrink-0 mt-0.5 w-5 text-right">
                                                                 {String(i + 1).padStart(2, "0")}
                                                             </span>
-                                                            <span>{item}</span>
+                                                            <span><strong className="text-foreground/80">{item.improvement}:</strong> {item.why}</span>
                                                         </li>
-                                                    )) : (
-                                                        <li className="flex gap-3 text-sm text-muted-foreground/70 leading-relaxed">
-                                                            <span className="font-mono text-xs text-foreground/20 flex-shrink-0 mt-0.5 w-5 text-right">01</span>
-                                                            <span>{roastData.action_items}</span>
-                                                        </li>
-                                                    )}
-                                                </ol>
-                                            </div>
-                                        )}
+                                                    ))
+                                                ) : deepData?.action_items?.slice(0, 5).map((item, i) => (
+                                                    <li key={i} className="flex gap-3 text-sm text-muted-foreground/70 leading-relaxed">
+                                                        <span className="font-mono text-xs text-foreground/20 flex-shrink-0 mt-0.5 w-5 text-right">
+                                                            {String(i + 1).padStart(2, "0")}
+                                                        </span>
+                                                        <span>{item}</span>
+                                                    </li>
+                                                ))}
+                                            </ol>
+                                        </div>
                                     </div>
                                 </div>
                             )}

@@ -2,13 +2,14 @@
 import logging
 
 from fastapi import APIRouter, HTTPException, Request
-from app.api.dependencies import CurrentUser
+from app.api.dependencies import CurrentUser, require_credits
 from app.core.config import settings
 from app.core.rate_limit import ats_rate_key, limiter
 from app.db.supabase import get_db
 from app.services.math_engine import ats_score
-from app.services.resume_analyzer import generate_resume_roast, generate_deep_roast
-from app.schemas.models import MatchRequest, RoastRequest, DeepRoastRequest, TranslateRequest
+from app.services.hiring_intel import generate_hiring_intel
+from app.services.deep_analysis import generate_deep_analysis
+from app.schemas.models import MatchRequest, HiringIntelRequest, DeepAnalysisRequest
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -16,10 +17,17 @@ router = APIRouter()
 
 @router.post("/match")
 @limiter.limit(settings.RATE_LIMIT_ANALYSIS, key_func=ats_rate_key)
-async def ats_score_calculator(request: Request, body: MatchRequest, user: CurrentUser):
+async def ats_score_calculator(
+    request: Request,
+    body: MatchRequest,
+    user: CurrentUser,
+    _credits=require_credits("ats_score", 5),
+):
     """
-    Calculates ATS match score between a resume and job description.
-    Saves the result to ai_analyses history.
+    Calculates ATS score for a resume.
+    - With job_description: semantic cosine similarity (targeted match).
+    - Without job_description: rule-based general resume quality score.
+    Costs 5 credits. Saves the result to ai_analyses history.
     """
     supabase = await get_db()
     data = await supabase.table("resumes") \
@@ -35,21 +43,20 @@ async def ats_score_calculator(request: Request, body: MatchRequest, user: Curre
     except KeyError:
         raise HTTPException(status_code=500, detail="Resume has no parsed text")
 
-    # Run math engine (cosine similarity via HuggingFace embeddings)
     try:
-        match_result = await ats_score(resume_text, body.job_description)
+        match_result = await ats_score(resume_text, body.job_description or None)
     except Exception as e:
         logger.error("ATS scoring failed: %s", e)
         raise HTTPException(status_code=500, detail="Error calculating ATS score")
 
-    # Save result to history
     analysis_record = {
         "resume_id": body.resume_id,
         "analysis_type": "job_match_score",
         "output_data": {
-            "job_description_snippet": body.job_description[:100],
+            "job_description_snippet": (body.job_description or "")[:100],
             "score": match_result["score"],
-            "details": match_result
+            "mode": match_result.get("mode", "general"),
+            "details": match_result,
         }
     }
 
@@ -61,12 +68,18 @@ async def ats_score_calculator(request: Request, body: MatchRequest, user: Curre
     return match_result
 
 
-@router.post("/roast")
+@router.post("/deep")
 @limiter.limit(settings.RATE_LIMIT_ANALYSIS, key_func=ats_rate_key)
-async def roast_resume(request: Request, body: RoastRequest, user: CurrentUser):
+async def deep_analysis(
+    request: Request,
+    body: DeepAnalysisRequest,
+    user: CurrentUser,
+    _credits=require_credits("deep_analysis", 15),
+):
     """
-    Deep analysis (roast). Calculates ATS score first, then feeds it to the LLM
-    for a comprehensive section-by-section breakdown.
+    Section-by-section LLM resume critique.
+    Job description is optional — if provided, analysis is JD-aware.
+    Costs 15 credits.
     """
     supabase = await get_db()
 
@@ -77,45 +90,107 @@ async def roast_resume(request: Request, body: RoastRequest, user: CurrentUser):
 
     if not data.data:
         raise HTTPException(status_code=404, detail="Resume not found")
-    resume_text = data.data[0]['parsed_content']['raw_text']
 
-    # 1. Calculate base ATS score
     try:
-        match_result = await ats_score(resume_text, body.job_description)
-        calculated_ats_score = match_result.get("score", 0)
-    except Exception as e:
-        logger.error("Math engine failed: %s", e)
-        raise HTTPException(status_code=500, detail="Failed to calculate base ATS score")
+        resume_text = data.data[0]['parsed_content']['raw_text']
+    except KeyError:
+        raise HTTPException(status_code=500, detail="Resume has no parsed text")
 
-    # 2. Pass score to LLM for deep analysis
-    ai_result = await generate_resume_roast(resume_text, body.job_description, calculated_ats_score, body.language)
-    if not ai_result:
-        raise HTTPException(status_code=502, detail="AI analysis failed")
+    result = await generate_deep_analysis(
+        resume_text=resume_text,
+        job_description=body.job_description or None,
+    )
 
-    # 3. Save to DB
+    if not result:
+        raise HTTPException(status_code=502, detail="Deep analysis failed — please try again")
+
     analysis_record = {
         "resume_id": body.resume_id,
-        "analysis_type": "general_roast",
-        "output_data": ai_result
+        "analysis_type": "deep_analysis",
+        "output_data": {
+            "jd_provided": bool(body.job_description),
+            **result,
+        }
     }
 
     try:
         await supabase.table("ai_analyses").insert(analysis_record).execute()
-
-        # Update the resume quality badge
-        await supabase.table("resumes").update({
-            "resume_quality_feedback": ai_result['overall_feedback']
-        }).eq("id", body.resume_id) \
-            .eq("user_id", user.id).execute()
-
-        return {
-            "ats_math_score": calculated_ats_score,
-            "roast_details": ai_result
-        }
-
     except Exception as e:
-        logger.error("Database save failed for analysis on resume %s: %s", body.resume_id, e)
-        raise HTTPException(status_code=500, detail="An internal error occurred while saving the analysis.")
+        logger.warning("Failed to save deep analysis to DB: %s", e)
+
+    return result
+
+
+@router.post("/hiring-intel")
+@limiter.limit(settings.RATE_LIMIT_ANALYSIS, key_func=ats_rate_key)
+async def hiring_intelligence(
+    request: Request,
+    body: HiringIntelRequest,
+    user: CurrentUser,
+    _credits=require_credits("hiring_intel", 25),
+):
+    """
+    AI Career Intelligence Engine.
+    Generates a deep, JD-aware, recruiter-realistic 9-section hiring report.
+    Costs 25 credits.
+    """
+    supabase = await get_db()
+
+    data = await supabase.table("resumes") \
+        .select("parsed_content") \
+        .eq("id", body.resume_id) \
+        .eq("user_id", user.id).execute()
+
+    if not data.data:
+        raise HTTPException(status_code=404, detail="Resume not found")
+
+    try:
+        resume_text = data.data[0]['parsed_content']['raw_text']
+    except KeyError:
+        raise HTTPException(status_code=500, detail="Resume has no parsed text")
+
+    # 1. Calculate ATS score to anchor the report
+    try:
+        match_result = await ats_score(resume_text, body.job_description)
+        calculated_ats_score = match_result.get("score", 0)
+    except Exception as e:
+        logger.error("ATS math engine failed during hiring intel: %s", e)
+        calculated_ats_score = 0
+
+    # 2. Generate the full hiring intelligence report
+    intel_report = await generate_hiring_intel(
+        resume_text=resume_text,
+        job_description=body.job_description,
+        target_role=body.target_role,
+        experience_level=body.experience_level,
+    )
+
+    if not intel_report:
+        raise HTTPException(status_code=502, detail="Hiring intelligence analysis failed — please try again")
+
+    # 3. Save to DB
+    analysis_record = {
+        "resume_id": body.resume_id,
+        "analysis_type": "hiring_intel",
+        "output_data": {
+            "target_role": body.target_role,
+            "experience_level": body.experience_level,
+            "ats_score": calculated_ats_score,
+            "report": intel_report,
+        }
+    }
+
+    try:
+        await supabase.table("ai_analyses").insert(analysis_record).execute()
+    except Exception as e:
+        logger.warning("Failed to save hiring intel to DB: %s", e)
+
+    return {
+        "ats_score": calculated_ats_score,
+        "target_role": body.target_role,
+        "experience_level": body.experience_level,
+        "report": intel_report,
+    }
 
 
 @router.get("/history/{resume_id}")
@@ -131,114 +206,3 @@ async def get_analysis_history(resume_id: str, user: CurrentUser):
     history_res = await supabase.table("ai_analyses").select("*") \
         .eq("resume_id", resume_id).order("created_at", desc=True).execute()
     return history_res.data
-
-
-@router.post("/translate")
-@limiter.limit(settings.RATE_LIMIT_ANALYSIS, key_func=ats_rate_key)
-async def translate_analysis(request: Request, body: TranslateRequest, user: CurrentUser):
-    """
-    Re-generates an existing analysis in a different language (e.g. Hinglish).
-    Fetches the original analysis, extracts resume text + job description,
-    then calls the LLM with the new language.
-    """
-    supabase = await get_db()
-
-    # Fetch the existing analysis
-    analysis_res = await supabase.table("ai_analyses").select("*") \
-        .eq("id", body.analysis_id).execute()
-    if not analysis_res.data:
-        raise HTTPException(status_code=404, detail="Analysis not found")
-
-    analysis = analysis_res.data[0]
-    resume_id = analysis["resume_id"]
-
-    # Verify the user owns the resume
-    resume_res = await supabase.table("resumes").select("parsed_content") \
-        .eq("id", resume_id).eq("user_id", user.id).execute()
-    if not resume_res.data:
-        raise HTTPException(status_code=403, detail="You don't have access to this analysis.")
-
-    resume_text = resume_res.data[0]["parsed_content"]["raw_text"]
-
-    # Extract the job description snippet from the original output_data
-    output = analysis.get("output_data", {})
-    job_desc_snippet = ""
-    if isinstance(output, dict):
-        job_desc_snippet = output.get("job_description_snippet", "")
-        # For roast analyses, the output IS the roast details — use the existing score
-        existing_score = output.get("details", {}).get("score", 50) if analysis["analysis_type"] == "job_match_score" else 50
-    else:
-        existing_score = 50
-
-    # Re-generate in the target language
-    try:
-        translated = await generate_resume_roast(
-            resume_text, job_desc_snippet, existing_score, body.target_language
-        )
-    except Exception as e:
-        logger.error("Translation failed: %s", e)
-        raise HTTPException(status_code=502, detail="Translation failed")
-
-    if not translated:
-        raise HTTPException(status_code=502, detail="AI returned empty translation")
-
-    return translated
-
-
-@router.post("/deep-roast")
-@limiter.limit(settings.RATE_LIMIT_ANALYSIS, key_func=ats_rate_key)
-async def deep_roast_resume(request: Request, body: DeepRoastRequest, user: CurrentUser):
-    """
-    SAVAGE Deep Roast mode — no filters, any language, brutal honesty.
-    Calculates ATS score first, then feeds it to the savage roast LLM.
-    Returns the same JSON shape as /roast so the frontend can reuse rendering.
-    """
-    supabase = await get_db()
-
-    data = await supabase.table("resumes") \
-        .select("parsed_content") \
-        .eq("id", body.resume_id) \
-        .eq("user_id", user.id).execute()
-
-    if not data.data:
-        raise HTTPException(status_code=404, detail="Resume not found")
-    resume_text = data.data[0]['parsed_content']['raw_text']
-
-    # 1. Calculate base ATS score (same math engine)
-    try:
-        match_result = await ats_score(resume_text, body.job_description)
-        calculated_ats_score = match_result.get("score", 0)
-    except Exception as e:
-        logger.error("Math engine failed during deep roast: %s", e)
-        raise HTTPException(status_code=500, detail="Failed to calculate base ATS score")
-
-    # 2. Pass score to SAVAGE roast LLM
-    ai_result = await generate_deep_roast(
-        resume_text, body.job_description, calculated_ats_score, body.language
-    )
-    if not ai_result:
-        raise HTTPException(status_code=502, detail="Deep roast AI failed — try again")
-
-    # 3. Save to DB (tagged as deep_roast for history differentiation)
-    analysis_record = {
-        "resume_id": body.resume_id,
-        "analysis_type": "deep_roast",
-        "output_data": ai_result
-    }
-
-    try:
-        await supabase.table("ai_analyses").insert(analysis_record).execute()
-
-        await supabase.table("resumes").update({
-            "resume_quality_feedback": ai_result.get('overall_feedback', '')
-        }).eq("id", body.resume_id) \
-            .eq("user_id", user.id).execute()
-
-        return {
-            "ats_math_score": calculated_ats_score,
-            "roast_details": ai_result
-        }
-
-    except Exception as e:
-        logger.error("DB save failed for deep roast on resume %s: %s", body.resume_id, e)
-        raise HTTPException(status_code=500, detail="Internal error saving deep roast.")

@@ -1,5 +1,16 @@
 .env
 .venv/
+venv/
 **/__pycache__/
 env.zip
 static/
+*.log
+backend.log
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+dist/
+build/
+*.egg-info/

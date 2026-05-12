@@ -17,8 +17,28 @@ logger = logging.getLogger(__name__)
 
 
 def _get_real_client_ip(request: Request) -> str:
-    """Return the direct connection IP. Never trust X-Forwarded-For from
-    untrusted clients — only a trusted reverse proxy should set it."""
+    """
+    Extract the real client IP from the request.
+    In production (behind Render/Cloudflare proxy), reads X-Forwarded-For.
+    In development, falls back to request.client.host.
+    """
+    if settings.ENVIRONMENT == "production":
+        # Cloudflare sets this header — most reliable
+        cf_ip = request.headers.get("CF-Connecting-IP")
+        if cf_ip:
+            return cf_ip.strip().split(",")[0].strip()
+
+        # Standard reverse proxy header (Render, nginx, etc.)
+        forwarded = request.headers.get("X-Forwarded-For")
+        if forwarded:
+            # Leftmost IP is the original client
+            return forwarded.strip().split(",")[0].strip()
+
+        real_ip = request.headers.get("X-Real-IP")
+        if real_ip:
+            return real_ip.strip()
+
+    # Development / direct connection
     if request.client:
         return request.client.host or "unknown"
     return "unknown"
@@ -31,11 +51,8 @@ limiter = Limiter(
 
 
 def get_client_ip(request: Request) -> str:
-    """Return the direct connection IP (safe default).
-    Only trust X-Forwarded-For when deployed behind a known reverse proxy."""
-    if request.client:
-        return request.client.host or "unknown"
-    return "unknown"
+    """Alias for _get_real_client_ip — used by credit system and other modules."""
+    return _get_real_client_ip(request)
 
 
 def _cookie_access_token(request: Request) -> str | None:

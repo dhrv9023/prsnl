@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     RATE_LIMIT_ATS: str = "5/hour"
     MAX_UPLOAD_BYTES: int = 5 * 1024 * 1024
     REDIS_URL: str = "redis://localhost:6379/0"  # Override in .env if Redis on another host
+    SENTRY_DSN: str | None = None  # Set in production env vars for error monitoring
 
     model_config = SettingsConfigDict(
         env_file=_APP_DIR / ".env",

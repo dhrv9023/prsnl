@@ -4,21 +4,17 @@ from typing import List, Optional, Dict, Any
 
 class MatchRequest(BaseModel):
     resume_id: str
-    job_description: str
+    job_description: str | None = None  # optional — if omitted, uses rule-based general scoring
 
-class RoastRequest(BaseModel):
+class DeepAnalysisRequest(BaseModel):
+    resume_id: str
+    job_description: str | None = None  # optional — enables JD-aware mode
+
+class HiringIntelRequest(BaseModel):
     resume_id: str
     job_description: str
-    language: str = "english"
-
-class DeepRoastRequest(BaseModel):
-    resume_id: str
-    job_description: str
-    language: str = "english"  # no restrictions — any language accepted
-
-class TranslateRequest(BaseModel):
-    analysis_id: str
-    target_language: str
+    target_role: str
+    experience_level: str  # fresher | junior | mid | senior
 
 class CoverLetterRequest(BaseModel):
     resume_id: str
@@ -80,4 +76,4 @@ class InterviewSession(BaseModel):
     experience_level: str = ""
     questions: List[InterviewQuestion] = []
     answers: Dict[int, str] = {}
-    evaluations: Dict[int, AnswerEvaluation] = {}
+    evaluations: Dict[int, AnswerEvaluation] = {}

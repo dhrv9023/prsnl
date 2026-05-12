@@ -8,54 +8,52 @@
 
 @layer base {
   :root {
-    /* Light Mode - Warm, Calm, Premium */
-    --background: 40 20% 98%;
-    /* Headings & Main Text: Darkened to a deeper black/slate for contrast */
-    --foreground: 240 10% 9%;
+    /* Light Mode - Warm, Calm, Premium — with stronger contrast */
+    --background: 0 0% 100%;
+    --foreground: 240 12% 8%;
 
-    --card: 40 15% 96%;
-    --card-foreground: 240 10% 9%;
+    --card: 40 15% 97%;
+    --card-foreground: 240 12% 8%;
 
-    --popover: 40 20% 98%;
-    --popover-foreground: 240 10% 9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 12% 8%;
 
-    --primary: 240 10% 9%;
-    --primary-foreground: 40 20% 98%;
+    --primary: 240 12% 8%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 40 10% 94%;
-    --secondary-foreground: 240 10% 15%;
+    --secondary: 40 12% 93%;
+    --secondary-foreground: 240 10% 12%;
 
-    --muted: 40 10% 92%;
-    /* Descriptions, Paragraphs, Subtext: Darkened from 45% lightness to 35% for readability on white */
-    --muted-foreground: 240 5% 35%;
+    --muted: 40 10% 91%;
+    --muted-foreground: 240 6% 28%;
 
-    --accent: 45 80% 58%;
-    --accent-foreground: 240 10% 10%;
+    --accent: 45 80% 50%;
+    --accent-foreground: 240 10% 8%;
 
-    --accent-teal: 175 40% 45%;
-    --accent-teal-foreground: 40 20% 98%;
+    --accent-teal: 175 40% 38%;
+    --accent-teal-foreground: 0 0% 100%;
 
-    --accent-rose: 350 30% 65%;
-    --accent-rose-foreground: 240 10% 10%;
+    --accent-rose: 350 35% 52%;
+    --accent-rose-foreground: 0 0% 100%;
 
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 40 20% 98%;
+    --destructive: 0 72% 45%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 40 10% 88%;
-    --input: 40 10% 88%;
-    --ring: 240 10% 10%;
+    --border: 40 10% 82%;
+    --input: 40 10% 82%;
+    --ring: 240 12% 8%;
 
     --radius: 0.625rem;
 
     /* Sidebar */
     --sidebar-background: 40 15% 96%;
-    --sidebar-foreground: 240 10% 10%;
-    --sidebar-primary: 240 10% 10%;
-    --sidebar-primary-foreground: 40 20% 98%;
-    --sidebar-accent: 40 10% 92%;
-    --sidebar-accent-foreground: 240 10% 10%;
-    --sidebar-border: 40 10% 88%;
-    --sidebar-ring: 240 10% 10%;
+    --sidebar-foreground: 240 10% 8%;
+    --sidebar-primary: 240 12% 8%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 40 10% 91%;
+    --sidebar-accent-foreground: 240 10% 8%;
+    --sidebar-border: 40 10% 82%;
+    --sidebar-ring: 240 12% 8%;
   }
 
   .dark {
@@ -235,6 +233,26 @@
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
   }
 
+  /* Light mode: subtle gradient from white at top to a warm off-white */
+  :root body {
+    background-image:
+      radial-gradient(ellipse 90% 50% at 50% -10%, hsl(240 10% 8% / 0.04) 0%, transparent 60%),
+      linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(40 15% 97%) 100%);
+  }
+
+  .dark body {
+    background-image: none;
+  }
+
+  /* Fix placeholder visibility in light mode */
+  ::placeholder {
+    color: hsl(var(--muted-foreground) / 0.5);
+  }
+
+  .dark ::placeholder {
+    color: hsl(var(--muted-foreground) / 0.35);
+  }
+
   /* Premium Typography */
   .heading-display {
     font-family: 'Instrument Serif', Georgia, serif;
@@ -270,7 +288,6 @@
 }
 
 @layer components {
-
   /* Subtle gradient backgrounds */
   .gradient-subtle {
     background: radial-gradient(ellipse 80% 50% at 50% -20%, hsl(var(--accent) / 0.08), transparent);

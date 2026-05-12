@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuthContext } from "@/contexts/AuthContext";
-import { useRoastMode } from "@/contexts/RoastModeContext";
+import { useCreditContext } from "@/contexts/CreditContext";
 import { Navbar } from "@/components/layout/Navbar";
+import { FeatureCostTag, InsufficientCreditsWarning } from "@/components/ui/CreditDisplay";
 import {
     AlertTriangle,
     ArrowLeft,
@@ -24,6 +25,7 @@ import {
     apiUploadResume,
     type ResumeListItem,
 } from "@/lib/api";
+import { friendlyError } from "@/lib/errors";
 
 const roleExamples = [
     "Frontend Developer",
@@ -42,7 +44,11 @@ function resumeName(fileUrl: string) {
 export default function CoverLetter() {
     const auth = useAuthContext();
     const navigate = useNavigate();
-    const { isRoastMode, roastLanguage } = useRoastMode();
+    const { canUse, deductLocal, refresh: refreshCredits } = useCreditContext();
+
+    // Roast mode is disabled — always false
+    const isRoastMode = false;
+    const roastLanguage = "english";
 
     const [resumes, setResumes] = useState<ResumeListItem[]>([]);
     const [selectedResume, setSelectedResume] = useState("");
@@ -74,7 +80,7 @@ export default function CoverLetter() {
                 setResumes(items);
                 if (items[0]?.id) setSelectedResume(items[0].id);
             })
-            .catch((e) => setError(e.message || "Failed to load resumes."))
+            .catch((e) => setError(friendlyError(e, "Failed to load resumes.")))
             .finally(() => setLoadingResumes(false));
     }, [auth.isAuthenticated]);
 
@@ -93,7 +99,7 @@ export default function CoverLetter() {
             setSelectedResume(uploaded.id);
             setNotice("Resume uploaded and selected.");
         } catch (e: unknown) {
-            setError((e as Error).message || "Resume upload failed.");
+            setError(friendlyError(e, "Resume upload failed."));
         } finally {
             setUploading(false);
         }
@@ -104,10 +110,15 @@ export default function CoverLetter() {
             setError("Select a resume and fill company, role, and job description.");
             return;
         }
+        if (!canUse("cover_letter")) {
+            setError("Insufficient credits. Cover Letter Generator costs 10 credits.");
+            return;
+        }
         setGenerating(true);
         setError("");
         setNotice("");
         setSavedPdfPath("");
+        deductLocal("cover_letter");
         try {
             const result = isRoastMode
                 ? await apiGenerateRoastCoverLetter(
@@ -127,26 +138,33 @@ export default function CoverLetter() {
             setLetter(result.content);
             setNotice(isRoastMode ? "🔥 Roast cover letter generated! Edit it before saving." : "Cover letter generated. You can edit it before saving.");
         } catch (e: unknown) {
-            setError((e as Error).message || "Cover letter generation failed.");
+            setError(friendlyError(e, "Cover letter generation failed."));
         } finally {
             setGenerating(false);
+            refreshCredits();
         }
     }
 
     const handleHumanize = async () => {
         if (!letter.trim()) return;
+        if (!canUse("humanize")) {
+            setError("Insufficient credits. Humanize costs 15 credits.");
+            return;
+        }
         setHumanizing(true);
         setError("");
         setNotice("");
+        deductLocal("humanize");
         try {
             const { humanized_text } = await apiHumanizeCoverLetter(letter);
             setLetter(humanized_text);
             setNotice("Cover letter humanized successfully.");
             setTimeout(() => setNotice(""), 3000);
-        } catch (e: any) {
-            setError(e.message || "Failed to humanize cover letter.");
+        } catch (e: unknown) {
+            setError(friendlyError(e, "Failed to humanize cover letter."));
         } finally {
             setHumanizing(false);
+            refreshCredits();
         }
     };
 
@@ -163,7 +181,7 @@ export default function CoverLetter() {
             setSavedPdfPath(result.pdf_url);
             setNotice("PDF saved to Supabase storage.");
         } catch (e: unknown) {
-            setError((e as Error).message || "Failed to save PDF.");
+            setError(friendlyError(e, "Failed to save PDF."));
         } finally {
             setSaving(false);
         }
@@ -324,9 +342,13 @@ export default function CoverLetter() {
                                     />
                                 </div>
 
+                                {!canUse("cover_letter") && (
+                                    <InsufficientCreditsWarning feature="cover_letter" />
+                                )}
+
                                 <button
                                     onClick={handleGenerate}
-                                    disabled={!canGenerate || generating}
+                                    disabled={!canGenerate || generating || !canUse("cover_letter")}
                                     className={`flex h-11 w-full items-center justify-center gap-2 rounded-lg text-sm font-semibold transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45 ${
                                         isRoastMode
                                             ? "bg-red-600 text-white roast-glow"
@@ -336,8 +358,8 @@ export default function CoverLetter() {
                                     {generating
                                         ? <><Loader2 className="h-4 w-4 animate-spin" />{isRoastMode ? "Roasting..." : "Generating..."}</>
                                         : isRoastMode
-                                            ? <><span className="flame-flicker">🔥</span>{letter ? "Re-Roast" : "Roast My Letter"}</>
-                                            : <><PenTool className="h-4 w-4" />Generate Cover Letter</>
+                                            ? <><span className="flame-flicker">🔥</span>{letter ? "Re-Roast" : "Roast My Letter"}<FeatureCostTag feature="cover_letter" className="ml-auto" /></>
+                                            : <><PenTool className="h-4 w-4" />Generate Cover Letter<FeatureCostTag feature="cover_letter" className="ml-auto" /></>
                                     }
                                 </button>
                             </section>
@@ -352,11 +374,13 @@ export default function CoverLetter() {
                                 <div className="flex flex-wrap gap-2 mt-3 md:mt-0">
                                     <button
                                         onClick={handleHumanize}
-                                        disabled={!letter.trim() || humanizing}
+                                        disabled={!letter.trim() || humanizing || !canUse("humanize")}
                                         className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 text-sm font-medium text-amber-500 hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                                        title="Humanize AI tone — costs 15 credits"
                                     >
                                         {humanizing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                                         Humanize AI Tone
+                                        <span className="text-[10px] font-bold opacity-60 ml-0.5">15cr</span>
                                     </button>
                                     <button
                                         onClick={handleDownloadText}

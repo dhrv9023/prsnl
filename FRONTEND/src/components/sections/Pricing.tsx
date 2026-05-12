@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { useInView } from "framer-motion";
 import { useRef } from "react";
-import { Check, ArrowRight } from "lucide-react";
+import { Check, Clock } from "lucide-react";
 
 const plans = [
   {
@@ -9,43 +9,40 @@ const plans = [
     price: "Free",
     description: "Get started with essential career tools",
     features: [
-      "Basic resume analysis",
-      "1 AI mock interview",
-      "Career path suggestions",
-      "Community access",
+      "100 free credits on signup",
+      "ATS Match Score",
+      "Deep Resume Analysis",
+      "Cover Letter Generator",
+      "AI Mock Interview",
     ],
-    cta: "Get Started",
     featured: false,
   },
   {
     name: "Pro",
-    price: "$19",
-    period: "/month",
-    description: "Everything you need to land your dream job",
+    price: "₹99",
+    period: "/mo",
+    description: "For serious job seekers",
     features: [
-      "Advanced resume analysis & ATS scoring",
-      "Unlimited AI mock interviews",
-      "Personalized career roadmap",
-      "Line-by-line feedback",
-      "Interview readiness scoring",
-      "Priority support",
+      "300 credits / month",
+      "Everything in Starter",
+      "Hiring Intelligence Reports",
+      "Priority AI processing",
+      "Interview history & tracking",
     ],
-    cta: "Start Free Trial",
     featured: true,
   },
   {
-    name: "Team",
-    price: "$49",
-    period: "/month",
-    description: "For career services and organizations",
+    name: "Power",
+    price: "₹249",
+    period: "/mo",
+    description: "For active job hunters",
     features: [
+      "1000 credits / month",
       "Everything in Pro",
-      "Up to 50 team members",
-      "Admin dashboard & analytics",
-      "Custom integrations",
-      "Dedicated success manager",
+      "Bulk resume analysis",
+      "Dedicated support",
+      "Early access to new features",
     ],
-    cta: "Contact Sales",
     featured: false,
   },
 ];
@@ -68,8 +65,14 @@ export function Pricing() {
             Simple, transparent pricing
           </h2>
           <p className="body-large max-w-xl mx-auto">
-            Start free, upgrade when you're ready. No hidden fees.
+            Start free with 100 credits. Top-up plans coming soon.
           </p>
+
+          {/* Coming soon banner */}
+          <div className="inline-flex items-center gap-2 mt-6 px-4 py-2 rounded-full border border-amber-500/25 bg-amber-500/8 text-amber-400 text-sm font-medium">
+            <Clock className="w-4 h-4" />
+            Paid plans launching soon — all features free during beta
+          </div>
         </motion.div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
@@ -79,56 +82,55 @@ export function Pricing() {
               initial={{ opacity: 0, y: 40 }}
               animate={isInView ? { opacity: 1, y: 0 } : {}}
               transition={{ duration: 0.6, delay: index * 0.1, ease: [0.16, 1, 0.3, 1] }}
-              className={`relative rounded-2xl p-6 md:p-8 ${
+              className={`relative rounded-2xl p-6 md:p-8 opacity-70 ${
                 plan.featured
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-background border border-border"
+                  ? "bg-primary/20 border border-primary/30"
+                  : "bg-background border border-border/50"
               }`}
             >
               {plan.featured && (
-                <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 text-xs font-medium bg-accent text-accent-foreground rounded-full">
+                <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 text-xs font-medium bg-secondary border border-border/50 text-muted-foreground rounded-full">
                   Most Popular
                 </span>
               )}
-              
+
               <div className="mb-6">
-                <h3 className="text-lg font-semibold mb-2">{plan.name}</h3>
+                <h3 className="text-lg font-semibold mb-2 text-foreground/70">{plan.name}</h3>
                 <div className="flex items-baseline gap-1">
-                  <span className="text-3xl font-semibold">{plan.price}</span>
+                  <span className="text-3xl font-semibold text-foreground/60">{plan.price}</span>
                   {plan.period && (
-                    <span className={plan.featured ? "text-primary-foreground/70" : "text-muted-foreground"}>
-                      {plan.period}
-                    </span>
+                    <span className="text-muted-foreground/50">{plan.period}</span>
                   )}
                 </div>
-                <p className={`text-sm mt-2 ${plan.featured ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
-                  {plan.description}
-                </p>
+                <p className="text-sm mt-2 text-muted-foreground/50">{plan.description}</p>
               </div>
 
               <ul className="space-y-3 mb-8">
                 {plan.features.map((feature) => (
-                  <li key={feature} className="flex items-start gap-3 text-sm">
-                    <Check className={`w-4 h-4 mt-0.5 flex-shrink-0 ${plan.featured ? "text-accent" : "text-accent-teal"}`} />
+                  <li key={feature} className="flex items-start gap-3 text-sm text-muted-foreground/50">
+                    <Check className="w-4 h-4 mt-0.5 flex-shrink-0 text-muted-foreground/30" />
                     <span>{feature}</span>
                   </li>
                 ))}
               </ul>
 
-              <a
-                href="#cta"
-                className={`btn-premium w-full h-12 rounded-full text-sm font-medium ${
-                  plan.featured
-                    ? "bg-background text-foreground hover:bg-background/90"
-                    : "bg-secondary hover:bg-secondary/80"
-                }`}
-              >
-                {plan.cta}
-                <ArrowRight className="w-4 h-4" />
-              </a>
+              {/* Greyed-out disabled button */}
+              <div className="w-full h-12 rounded-full flex items-center justify-center gap-2 border border-border/30 bg-secondary/30 text-muted-foreground/40 text-sm font-medium cursor-not-allowed select-none">
+                <Clock className="w-4 h-4" />
+                Coming Soon
+              </div>
             </motion.div>
           ))}
         </div>
+
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={isInView ? { opacity: 1 } : {}}
+          transition={{ duration: 0.6, delay: 0.4 }}
+          className="text-center text-xs text-muted-foreground/30 mt-8"
+        >
+          Credits never expire · Secure payments via Razorpay · GST included
+        </motion.p>
       </div>
     </section>
   );

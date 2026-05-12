@@ -208,10 +208,10 @@ CORS_ORIGINS          = https://your-app.vercel.app
 ```
 VITE_SUPABASE_URL     = (your Supabase URL)
 VITE_SUPABASE_ANON_KEY = (your anon key)
-VITE_API_BASE_URL     = https://kareerist-backend.onrender.com/api/v1
+VITE_API_BASE         = https://kareerist-backend.onrender.com
 ```
 
-> **Important**: In production, the Vite proxy doesn't exist. The frontend must call the Render URL directly. Update `api.ts` or use `VITE_API_BASE_URL` as the base.
+> **Important**: In production, the Vite proxy doesn't exist. `VITE_API_BASE` tells the frontend to call the Render backend directly. The `api.ts` client uses `import.meta.env.VITE_API_BASE ?? ""` as the base URL prefix.
 
 > After deploy (~2 min), copy the Vercel URL: `https://kareerist-xxx.vercel.app`
 
@@ -270,6 +270,7 @@ Before going live, verify:
 - [ ] `ENVIRONMENT=production` in Render env vars
 - [ ] `COOKIE_SECURE=True` in Render env vars
 - [ ] `CORS_ORIGINS` set to exact Vercel URL (no wildcard, no trailing slash)
+- [ ] `VITE_API_BASE` set in Vercel to the Render backend URL (e.g. `https://kareerist-backend.onrender.com`)
 - [ ] Supabase redirect URLs updated
 - [ ] Google OAuth redirect URIs updated
 - [ ] `.env` files not committed to GitHub
@@ -277,3 +278,7 @@ Before going live, verify:
 - [ ] `SUPABASE_JWT_SECRET` set (enables composite rate-limit keys)
 - [ ] Upstash Redis URL uses `rediss://` (TLS)
 - [ ] All Groq/HF API keys are valid and have quota
+- [ ] `SUPABASE_MIGRATION.sql` run in Supabase SQL Editor (credit system tables + RPCs)
+- [ ] `backend/SUPABASE_MIGRATION_interview_reports.sql` run in Supabase SQL Editor
+- [ ] Render start command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+- [ ] Do NOT use `run.sh` in production (WSL-specific commands)

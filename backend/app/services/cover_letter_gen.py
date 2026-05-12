@@ -5,6 +5,7 @@ import re
 from groq import AsyncGroq
 from app.core.config import settings
 from app.services.resume_analyzer import clean_llm_answer
+from app.services.prompt_sanitizer import sanitize_user_text
 
 logger = logging.getLogger(__name__)
 client = AsyncGroq(api_key=settings.GROQ_API_KEY)
@@ -33,6 +34,9 @@ async def cover_letter_generator(resume_text: str, job_description: str) -> str 
     6. START DIRECTLY with the greeting (e.g., "Dear Hiring Manager,"). Do NOT include the applicant's name, phone number, email, links, or address at the top of the letter.
     7. Generate plain text ONLY. Do NOT use any Markdown formatting, asterisks, or bold text for emphasis."""
 
+    safe_resume = sanitize_user_text(resume_text)
+    safe_jd = sanitize_user_text(job_description)
+
     try:
         completion = await client.chat.completions.create(
             model="llama-3.3-70b-versatile",
@@ -43,10 +47,10 @@ async def cover_letter_generator(resume_text: str, job_description: str) -> str 
                     "content": (
                         "Use only the untrusted data between the delimiters.\n\n"
                         "<RESUME_TEXT>\n"
-                        f"{resume_text}\n"
+                        f"{safe_resume}\n"
                         "</RESUME_TEXT>\n\n"
                         "<JOB_DESCRIPTION>\n"
-                        f"{job_description}\n"
+                        f"{safe_jd}\n"
                         "</JOB_DESCRIPTION>"
                     ),
                 }
@@ -119,6 +123,9 @@ ROAST COVER LETTER RULES:
 8. Start directly with the greeting. No name/email/address header.
 9. Plain text only. No markdown, no asterisks.{language_instruction}"""
 
+    safe_resume = sanitize_user_text(resume_text)
+    safe_jd = sanitize_user_text(job_description)
+
     try:
         completion = await client.chat.completions.create(
             model="llama-3.3-70b-versatile",
@@ -129,10 +136,10 @@ ROAST COVER LETTER RULES:
                     "content": (
                         "Write a roast-mode cover letter using only this data:\n\n"
                         "<RESUME_TEXT>\n"
-                        f"{resume_text}\n"
+                        f"{safe_resume}\n"
                         "</RESUME_TEXT>\n\n"
                         "<JOB_DESCRIPTION>\n"
-                        f"{job_description}\n"
+                        f"{safe_jd}\n"
                         "</JOB_DESCRIPTION>"
                     ),
                 },

@@ -104,3 +104,21 @@ backend/uploads/
 supabase/.branches/
 supabase/.temp/
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Documentation & Deployment Guides (keep in repo but not in deployments)
+# ─────────────────────────────────────────────────────────────────────────────
+# Keep kareerist_sofar/ for reference, but exclude from production builds
+# These are development/reference docs only
+DEPLOYMENT_READY.txt
+DEPLOYMENT_QUICK_START.md
+NEXT_STEPS_WITH_SENTRY.md
+SUPABASE_MIGRATION_FIXED.md
+codes.txt
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Misc
+# ─────────────────────────────────────────────────────────────────────────────
+.DS_Store
+*.swp
+*.swo
+*~

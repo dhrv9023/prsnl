@@ -1,18 +1,22 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuthContext } from "@/contexts/AuthContext";
-import { useRoastMode } from "@/contexts/RoastModeContext";
+import { useCreditContext } from "@/contexts/CreditContext";
 import {
     apiListResumes,
     apiUploadResume,
     apiStartInterview,
     apiSubmitAnswer,
     apiEndInterview,
+    apiGetActiveInterviewSession,
     type ResumeListItem,
     type InterviewQuestion,
     type AnswerEvaluation,
     type InterviewReport,
 } from "@/lib/api";
+import { friendlyError } from "@/lib/errors";
+import { FeatureCostTag, InsufficientCreditsWarning } from "@/components/ui/CreditDisplay";
+import { HinglishToggle } from "@/components/ui/HinglishToggle";
 import {
     ArrowLeft, Loader2, Upload, ChevronRight, Code2, BookOpen, ListChecks,
     Trophy, RotateCcw, FileText, Zap, AlertTriangle,
@@ -71,10 +75,12 @@ function SetupStep({
     onStart,
     isRoastMode,
     roastLanguage,
+    canAfford,
 }: {
     onStart: (resumeId: string, role: string, level: string) => Promise<void>;
     isRoastMode: boolean;
     roastLanguage: string;
+    canAfford: boolean;
 }) {
     const [resumes, setResumes] = useState<ResumeListItem[]>([]);
     const [loadingResumes, setLoadingResumes] = useState(true);
@@ -104,7 +110,7 @@ function SetupStep({
             setResumes(refreshed);
             setSelectedResume(res.id);
         } catch (e: unknown) {
-            setError((e as Error).message ?? "Upload failed.");
+            setError(friendlyError(e, "Upload failed."));
         } finally {
             setUploading(false);
         }
@@ -118,7 +124,7 @@ function SetupStep({
         try {
             await onStart(selectedResume, role.trim(), level);
         } catch (e: unknown) {
-            setError((e as Error).message ?? "Failed to start interview.");
+            setError(friendlyError(e, "Failed to start interview."));
             setStarting(false);
         }
     }
@@ -129,7 +135,7 @@ function SetupStep({
     }
 
     return (
-        <div className="flex-1 flex flex-col items-center justify-center p-6 md:p-12">
+        <div className="flex-1 overflow-y-auto"><div className="flex flex-col items-center py-8 px-6 md:px-12 min-h-full">
             <div className="w-full max-w-2xl space-y-8">
 
                 {/* Header */}
@@ -207,7 +213,7 @@ function SetupStep({
                             value={role}
                             onChange={(e) => setRole(e.target.value)}
                             placeholder="e.g. Software Engineer"
-                            className="w-full bg-secondary/20 border border-border/30 rounded-xl px-4 py-3 text-sm text-foreground placeholder-muted-foreground/30 focus:outline-none focus:border-foreground/20 transition-colors"
+                            className="w-full bg-secondary/20 border border-border/30 rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-foreground/20 transition-colors"
                         />
                         <div className="flex flex-wrap gap-1.5 pt-1">
                             {POPULAR_ROLES.map((r) => (
@@ -242,10 +248,15 @@ function SetupStep({
                         </div>
                     )}
 
+                    {/* Insufficient credits warning */}
+                    {!canAfford && (
+                        <InsufficientCreditsWarning feature="interview" />
+                    )}
+
                     {/* Start Button */}
                     <button
                         onClick={handleStart}
-                        disabled={starting || uploading || loadingResumes}
+                        disabled={starting || uploading || loadingResumes || !canAfford}
                         className={`w-full h-12 flex items-center justify-center gap-2.5 rounded-xl text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed ${
                             isRoastMode
                                 ? "bg-red-600 text-white roast-glow"
@@ -255,8 +266,8 @@ function SetupStep({
                         {starting
                             ? <><Loader2 className="w-4 h-4 animate-spin" /> {isRoastMode ? "Generating Roast Questions…" : "Generating Questions…"}</>
                             : isRoastMode
-                                ? <><span className="flame-flicker">🔥</span> Start Roast Interview</>
-                                : <><Zap className="w-4 h-4" /> Start Interview</>
+                                ? <><span className="flame-flicker">🔥</span> Start Roast Interview<FeatureCostTag feature="interview" className="ml-auto" /></>
+                                : <><Zap className="w-4 h-4" /> Start Interview<FeatureCostTag feature="interview" className="ml-auto" /></>
                         }
                     </button>
 
@@ -268,7 +279,7 @@ function SetupStep({
                     </p>
                 </div>
             </div>
-        </div>
+        </div></div>
     );
 }
 
@@ -292,7 +303,13 @@ function InterviewStep({
 
     const q = questions[currentIdx];
     const isLast = currentIdx === questions.length - 1;
-    const progress = ((currentIdx) / questions.length) * 100;
+    const progress = ((currentIdx + 1) / questions.length) * 100;
+    const [displayQuestion, setDisplayQuestion] = useState(q?.text ?? "");
+
+    // Reset display text when question changes
+    useEffect(() => {
+        setDisplayQuestion(q?.text ?? "");
+    }, [currentIdx, q?.text]);
 
     if (!q) return null;
 
@@ -305,7 +322,7 @@ function InterviewStep({
             setEvaluation(ev);
             setShowEval(true);
         } catch (e: unknown) {
-            setError((e as Error).message ?? "Submission failed.");
+            setError(friendlyError(e, "Couldn't submit your answer. Please try again."));
         } finally {
             setSubmitting(false);
         }
@@ -318,7 +335,7 @@ function InterviewStep({
                 const report = await apiEndInterview();
                 onComplete(report);
             } catch (e: unknown) {
-                setError((e as Error).message ?? "Failed to generate report.");
+                setError(friendlyError(e, "Failed to generate your report. Please try again."));
                 setEnding(false);
             }
         } else {
@@ -372,10 +389,15 @@ function InterviewStep({
                                 <Bot className="w-4 h-4 text-primary" />
                             </div>
                             <div className="flex-1 space-y-3">
-                                <p className="text-base font-medium text-foreground leading-relaxed whitespace-pre-wrap">{q.text}</p>
+                                <p className="text-base font-medium text-foreground leading-relaxed whitespace-pre-wrap">{displayQuestion}</p>
                                 {q.context && (
                                     <p className="text-xs text-muted-foreground/60 italic leading-relaxed border-l-2 border-border/30 pl-3">{q.context}</p>
                                 )}
+                                <HinglishToggle
+                                    originalText={q.text}
+                                    onConverted={setDisplayQuestion}
+                                    label="Hinglish mein samjho"
+                                />
                             </div>
                         </div>
                     </div>
@@ -429,7 +451,7 @@ function InterviewStep({
                                     onChange={(e) => setAnswer(e.target.value)}
                                     rows={6}
                                     placeholder="Type your answer here…"
-                                    className="w-full bg-secondary/20 border border-border/30 rounded-xl p-4 text-sm text-foreground placeholder-muted-foreground/30 resize-y focus:outline-none focus:border-foreground/20 transition-colors leading-relaxed"
+                                    className="w-full bg-secondary/20 border border-border/30 rounded-xl p-4 text-sm text-foreground placeholder:text-muted-foreground/50 resize-y focus:outline-none focus:border-foreground/20 transition-colors leading-relaxed"
                                 />
                             )}
 
@@ -491,7 +513,7 @@ function InterviewStep({
                                         <Lightbulb className="w-3.5 h-3.5 text-amber-400/70" />
                                         <p className="text-xs font-mono uppercase tracking-widest text-amber-400/60">Ideal Answer</p>
                                     </div>
-                                    <p className="text-sm text-muted-foreground/70 leading-relaxed whitespace-pre-wrap font-mono text-xs bg-secondary/20 rounded-lg p-3">{evaluation.ideal_answer}</p>
+                                    <p className="text-xs text-muted-foreground/70 leading-relaxed whitespace-pre-wrap font-mono bg-secondary/20 rounded-lg p-3">{evaluation.ideal_answer}</p>
                                 </div>
                                 {q.type === "code" && evaluation.time_complexity && (
                                     <div className="flex gap-3 pt-1">
@@ -652,12 +674,15 @@ function ReportStep({
 
 // ── Page shell ────────────────────────────────────────────────────────────────
 
-type Step = "setup" | "interview" | "report";
+type Step = "setup" | "resume-prompt" | "interview" | "report";
 
 export default function AIInterview() {
     const auth = useAuthContext();
     const navigate = useNavigate();
-    const { isRoastMode, roastLanguage } = useRoastMode();
+    // Roast mode is disabled — always false
+    const isRoastMode = false;
+    const roastLanguage = "english";
+    const { canUse, deductLocal, refresh: refreshCredits } = useCreditContext();
 
     // Auth guard
     useEffect(() => {
@@ -669,12 +694,53 @@ export default function AIInterview() {
     const [step, setStep] = useState<Step>("setup");
     const [questions, setQuestions] = useState<InterviewQuestion[]>([]);
     const [report, setReport] = useState<InterviewReport | null>(null);
+    const [resumeChecking, setResumeChecking] = useState(true);
+    const [activeSessionMeta, setActiveSessionMeta] = useState<{ role: string | null; answered: number; total: number } | null>(null);
+
+    // On mount: check Redis for an active session via the backend
+    useEffect(() => {
+        if (!auth.isAuthenticated) return;
+        apiGetActiveInterviewSession()
+            .then((data) => {
+                if (data.active && data.questions && data.questions.length > 0) {
+                    setActiveSessionMeta({
+                        role: data.role,
+                        answered: data.answered_count,
+                        total: data.total_questions ?? data.questions.length,
+                    });
+                    setStep("resume-prompt");
+                }
+            })
+            .catch(() => { /* non-fatal — just go to setup */ })
+            .finally(() => setResumeChecking(false));
+    }, [auth.isAuthenticated]);
 
     const handleStart = useCallback(async (resumeId: string, role: string, level: string) => {
-        const qs = await apiStartInterview(resumeId, role, level, isRoastMode, roastLanguage);
-        setQuestions(qs);
-        setStep("interview");
-    }, [isRoastMode, roastLanguage]);
+        deductLocal("interview");
+        try {
+            const qs = await apiStartInterview(resumeId, role, level, isRoastMode, roastLanguage);
+            setQuestions(qs);
+            setStep("interview");
+        } finally {
+            refreshCredits();
+        }
+    }, [isRoastMode, roastLanguage, deductLocal, refreshCredits]);
+
+    const handleResumeSession = useCallback(async () => {
+        // Fetch the full session from Redis and jump straight into the interview
+        try {
+            const data = await apiGetActiveInterviewSession();
+            if (data.active && data.questions && data.questions.length > 0) {
+                setQuestions(data.questions);
+                setStep("interview");
+            } else {
+                setStep("setup");
+            }
+        } catch {
+            setStep("setup");
+        }
+        setActiveSessionMeta(null);
+    }, []);
 
     const handleComplete = useCallback((r: InterviewReport) => {
         setReport(r);
@@ -684,10 +750,11 @@ export default function AIInterview() {
     const handleRestart = useCallback(() => {
         setQuestions([]);
         setReport(null);
+        setActiveSessionMeta(null);
         setStep("setup");
     }, []);
 
-    if (auth.isLoading) {
+    if (auth.isLoading || resumeChecking) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-background">
                 <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
@@ -698,7 +765,7 @@ export default function AIInterview() {
     if (!auth.isAuthenticated) return null;
 
     return (
-        <div className="h-screen flex flex-col dark bg-background text-foreground overflow-hidden">
+        <div className="h-screen flex flex-col bg-background text-foreground">
 
             {/* Top bar */}
             <header
@@ -719,13 +786,11 @@ export default function AIInterview() {
                 </div>
 
                 <div className="ml-auto flex items-center gap-3">
-                    {/* Roast mode indicator in header */}
                     {isRoastMode && (
                         <span className="hidden sm:flex items-center gap-1.5 text-xs font-semibold text-red-400 bg-red-400/10 px-2 py-1 rounded-lg border border-red-400/20">
                             <span className="flame-flicker">🔥</span> Roast Mode
                         </span>
                     )}
-                    {/* Step indicator */}
                     {["setup", "interview", "report"].map((s, i) => (
                         <div key={s} className="flex items-center gap-1">
                             <div className={`w-2 h-2 rounded-full transition-all ${step === s ? "bg-primary w-4" : ["setup", "interview", "report"].indexOf(step) > i ? "bg-emerald-400/60" : "bg-border/40"}`} />
@@ -734,8 +799,55 @@ export default function AIInterview() {
                 </div>
             </header>
 
+            {/* Resume session prompt */}
+            {step === "resume-prompt" && (
+                <div className="flex-1 flex items-center justify-center p-6">
+                    <div className="w-full max-w-md rounded-2xl border border-amber-500/25 bg-card/60 backdrop-blur-sm p-8 space-y-5 text-center">
+                        <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mx-auto">
+                            <Bot className="w-7 h-7 text-amber-400" />
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-bold tracking-tight">Resume your interview?</h2>
+                            {activeSessionMeta && (
+                                <div className="mt-2 space-y-1">
+                                    {activeSessionMeta.role && (
+                                        <p className="text-sm font-semibold text-foreground/70">{activeSessionMeta.role}</p>
+                                    )}
+                                    <p className="text-sm text-muted-foreground/60">
+                                        {activeSessionMeta.answered} of {activeSessionMeta.total} questions answered
+                                    </p>
+                                </div>
+                            )}
+                            <p className="text-xs text-muted-foreground/40 mt-2 leading-relaxed">
+                                Your session is still active in Redis. Continue where you left off.
+                            </p>
+                        </div>
+                        <div className="flex flex-col gap-2.5">
+                            <button
+                                onClick={handleResumeSession}
+                                className="w-full h-11 flex items-center justify-center gap-2 bg-primary text-primary-foreground rounded-xl text-sm font-semibold hover:opacity-90 transition-opacity"
+                            >
+                                Continue Interview
+                            </button>
+                            <button
+                                onClick={() => { setActiveSessionMeta(null); setStep("setup"); }}
+                                className="w-full h-11 flex items-center justify-center gap-2 border border-border/30 rounded-xl text-sm text-muted-foreground hover:text-foreground hover:bg-secondary/20 transition-colors"
+                            >
+                                Start New Interview
+                            </button>
+                            <button
+                                onClick={() => navigate("/interview/history")}
+                                className="text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+                            >
+                                View Past Interviews →
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Steps */}
-            {step === "setup" && <SetupStep onStart={handleStart} isRoastMode={isRoastMode} roastLanguage={roastLanguage} />}
+            {step === "setup" && <SetupStep onStart={handleStart} isRoastMode={isRoastMode} roastLanguage={roastLanguage} canAfford={canUse("interview")} />}
             {step === "interview" && questions.length > 0 && (
                 <InterviewStep questions={questions} onComplete={handleComplete} />
             )}

@@ -1,7 +1,15 @@
 #!/bin/bash
 
-# Kareerist Studio — Linux Launcher
+# Kareerist Studio — Local Development Launcher (Linux/WSL only)
 # Starts Redis, Backend (FastAPI), and Frontend (Vite) in the correct order
+#
+# ⚠️  PRODUCTION DEPLOYMENT (Render):
+#     Do NOT use this script in production. Set the Render start command to:
+#       uvicorn app.main:app --host 0.0.0.0 --port $PORT
+#     Working directory: backend/
+#
+# ⚠️  This script uses WSL-specific commands (hostname -I, setsid) and will
+#     not work in standard Docker containers or macOS.
 
 # Colors for better output
 GREEN='\033[0;32m'

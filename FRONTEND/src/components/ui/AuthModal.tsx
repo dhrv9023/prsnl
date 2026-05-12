@@ -111,7 +111,7 @@ export function AuthModal({
                                     placeholder="Full name"
                                     value={name}
                                     onChange={(e) => setName(e.target.value)}
-                                    className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-secondary/40 border border-border/40 text-sm text-foreground placeholder-muted-foreground/40 focus:outline-none focus:border-foreground/20 focus:ring-1 focus:ring-foreground/10 transition-all"
+                                    className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-secondary/40 border border-border/40 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-foreground/20 focus:ring-1 focus:ring-foreground/10 transition-all"
                                 />
                             </div>
                         )}
@@ -125,7 +125,7 @@ export function AuthModal({
                                 value={email}
                                 required
                                 onChange={(e) => setEmail(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-secondary/40 border border-border/40 text-sm text-foreground placeholder-muted-foreground/40 focus:outline-none focus:border-foreground/20 focus:ring-1 focus:ring-foreground/10 transition-all"
+                                className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-secondary/40 border border-border/40 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-foreground/20 focus:ring-1 focus:ring-foreground/10 transition-all"
                             />
                         </div>
 
@@ -139,7 +139,7 @@ export function AuthModal({
                                 required
                                 minLength={6}
                                 onChange={(e) => setPassword(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-secondary/40 border border-border/40 text-sm text-foreground placeholder-muted-foreground/40 focus:outline-none focus:border-foreground/20 focus:ring-1 focus:ring-foreground/10 transition-all"
+                                className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-secondary/40 border border-border/40 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-foreground/20 focus:ring-1 focus:ring-foreground/10 transition-all"
                             />
                         </div>
 

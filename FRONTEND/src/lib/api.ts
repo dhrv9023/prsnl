@@ -1,11 +1,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Centralized API client for Kareerist Studio
 //
-// All requests go through the Vite proxy  →  /api  →  http://localhost:8000
+// In development: Vite proxy forwards /api → http://localhost:8000
+// In production: VITE_API_BASE points to the deployed backend URL
 // HttpOnly cookies are sent automatically because of "credentials: include"
 // ─────────────────────────────────────────────────────────────────────────────
 
-const BASE = "/api/v1";
+const API_BASE = import.meta.env.VITE_API_BASE ?? "";
+const BASE = `${API_BASE}/api/v1`;
 
 // ── Generic fetch wrapper ────────────────────────────────────────────────────
 
@@ -130,70 +132,140 @@ export async function apiUploadResume(
 
 export interface MatchResult {
     score: number;
-    raw_similarity: number;
+    raw_similarity: number | null;
     warning?: string;
+    mode?: "general" | "jd_match";
+    note?: string;
+    breakdown?: {
+        content_density: number;
+        quantification: number;
+        action_verbs: number;
+        section_coverage: number;
+        contact_info: number;
+        formatting: number;
+    };
 }
 
-export interface RoastSection {
-    score: string;
+// ── Hiring Intelligence types ─────────────────────────────────────────────────
+
+export interface HiringIntelVerdict {
+    shortlist_probability: "Low" | "Medium" | "High";
+    perceived_readiness: string;
+    competitiveness: string;
+}
+
+export interface HiringIntelCriticalSkill {
+    skill: string;
+    why_it_matters: string;
+    hiring_impact: string;
+}
+
+export interface HiringIntelOptionalSkill {
+    skill: string;
+    why_it_matters: string;
+}
+
+export interface HiringIntelImprovement {
+    improvement: string;
+    why: string;
+    hiring_impact: string;
+}
+
+export interface HiringIntelRewrite {
+    original: string;
+    improved: string;
+    reason: string;
+}
+
+export interface HiringIntelReport {
+    overall_alignment: string;
+    recruiter_pov: {
+        first_impression: string;
+        strong_signals: string[];
+        recruiter_concerns: string[];
+        verdict: HiringIntelVerdict;
+    };
+    skill_gap: {
+        critical_missing: HiringIntelCriticalSkill[];
+        optional_missing: HiringIntelOptionalSkill[];
+        production_gaps: string[];
+    };
+    deep_hiring_analysis: {
+        engineering_maturity: string;
+        execution_capability: string;
+        project_credibility: string;
+        production_readiness: string;
+    };
+    role_aware_reasoning: {
+        what_recruiters_prioritize: string;
+        candidate_alignment: string;
+        role_specific_strengths: string[];
+        role_specific_weaknesses: string[];
+    };
+    why_this_matters: { gap: string; explanation: string }[];
+    highest_impact_improvements: HiringIntelImprovement[];
+    before_after_rewrites: HiringIntelRewrite[];
+    final_verdict: {
+        hiring_readiness: "Not Ready" | "Borderline" | "Interview-Ready" | "Strong Candidate";
+        summary: string;
+    };
+}
+
+export interface HiringIntelResponse {
+    ats_score: number;
+    target_role: string;
+    experience_level: string;
+    report: HiringIntelReport;
+}
+
+// ── Deep Analysis types ─────────────────────────────────────────────────────
+
+export interface DeepAnalysisSection {
+    score: "Excellent" | "Very Good" | "Good" | "Fair" | "Poor";
     feedback: string;
-    issues?: string | string[];
-    missing_keywords?: string | string[];
+    issues: string[];
+    missing_keywords: string[];
 }
 
-export interface RoastDetails {
-    overall_feedback: string;
+export interface DeepAnalysisResult {
     summary: string;
-    sections: Record<string, RoastSection>;
-    action_items: string[] | string;
+    overall_feedback: "Excellent" | "Good" | "Fair" | "Poor";
+    sections: Record<string, DeepAnalysisSection>;
+    action_items: string[];
+    jd_provided?: boolean;
 }
 
-export interface RoastResponse {
-    ats_math_score: number;
-    roast_details: RoastDetails;
-}
-
-// ── Analysis endpoints ────────────────────────────────────────────────────────
+// ── Analysis endpoints ─────────────────────────────────────────────────────
 
 export async function apiGetAtsScore(
     resume_id: string,
-    job_description: string
+    job_description?: string
 ): Promise<MatchResult> {
     return request("/analysis/match", {
         method: "POST",
-        body: JSON.stringify({ resume_id, job_description }),
+        body: JSON.stringify({ resume_id, job_description: job_description || null }),
     });
 }
 
-export async function apiGetRoast(
+export async function apiGetDeepAnalysis(
+    resume_id: string,
+    job_description?: string
+): Promise<DeepAnalysisResult> {
+    return request("/analysis/deep", {
+        method: "POST",
+        body: JSON.stringify({ resume_id, job_description: job_description || null }),
+    });
+}
+
+export async function apiGetHiringIntel(
     resume_id: string,
     job_description: string,
-    language: string = "english"
-): Promise<RoastResponse> {
-    return request("/analysis/roast", {
+    target_role: string,
+    experience_level: string
+): Promise<HiringIntelResponse> {
+    return request("/analysis/hiring-intel", {
         method: "POST",
-        body: JSON.stringify({ resume_id, job_description, language }),
-    });
-}
-
-export async function apiGetDeepRoast(
-    resume_id: string,
-    job_description: string,
-    language: string = "english"
-): Promise<RoastResponse> {
-    return request("/analysis/deep-roast", {
-        method: "POST",
-        body: JSON.stringify({ resume_id, job_description, language }),
-    });
-}
-
-export async function apiTranslateAnalysis(
-    analysis_id: string,
-    target_language: string
-): Promise<RoastDetails> {
-    return request("/analysis/translate", {
-        method: "POST",
-        body: JSON.stringify({ analysis_id, target_language }),
+        body: JSON.stringify({ resume_id, job_description, target_role, experience_level }),
     });
 }
 
@@ -262,17 +334,18 @@ export interface AnalysisHistoryItem {
     id: string;
     resume_id: string;
     resume_name?: string;
-    type: string;           // "job_match_score" | "general_roast"
+    type: string;           // "job_match_score" | "hiring_intel"
     score: number | string | null;
     created_at: string;
-    output_data?: unknown;      // The full JSON result (e.g. sections, action_items)
+    output_data?: unknown;      // The full JSON result
 }
 
 export interface DashboardSummary {
     total_resumes: number;
     total_analyses: number;
     latest_ats_score: number | null;
-    latest_roast: RoastDetails | null;
+    latest_intel: HiringIntelResponse | null;
+    latest_deep_analysis: DeepAnalysisResult | null;
     analysis_history: AnalysisHistoryItem[];
 }
 
@@ -335,7 +408,7 @@ export interface InterviewReport {
 // ── Interview endpoints ───────────────────────────────────────────────────────
 // NOTE: The interview router is mounted at /api/v1/interview directly in main.py
 
-const INTERVIEW_BASE = "/api/v1/interview";
+const INTERVIEW_BASE = `${API_BASE}/api/v1/interview`;
 
 async function interviewRequest<T>(
     path: string,
@@ -387,4 +460,156 @@ export async function apiSubmitAnswer(
 
 export async function apiEndInterview(): Promise<InterviewReport> {
     return interviewRequest("/end", { method: "POST" });
+}
+
+// ── Admin types ───────────────────────────────────────────────────────────────
+
+export interface AdminStats {
+    total_users: number;
+    new_users_7d: number;
+    total_resumes: number;
+    total_analyses: number;
+    total_cover_letters: number;
+    total_interviews: number;
+    analysis_type_breakdown: Record<string, number>;
+    recent_activity: { analysis_type: string; created_at: string }[];
+    credit_stats: {
+        total_credits_granted: number;
+        total_credits_used: number;
+        per_feature_usage: Record<string, number>;
+    };
+    feature_costs: Record<string, number>;
+}
+
+export interface AdminUser {
+    id: string;
+    email: string;
+    full_name: string | null;
+    remaining_credits: number;
+    total_credits_granted: number;
+    credits_used: number;
+    is_unlimited: boolean;
+    is_admin: boolean;
+    created_at: string;
+}
+
+// ── Admin endpoints ───────────────────────────────────────────────────────────
+
+export async function apiGetAdminStats(): Promise<AdminStats> {
+    return request("/admin/stats");
+}
+
+export async function apiGetAdminUsers(): Promise<AdminUser[]> {
+    return request("/admin/users");
+}
+
+export async function apiGrantCredits(
+    userId: string,
+    amount: number,
+    reason?: string
+): Promise<{ msg: string; remaining: number; total_granted: number }> {
+    return request(`/admin/users/${userId}/grant-credits`, {
+        method: "POST",
+        body: JSON.stringify({ amount, reason: reason ?? "admin_grant" }),
+    });
+}
+
+export async function apiSetUnlimited(
+    userId: string,
+    unlimited: boolean
+): Promise<{ msg: string; is_unlimited: boolean }> {
+    return request(`/admin/users/${userId}/set-unlimited`, {
+        method: "POST",
+        body: JSON.stringify({ unlimited }),
+    });
+}
+
+export async function apiGetUserCreditHistory(userId: string): Promise<CreditTransaction[]> {
+    return request(`/admin/users/${userId}/credit-history`);
+}
+
+// ── Credit types ──────────────────────────────────────────────────────────────
+
+export interface CreditBalance {
+    remaining: number;
+    total_granted: number;
+    used: number;
+    is_unlimited: boolean;
+    low_credits: boolean;
+}
+
+export interface CreditTransaction {
+    id: string;
+    feature: string;
+    label: string;
+    credits_used: number;
+    credits_before: number;
+    credits_after: number;
+    metadata: Record<string, unknown>;
+    created_at: string;
+}
+
+export interface FeatureCost {
+    cost: number;
+    label: string;
+}
+
+export interface CreditValidation {
+    can_use: boolean;
+    remaining: number;
+    cost: number;
+    shortfall: number;
+    is_unlimited?: boolean;
+}
+
+// ── Credit endpoints ──────────────────────────────────────────────────────────
+
+export async function apiGetCreditBalance(): Promise<CreditBalance> {
+    return request("/credits/balance");
+}
+
+export async function apiGetFeatureCosts(): Promise<Record<string, FeatureCost>> {
+    return request("/credits/costs");
+}
+
+export async function apiValidateCredits(feature: string): Promise<CreditValidation> {
+    return request("/credits/validate", {
+        method: "POST",
+        body: JSON.stringify({ feature }),
+    });
+}
+
+export async function apiGetCreditHistory(): Promise<CreditTransaction[]> {
+    return request("/credits/history");
+}
+
+// ── Interview History types ───────────────────────────────────────────────────
+
+export interface InterviewHistoryItem {
+    id: string;
+    overall_score: number;
+    qualitative_score: string | null;
+    breakdown: InterviewBreakdownItem[];
+    role: string | null;
+    experience_level: string | null;
+    questions_count: number;
+    answers_count: number;
+    created_at: string;
+}
+
+// ── Interview History endpoint ────────────────────────────────────────────────
+
+export async function apiGetInterviewHistory(): Promise<InterviewHistoryItem[]> {
+    return request("/interview/history");
+}
+
+export async function apiGetActiveInterviewSession(): Promise<{
+    active: boolean;
+    questions: InterviewQuestion[] | null;
+    answered_count: number;
+    total_questions?: number;
+    role: string | null;
+    experience_level?: string | null;
+}> {
+    return interviewRequest("/session");
 }

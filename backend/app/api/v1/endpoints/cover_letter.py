@@ -9,7 +9,7 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch
 
-from app.api.dependencies import CurrentUser
+from app.api.dependencies import CurrentUser, require_credits
 from app.core.config import settings
 from app.core.rate_limit import ats_rate_key, limiter
 from app.db.supabase import get_db
@@ -49,7 +49,12 @@ def create_pdf(text: str) -> bytes:
 
 @router.post("/generate")
 @limiter.limit(settings.RATE_LIMIT_COVER_LETTER, key_func=ats_rate_key)
-async def create_cover_letter(request: Request, body: CoverLetterRequest, user: CurrentUser):
+async def create_cover_letter(
+    request: Request,
+    body: CoverLetterRequest,
+    user: CurrentUser,
+    _credits=require_credits("cover_letter", 10),
+):
     """Step 1: AI generates a cover letter text draft."""
     supabase = await get_db()
 
@@ -92,7 +97,12 @@ async def create_cover_letter(request: Request, body: CoverLetterRequest, user: 
 
 @router.post("/generate-roast")
 @limiter.limit(settings.RATE_LIMIT_COVER_LETTER, key_func=ats_rate_key)
-async def create_roast_cover_letter(request: Request, body: CoverLetterRoastRequest, user: CurrentUser):
+async def create_roast_cover_letter(
+    request: Request,
+    body: CoverLetterRoastRequest,
+    user: CurrentUser,
+    _credits=require_credits("cover_letter", 10),
+):
     """Step 1 (Roast Mode): AI generates a savage, self-aware cover letter draft."""
     supabase = await get_db()
 
@@ -197,8 +207,13 @@ async def get_application(app_id: str, user: CurrentUser):
 
 @router.post("/humanize")
 @limiter.limit("5/hour", key_func=ats_rate_key)
-async def humanize_cover_letter(request: Request, body: HumanizeRequest, user: CurrentUser):
-    """Rewrites an AI-generated cover letter to sound more natural and human."""
+async def humanize_cover_letter(
+    request: Request,
+    body: HumanizeRequest,
+    user: CurrentUser,
+    _credits=require_credits("humanize", 15),
+):
+    """Rewrites an AI-generated cover letter to sound more natural and human. Costs 15 credits."""
     if not body.text or len(body.text.strip()) < 50:
         raise HTTPException(400, "Cover letter text is too short to humanize.")
     if len(body.text) > 5000:

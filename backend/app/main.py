@@ -1,6 +1,6 @@
 import logging
-import os
 
+import sentry_sdk
 from fastapi import FastAPI, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -8,10 +8,12 @@ from starlette.requests import Request as StarletteRequest
 from starlette.responses import Response
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from app.core.config import settings
 from app.core.rate_limit import limiter
-from app.api.v1.endpoints import ai_analysis, ats_score, auth, resumes, cover_letter, interview, dashboard
+from app.core.request_logger import RequestLoggerMiddleware
+from app.api.v1.endpoints import ai_analysis, ats_score, auth, resumes, cover_letter, interview, dashboard, admin, credits, utils
 
 # ── Logging Setup ─────────────────────────────────────────────────────────────
 # All backend modules should use `logging.getLogger(__name__)` instead of print()
@@ -22,7 +24,22 @@ logging.basicConfig(
 )
 logger = logging.getLogger("kareerist")
 
+# ── Sentry Error Monitoring ───────────────────────────────────────────────────
+# Initialise before the app is created so all exceptions are captured.
+# Set SENTRY_DSN in production environment variables.
+
+if settings.SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=settings.SENTRY_DSN,
+        environment=settings.ENVIRONMENT,
+        traces_sample_rate=0.1,   # 10% of requests traced — adjust as needed
+        send_default_pii=False,   # never send user PII to Sentry
+    )
+    logger.info("Sentry error monitoring enabled (environment: %s)", settings.ENVIRONMENT)
+
 # ── Security Headers Middleware ───────────────────────────────────────────────
+
+_is_prod = settings.ENVIRONMENT == "production"
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -35,10 +52,34 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
         response.headers["X-XSS-Protection"] = "1; mode=block"
-        response.headers["Content-Security-Policy"] = (
-            "default-src 'none'; "
-            "frame-ancestors 'none';"
-        )
+
+        # Production CSP: allow the React app to load its own assets, fonts, and Supabase
+        # API-only backend doesn't serve HTML, but this protects any error pages
+        if _is_prod:
+            csp_parts = [
+                "default-src 'self'",
+                "script-src 'self'",
+                "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+                "font-src 'self' https://fonts.gstatic.com",
+                "img-src 'self' data: https://*.supabase.co",
+                "connect-src 'self' https://*.supabase.co",
+                "frame-ancestors 'none'",
+                "base-uri 'self'",
+                "form-action 'self'",
+            ]
+            response.headers["Content-Security-Policy"] = "; ".join(csp_parts)
+        else:
+            # Development: relaxed CSP
+            response.headers["Content-Security-Policy"] = (
+                "default-src 'self'; "
+                "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
+                "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+                "font-src 'self' https://fonts.gstatic.com; "
+                "img-src 'self' data: https://*.supabase.co; "
+                "connect-src 'self' https://*.supabase.co ws: wss:; "
+                "frame-ancestors 'none';"
+            )
+
         # HSTS — only meaningful over HTTPS; skip for plain HTTP dev server
         if request.url.scheme == "https":
             response.headers["Strict-Transport-Security"] = (
@@ -69,8 +110,6 @@ class BodySizeLimitMiddleware(BaseHTTPMiddleware):
 
 # ── FastAPI App ───────────────────────────────────────────────────────────────
 
-_is_prod = settings.ENVIRONMENT == "production"
-
 app = FastAPI(
     title=settings.PROJECT_NAME,
     openapi_url=None if _is_prod else f"{settings.API_V1_STR}/openapi.json",
@@ -90,6 +129,9 @@ api_router.include_router(resumes.router, prefix="/resumes", tags=["Resumes"])
 api_router.include_router(ai_analysis.router, prefix="/analysis", tags=["AI Analysis"])
 api_router.include_router(cover_letter.router, prefix="/cover_letter", tags=["Cover Letter"])
 api_router.include_router(dashboard.router, prefix="/dashboard", tags=["Dashboard"])
+api_router.include_router(admin.router, prefix="/admin", tags=["Admin"])
+api_router.include_router(credits.router, prefix="/credits", tags=["Credits"])
+api_router.include_router(utils.router, prefix="/utils", tags=["Utils"])
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
 app.include_router(interview.router, prefix="/api/v1/interview", tags=["AI Interview"])
@@ -110,6 +152,12 @@ app.add_middleware(
 # Security headers — added AFTER CORSMiddleware so it wraps all responses
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(BodySizeLimitMiddleware)
+# Request logger — outermost so it captures all requests including errors
+app.add_middleware(RequestLoggerMiddleware)
+
+# Trust proxy headers (X-Forwarded-For, X-Forwarded-Proto) from Render's load balancer
+if _is_prod:
+    app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=["*"])
 
 # ── Health & Root ─────────────────────────────────────────────────────────────
 

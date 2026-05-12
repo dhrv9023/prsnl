@@ -7,20 +7,15 @@ import {
     apiExchangeOAuthSession,
     AuthUser,
 } from "@/lib/api";
+import { friendlyError } from "@/lib/errors";
 import { SUPABASE_CODE_VERIFIER_KEY, isSupabaseOAuthConfigured, supabase } from "@/lib/supabase";
 
 interface AuthState {
     user: AuthUser | null;
     isAdmin: boolean;
-    isLoading: boolean;      // true while the initial /auth/me check is in-flight
-    isSubmitting: boolean;   // true during login/signup actions
+    isLoading: boolean;
+    isSubmitting: boolean;
     error: string;
-}
-
-function extractError(e: unknown, fallback: string): string {
-    if (e instanceof Error) return e.message || fallback;
-    if (typeof e === "string") return e;
-    return fallback;
 }
 
 export function useAuth() {
@@ -44,10 +39,12 @@ export function useAuth() {
         setState((s) => ({ ...s, isSubmitting: true, error: "" }));
         try {
             const res = await apiLogin(email, password);
-            setState({ user: res.user, isAdmin: false, isLoading: false, isSubmitting: false, error: "" });
+            // Fetch /me after login to get is_admin flag
+            const me = await apiGetMe().catch(() => null);
+            setState({ user: res.user, isAdmin: me?.is_admin ?? false, isLoading: false, isSubmitting: false, error: "" });
             return true;
         } catch (e: unknown) {
-            const msg = extractError(e, "Invalid email or password. Please try again.");
+            const msg = friendlyError(e, "Wrong email or password. Please try again.");
             setState((s) => ({ ...s, isSubmitting: false, error: msg }));
             return false;
         }
@@ -60,10 +57,11 @@ export function useAuth() {
             await apiSignup(email, password, name);
             // Auto-login after successful signup
             const res = await apiLogin(email, password);
-            setState({ user: res.user, isAdmin: false, isLoading: false, isSubmitting: false, error: "" });
+            const me = await apiGetMe().catch(() => null);
+            setState({ user: res.user, isAdmin: me?.is_admin ?? false, isLoading: false, isSubmitting: false, error: "" });
             return true;
         } catch (e: unknown) {
-            const msg = extractError(e, "Signup failed. Please try again.");
+            const msg = friendlyError(e, "Signup failed. Please try again.");
             setState((s) => ({ ...s, isSubmitting: false, error: msg }));
             return false;
         }
@@ -110,10 +108,12 @@ export function useAuth() {
 
             const res = await apiExchangeOAuthSession(code, verifier);
             window.localStorage.removeItem(SUPABASE_CODE_VERIFIER_KEY);
-            setState({ user: res.user, isAdmin: false, isLoading: false, isSubmitting: false, error: "" });
+            // Fetch /me to get is_admin flag
+            const me = await apiGetMe().catch(() => null);
+            setState({ user: res.user, isAdmin: me?.is_admin ?? false, isLoading: false, isSubmitting: false, error: "" });
             return true;
         } catch (e: unknown) {
-            const msg = extractError(e, "Google sign-in failed. Please try again.");
+            const msg = friendlyError(e, "Google sign-in failed. Please try again.");
             setState({ user: null, isAdmin: false, isLoading: false, isSubmitting: false, error: msg });
             return false;
         }
@@ -125,7 +125,10 @@ export function useAuth() {
      * with an already-consumed OAuth code).
      */
     const setAuthUser = useCallback((user: AuthUser) => {
-        setState({ user, isAdmin: false, isLoading: false, isSubmitting: false, error: "" });
+        // Fetch /me to get is_admin flag for OAuth users
+        apiGetMe()
+            .then((me) => setState({ user, isAdmin: me?.is_admin ?? false, isLoading: false, isSubmitting: false, error: "" }))
+            .catch(() => setState({ user, isAdmin: false, isLoading: false, isSubmitting: false, error: "" }));
     }, []);
 
     // ── Logout ───────────────────────────────────────────────────────────────

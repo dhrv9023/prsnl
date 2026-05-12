@@ -2,30 +2,26 @@
 
 ## Overview
 
-Kareerist has **5 distinct AI-powered features**, all powered by the Groq API (`llama-3.3-70b-versatile` model) and HuggingFace embeddings. Each feature is fully implemented end-to-end from the backend service to the frontend page.
+Kareerist has **6 distinct AI-powered features**, all powered by the Groq API (`llama-3.3-70b-versatile` model) and HuggingFace embeddings. Each feature costs credits and is fully implemented end-to-end.
 
 All Groq API calls use:
 - `timeout=30` — prevents indefinite hanging
 - Security sandboxing via XML delimiters and prompt injection guards
+- `sanitize_user_text()` from `prompt_sanitizer.py` — strips XML delimiter tags from user input
 - `clean_llm_answer()` to strip markdown code fences from LLM output
 
 ---
 
-## Feature 1 — ATS Match Score (`/api/v1/analysis/match`)
+## Feature 1 — ATS Match Score (`/api/v1/analysis/match`) — 5 credits
 
 ### What It Does
 Calculates how well a resume matches a specific Job Description using **semantic similarity** (not just keyword matching).
 
 ### How It Works
-1. Resume text is fetched from the DB (already extracted during upload)
-2. Both resume text and job description are sent to **HuggingFace Inference API** to generate embeddings
-3. **Cosine similarity** is computed between the two embedding vectors
-4. Score is scaled from 0–100
-
-```
-math_engine.py → ats_score(resume_text, job_description)
-→ HuggingFace embeddings → cosine_similarity() → scaled score
-```
+1. Resume text fetched from DB (already extracted during upload)
+2. Both resume text and JD sent to **HuggingFace Inference API** to generate embeddings
+3. **Cosine similarity** computed between the two embedding vectors
+4. Score scaled from 0–100
 
 ### API Response
 ```json
@@ -37,19 +33,14 @@ math_engine.py → ats_score(resume_text, job_description)
 ```
 
 ### Storage
-Result saved to `ai_analyses` table with `analysis_type = "job_match_score"`.
+Result saved to `ai_analyses` with `analysis_type = "job_match_score"`.
 
 ---
 
-## Feature 2 — Deep Roast (`/api/v1/analysis/roast`)
+## Feature 2 — Deep Analysis (`/api/v1/analysis/deep`) — 15 credits
 
 ### What It Does
-A **comprehensive LLM-powered critique** of the resume. Brutal, honest, constructive feedback — structured like a senior recruiter reviewing the resume.
-
-### How It Works
-1. ATS score is calculated first (math engine) — this gives the LLM a quantitative baseline
-2. The ATS score + resume text + JD are sent to `llama-3.3-70b-versatile`
-3. LLM returns a structured JSON response with section-by-section feedback
+A **comprehensive LLM-powered critique** of the resume. Section-by-section feedback — structured like a senior recruiter reviewing the resume. Optionally JD-aware if a job description is provided.
 
 ### Output Structure
 ```json
@@ -57,60 +48,94 @@ A **comprehensive LLM-powered critique** of the resume. Brutal, honest, construc
   "overall_feedback": "Fair | Good | Very Good | Excellent | Poor",
   "summary": "2-4 sentence professional assessment",
   "sections": {
-    "experience": { "score": "Good", "feedback": "...", "issues": "..." },
-    "projects":   { "score": "Fair", "feedback": "...", "issues": "..." },
-    "skills":     { "score": "Good", "feedback": "...", "missing_keywords": "..." },
+    "experience": { "score": "Good", "feedback": "...", "issues": [...], "missing_keywords": [...] },
+    "projects":   { "score": "Fair", "feedback": "...", "issues": [...] },
+    "skills":     { "score": "Good", "feedback": "...", "missing_keywords": [...] },
     "education":  { "score": "Very Good", "feedback": "..." },
     "formatting": { "score": "Poor", "feedback": "..." }
   },
-  "action_items": ["Fix X", "Add Y", "Remove Z"]
+  "action_items": ["Fix X", "Add Y", "Remove Z"],
+  "jd_provided": true
 }
 ```
 
-### Roast Principles Enforced in Prompt
-- Be brutally honest but constructive
-- Never invent skills/experience not in the resume
-- Contextualize against the JD if provided
-- Penalize vague language and overclaiming
-- Flag exaggerated statements that won't survive interview probing
-
-### Post-Roast Actions
-- Saved to `ai_analyses` with `analysis_type = "general_roast"`
-- `resume_quality_feedback` field in the `resumes` table updated with the overall grade (badge shown in dashboard)
+### Storage
+Saved to `ai_analyses` with `analysis_type = "deep_analysis"`. The deep analysis output is also used by the AI Interview feature to generate targeted questions based on the candidate's known weak spots.
 
 ---
 
-## Feature 3 — Hinglish Translation (`/api/v1/analysis/translate`)
+## Feature 3 — Hiring Intelligence (`/api/v1/analysis/hiring-intel`) — 25 credits
 
 ### What It Does
-Re-generates any existing analysis in **Hinglish** (a mix of Hindi and English in Latin script) — making the feedback accessible to users more comfortable in that language.
+A **9-section recruiter-realistic hiring report** — the most comprehensive analysis feature. Combines ATS scoring with deep LLM analysis to simulate how a real recruiter would evaluate the candidate.
+
+### Output Structure
+```json
+{
+  "ats_score": 68,
+  "target_role": "Senior Backend Engineer",
+  "experience_level": "mid",
+  "report": {
+    "overall_alignment": "...",
+    "recruiter_pov": {
+      "first_impression": "...",
+      "strong_signals": [...],
+      "recruiter_concerns": [...],
+      "verdict": {
+        "shortlist_probability": "Medium",
+        "perceived_readiness": "...",
+        "competitiveness": "..."
+      }
+    },
+    "skill_gap": {
+      "critical_missing": [{ "skill": "...", "why_it_matters": "...", "hiring_impact": "..." }],
+      "optional_missing": [...],
+      "production_gaps": [...]
+    },
+    "deep_hiring_analysis": {
+      "engineering_maturity": "...",
+      "execution_capability": "...",
+      "project_credibility": "...",
+      "production_readiness": "..."
+    },
+    "role_aware_reasoning": { ... },
+    "why_this_matters": [{ "gap": "...", "explanation": "..." }],
+    "highest_impact_improvements": [{ "improvement": "...", "why": "...", "hiring_impact": "..." }],
+    "before_after_rewrites": [{ "original": "...", "improved": "...", "reason": "..." }],
+    "final_verdict": {
+      "hiring_readiness": "Not Ready | Borderline | Interview-Ready | Strong Candidate",
+      "summary": "..."
+    }
+  }
+}
+```
+
+### Storage
+Saved to `ai_analyses` with `analysis_type = "hiring_intel"`.
+
+---
+
+## Feature 4 — Hinglish Translation (`/api/v1/utils/hinglish`) — Free
+
+### What It Does
+Converts any English career/resume analysis text into **Hinglish** (Hindi + English in Latin/Roman script) — making feedback accessible to users more comfortable in that language.
 
 ### How It Works
-1. Fetches the original analysis from `ai_analyses` table
-2. Verifies user owns the associated resume (IDOR check)
-3. Re-calls the `generate_resume_roast()` service with `language="hinglish"`
-4. The language instruction injected into the prompt:
-```
-IMPORTANT: Write ALL feedback, summary, issues, and action_items in Hinglish
-(a mix of Hindi and English using Latin script). Keep JSON keys in English,
-but all value text must be in Hinglish.
-```
+1. User sends any text (analysis output, feedback, etc.)
+2. Groq LLM converts it to Hinglish following strict rules:
+   - Keep technical terms, skill names, company names in English
+   - Convert explanations and feedback to Hinglish
+   - Roman script only — no Devanagari
+3. Rate limited: `20/hour` per user
 
-### Frontend UX
-- A toggle button in the Dashboard history and in the Roast panel
-- Auto-detects current language using a Hinglish word list (`hai, aur, mein, ka...`)
-- Translating state shown with a spinner
+### Security
+`sanitize_user_text()` is applied to the input before injecting into the LLM prompt.
 
 ---
 
-## Feature 4 — Cover Letter Generator + Humanizer
+## Feature 5 — Cover Letter Generator + Humanizer
 
-### What It Does
-Two-step workflow:
-1. **Generate**: AI creates a professional cover letter from resume + JD
-2. **Humanize**: AI rewrites it to remove robotic phrasing
-
-### Step 1: Generation (`/api/v1/cover_letter/generate`)
+### Step 1: Generation (`/api/v1/cover_letter/generate`) — 10 credits
 
 **Service**: `cover_letter_gen.py`
 
@@ -124,39 +149,28 @@ Two-step workflow:
 
 **Storage**: Draft saved to `job_applications` table with `status = "draft"`
 
-### Step 2: Humanizer (`/api/v1/cover_letter/humanize`)
+### Step 1b: Roast Mode (`/api/v1/cover_letter/generate-roast`) — 10 credits
+Same as generation but with a savage, self-aware tone. Supports `language` parameter for Hinglish roast mode.
+
+### Step 2: Humanizer (`/api/v1/cover_letter/humanize`) — 15 credits
 
 **Service**: `humanizer.py`
 
-**What It Removes** (robotic phrases):
-- "I am writing to express my interest..."
-- "I am excited to apply for..."
-- "I am confident that..."
-- "Leveraging my expertise in..."
-- "I look forward to the opportunity..."
+Rewrites AI-generated cover letters to sound more natural and human. Removes robotic phrases like "I am writing to express my interest..." and replaces them with warm, direct, conversational-yet-professional language.
 
-**What It Adds**:
-- Warm, direct, conversational-yet-professional tone
-- Varied sentence length for rhythm
-- Specific, compelling opener instead of generic one
-- Max 250 words maintained
+**Temperature**: `0.7` (more creative/natural than generation's `0.4`)
 
-**Both services use `temperature`**:
-- Generation: `temperature=0.4` (more consistent/professional)
-- Humanizer: `temperature=0.7` (more creative/natural)
+### Step 3: Save as PDF (`/api/v1/cover_letter/save_pdf`) — Free
 
-### Step 3: Save as PDF (`/api/v1/cover_letter/save_pdf`)
-
-**Library**: ReportLab (A4 format)
-
-1. Final text converted to formatted PDF bytes using ReportLab
+1. Final text converted to formatted PDF bytes using ReportLab (A4 format)
 2. HTML-escapes `&`, `<`, `>` to prevent rendering issues
 3. Uploaded to Supabase Storage at `{user_id}/cover_letters/{timestamp}_cl.pdf`
 4. `cover_letter_file_url` updated in the `job_applications` record
+5. Ownership verified before update (IDOR protection)
 
 ---
 
-## Feature 5 — AI Interview (`/api/v1/interview/`)
+## Feature 6 — AI Interview (`/api/v1/interview/`) — 25 credits
 
 ### What It Does
 A fully dynamic, **6-question mock interview** tailored to the user's resume and target role. Questions span theory, multiple choice, and coding. Each answer is evaluated in real-time by an AI judge.
@@ -165,7 +179,8 @@ A fully dynamic, **6-question mock interview** tailored to the user's resume and
 
 ```
 1. POST /interview/start
-   → Fetches resume from DB
+   → Fetches resume from DB (ownership verified)
+   → Fetches latest deep analysis for this resume (for targeted questions)
    → Calls generate_questions() → Groq LLM
    → Returns 6 questions
    → Saves session to Redis (45min TTL)
@@ -174,16 +189,23 @@ A fully dynamic, **6-question mock interview** tailored to the user's resume and
    → Loads session from Redis
    → Calls evaluate_single_answer() → Groq LLM
    → Returns score (0-10) + feedback + ideal answer
-   → Updates session in Redis
+   → Updates session in Redis (refreshes TTL)
 
 3. POST /interview/end
    → Loads session from Redis
    → Compiles full report (breakdown + overall score)
+   → Persists report to Supabase interview_reports table
    → Deletes session from Redis
    → Returns InterviewReport
 ```
 
-### Question Types Generated
+### Interview Report Persistence
+Interview reports are now saved to the `interview_reports` Supabase table before the Redis session is deleted. This means:
+- Reports survive the 45-minute Redis TTL
+- Users can review past interviews
+- Reports are never lost even if the user closes the tab mid-session
+
+### Question Types
 
 | Type | Description |
 |---|---|
@@ -196,10 +218,13 @@ A fully dynamic, **6-question mock interview** tailored to the user's resume and
 - q3, q4 → `mcq`
 - q5, q6 → `code`
 
-### Evaluation Rubric
-- **Theory**: Score 0-10 for correctness, depth, clarity
-- **MCQ**: Score 10 if correct, 0 if wrong
-- **Code**: Score 0-10 for correctness, efficiency, code quality; includes TC/SC analysis
+### Analysis Context Enrichment
+Before generating questions, the interview service fetches the user's latest deep analysis for the same resume. If found, it extracts:
+- Overall feedback and summary
+- Action items
+- Weak section scores and missing keywords
+
+This context is injected into the question generation prompt so questions target the candidate's known weak spots.
 
 ### Scoring Scale
 | Score | Qualitative |
@@ -214,30 +239,20 @@ A fully dynamic, **6-question mock interview** tailored to the user's resume and
 ```python
 class InterviewSession(BaseModel):
     resume_text: str
-    role: str
+    role: str          # Encodes roast mode + language: "[ROAST][LANG:hinglish]Backend Dev"
     experience_level: str
     questions: List[InterviewQuestion] = []
     answers: Dict[int, str] = {}
     evaluations: Dict[int, AnswerEvaluation] = {}
 ```
-Stored as serialized JSON in Redis with key `interview_session:{user_id}`.
-
-### Skipped Questions
-If a user skips a question (empty answer), no Groq API call is made. The evaluation is hardcoded:
-```python
-return AnswerEvaluation(
-    score=0,
-    feedback="You skipped this question.",
-    ideal_answer="In a real interview, always attempt an answer even if unsure."
-)
-```
+Stored as serialized JSON in Redis with key `interview:session:{user_id}`.
 
 ---
 
-## Feature 6 — General ATS Score (`/api/ats/`)
+## Feature 7 — General ATS Score (`/api/ats/score`) — Free, No Auth
 
 ### What It Does
-A **rule-based, offline ATS scorer** — no LLM, no JD required. Scores the resume itself on 6 sections × 7 dimensions.
+A **rule-based, offline ATS scorer** — no LLM, no JD required. Scores the resume itself on 6 sections × 7 dimensions. Accepts raw resume text directly (no upload needed).
 
 ### Sections Analyzed
 `header`, `education`, `projects`, `experience`, `skills`, `achievements`
@@ -245,15 +260,14 @@ A **rule-based, offline ATS scorer** — no LLM, no JD required. Scores the resu
 ### Dimensions Per Section
 | Dimension | How Measured |
 |---|---|
-| `grammar` | Regex penalties: extra spaces, consecutive punctuation, stray lowercase-i |
+| `grammar` | Regex penalties: extra spaces, consecutive punctuation |
 | `clarity` | Flesch Reading Ease score mapped to 0-100 |
 | `brevity` | Average words per sentence (ideal: 10-22) |
 | `structure` | Bullet point ratio + paragraph breaks |
-| `conciseness` | Filler word density (`very, really, just, basically...`) |
+| `conciseness` | Filler word density |
 | `spell_check` | PySpellChecker error rate |
-| `keyword_density` | TF-IDF score (how distinctive each section's vocabulary is) |
-
-### Aggregation
-Section scores are **weighted by content length** (`√(char_length + 40)`) — longer sections have more influence. Empty sections are penalized (×0.65 multiplier + flat +22).
+| `keyword_density` | TF-IDF score |
 
 Final output: a single integer 0–100.
+
+> **Note**: This endpoint is public (no auth required) and is intended as a "try before signup" hook. It is rate-limited but does not require credits.

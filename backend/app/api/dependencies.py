@@ -1,7 +1,8 @@
 # app/api/dependencies.py
 import logging
-from typing import Annotated
-from fastapi import Depends, HTTPException, status, Request
+from typing import Annotated, Callable
+
+from fastapi import Depends, HTTPException, Request, status
 from app.core.config import settings
 from app.db.supabase import get_db
 
@@ -42,3 +43,32 @@ async def get_current_user(request: Request):
 
 # Type alias for easy use in route signatures
 CurrentUser = Annotated[object, Depends(get_current_user)]
+
+
+# ── Credit guard ───────────────────────────────────────────────────────────────
+
+def require_credits(feature: str, cost: int) -> Callable:
+    """
+    FastAPI dependency factory that validates and atomically deducts credits
+    before the route handler executes.
+
+    Usage:
+        @router.post("/match")
+        async def my_route(
+            ...,
+            user: CurrentUser,
+            _credits=require_credits("ats_score", 5),
+        ):
+    """
+    from app.services.credits import deduct_feature_credits
+
+    async def _credit_guard(user: CurrentUser):
+        supabase = await get_db()
+        await deduct_feature_credits(
+            supabase=supabase,
+            user_id=str(user.id),
+            feature=feature,
+            cost=cost,
+        )
+
+    return Depends(_credit_guard)
