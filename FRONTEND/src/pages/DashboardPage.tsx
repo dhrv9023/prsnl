@@ -292,6 +292,7 @@ const DashboardPage = () => {
 
     const hasAnalyzed = data && data.total_analyses > 0;
     const atsScore = data?.latest_ats_score;
+    const atsMode = data?.latest_ats_mode;
     const intelData = data?.latest_intel;
     const deepData = data?.latest_deep_analysis;
     // Show intel if available, else fall back to deep analysis summary
@@ -407,7 +408,7 @@ const DashboardPage = () => {
                             {/* SECTION 2: User Metrics */}
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                 <MetricCard
-                                    label="ATS Match"
+                                    label={atsMode === "jd_match" ? "ATS Score (with JD)" : atsMode === "general" ? "ATS Score (General)" : "ATS Match"}
                                     value={atsScore != null ? `${atsScore}` : "--"}
                                     subtext={atsScore != null ? (atsScore >= 75 ? "Strong match" : atsScore >= 50 ? "Moderate fit" : "Needs work") : "Run ATS scoring"}
                                     icon={Target}

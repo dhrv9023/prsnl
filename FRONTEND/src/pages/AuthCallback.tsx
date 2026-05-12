@@ -21,6 +21,11 @@ export default function AuthCallback() {
             const code = params.get("code");
             const oauthError = params.get("error_description") || params.get("error");
 
+            // Immediately clean the URL to hide the OAuth code (security)
+            if (code || oauthError) {
+                window.history.replaceState({}, "", window.location.pathname);
+            }
+
             if (oauthError) {
                 setError(oauthError);
                 setStatus("error");

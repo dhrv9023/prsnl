@@ -1,4 +1,4 @@
-import { Github, Twitter, Linkedin } from "lucide-react";
+import { Twitter, Linkedin } from "lucide-react";
 import { Link } from "react-router-dom";
 
 export function Footer() {
@@ -11,14 +11,11 @@ export function Footer() {
               KAREERIST
             </Link>
             <p className="text-muted-foreground leading-relaxed max-w-sm mb-6">
-              Kareerist is a structured career operating system built to replace scattered effort with measurable progress.
+              AI-powered career toolkit — resume scoring, mock interviews, cover letters, and hiring intelligence. All in one place.
             </p>
             <div className="flex space-x-3">
               <a href="#" className="p-2.5 rounded-lg bg-secondary/60 dark:bg-secondary/40 text-foreground/60 hover:text-foreground hover:bg-secondary transition-colors">
                 <Twitter className="w-4 h-4" />
-              </a>
-              <a href="#" className="p-2.5 rounded-lg bg-secondary/60 dark:bg-secondary/40 text-foreground/60 hover:text-foreground hover:bg-secondary transition-colors">
-                <Github className="w-4 h-4" />
               </a>
               <a href="#" className="p-2.5 rounded-lg bg-secondary/60 dark:bg-secondary/40 text-foreground/60 hover:text-foreground hover:bg-secondary transition-colors">
                 <Linkedin className="w-4 h-4" />
@@ -30,19 +27,17 @@ export function Footer() {
             <h4 className="font-semibold text-foreground mb-6">Product</h4>
             <ul className="space-y-3.5 text-sm">
               <li><Link to="/resume-analysis" className="text-muted-foreground hover:text-foreground transition-colors">Resume Analysis</Link></li>
-              <li><Link to="/interview" className="text-muted-foreground hover:text-foreground transition-colors">Interview Prep</Link></li>
+              <li><Link to="/interview" className="text-muted-foreground hover:text-foreground transition-colors">AI Mock Interview</Link></li>
               <li><Link to="/cover-letter" className="text-muted-foreground hover:text-foreground transition-colors">Cover Letter</Link></li>
-              <li><Link to="/pricing" className="text-muted-foreground hover:text-foreground transition-colors">Pricing</Link></li>
+              <li><Link to="/dashboard" className="text-muted-foreground hover:text-foreground transition-colors">Dashboard</Link></li>
             </ul>
           </div>
 
           <div>
-            <h4 className="font-semibold text-foreground mb-6">Company</h4>
+            <h4 className="font-semibold text-foreground mb-6">Support</h4>
             <ul className="space-y-3.5 text-sm">
-              <li><a href="#" className="text-muted-foreground hover:text-foreground transition-colors">About</a></li>
-              <li><a href="#" className="text-muted-foreground hover:text-foreground transition-colors">Blog</a></li>
-              <li><a href="#" className="text-muted-foreground hover:text-foreground transition-colors">Careers</a></li>
               <li><a href="/#contact" className="text-muted-foreground hover:text-foreground transition-colors">Contact</a></li>
+              <li><a href="#" className="text-muted-foreground/50 cursor-not-allowed">Pricing <span className="text-[10px] ml-1 opacity-50">Soon</span></a></li>
             </ul>
           </div>
         </div>

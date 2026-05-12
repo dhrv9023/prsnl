@@ -33,6 +33,7 @@ async def get_dashboard_summary(user: CurrentUser):
 
     analyses = []
     latest_ats_score = None
+    latest_ats_mode = None
     latest_intel = None
     latest_deep_analysis = None
 
@@ -50,6 +51,7 @@ async def get_dashboard_summary(user: CurrentUser):
             if a["analysis_type"] == "job_match_score":
                 try:
                     latest_ats_score = a["output_data"]["score"]
+                    latest_ats_mode = a["output_data"].get("mode", "general")
                 except (KeyError, TypeError):
                     pass
                 break  # first match is latest (sorted desc)
@@ -105,6 +107,7 @@ async def get_dashboard_summary(user: CurrentUser):
         "total_resumes": len(resumes),
         "total_analyses": len(analyses),
         "latest_ats_score": latest_ats_score,
+        "latest_ats_mode": latest_ats_mode,
         "latest_intel": latest_intel,
         "latest_deep_analysis": latest_deep_analysis,
         "analysis_history": history[:20],

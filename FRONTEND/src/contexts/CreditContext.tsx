@@ -91,12 +91,13 @@ export function CreditProvider({ children }: { children: ReactNode }) {
 
     const canUse = useCallback(
         (feature: FeatureKey): boolean => {
-            if (!balance) return false;
+            // While loading, assume user can use (prevents false "insufficient" flash)
+            if (!balance) return isLoading;
             if (balance.is_unlimited) return true;
             const cost = featureCosts[feature]?.cost ?? 0;
             return balance.remaining >= cost;
         },
-        [balance, featureCosts]
+        [balance, featureCosts, isLoading]
     );
 
     const shortfall = useCallback(
