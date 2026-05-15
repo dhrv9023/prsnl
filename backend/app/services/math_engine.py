@@ -1,7 +1,6 @@
 # app/services/math_engine.py
 import logging
 import re
-import asyncio
 
 import numpy as np
 from huggingface_hub import AsyncInferenceClient
@@ -21,19 +20,13 @@ def clean_text(text: str) -> str:
 
 
 async def get_embedding(text: str):
-    """Uses the HuggingFace Inference API to get sentence embeddings. Times out after 15s."""
+    """Uses the HuggingFace Inference API to get sentence embeddings."""
     try:
-        response = await asyncio.wait_for(
-            client.feature_extraction(
-                text,
-                model="sentence-transformers/all-mpnet-base-v2"
-            ),
-            timeout=15.0,
+        response = await client.feature_extraction(
+            text,
+            model="sentence-transformers/all-mpnet-base-v2"
         )
         return response
-    except asyncio.TimeoutError:
-        logger.warning("Embedding API timed out after 15s")
-        return None
     except Exception as e:
         logger.error("Embedding API error: %s", e)
         return None
@@ -154,11 +147,9 @@ async def ats_score(resume_text: str, job_description: str | None) -> dict:
     jd_vec = await get_embedding(cleaned_jd)
 
     if resume_vec is None or jd_vec is None:
-        # Embedding API unavailable — fall back to general scorer
-        logger.warning("Embedding API unavailable, falling back to general scorer")
-        result = _general_resume_score(cleaned_resume)
-        result["warning"] = "AI embedding service unavailable — showing general score instead"
-        return result
+        # Embedding API unavailable — return error so frontend can inform user
+        logger.error("Embedding API unavailable for ATS JD match")
+        return {"score": 0, "raw_similarity": 0.0, "warning": "AI embedding service unavailable — please try again in a moment"}
 
     try:
         vec_a = np.array(resume_vec).reshape(1, -1)
