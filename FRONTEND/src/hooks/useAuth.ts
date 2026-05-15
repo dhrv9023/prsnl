@@ -108,6 +108,10 @@ export function useAuth() {
 
             const res = await apiExchangeOAuthSession(code, verifier);
             window.localStorage.removeItem(SUPABASE_CODE_VERIFIER_KEY);
+            
+            // ✅ SECURITY: Clear any Supabase session from localStorage (we use HttpOnly cookies)
+            window.localStorage.removeItem(SUPABASE_STORAGE_KEY);
+            
             // Fetch /me to get is_admin flag
             const me = await apiGetMe().catch(() => null);
             setState({ user: res.user, isAdmin: me?.is_admin ?? false, isLoading: false, isSubmitting: false, error: "" });

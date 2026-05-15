@@ -13,7 +13,7 @@ export const supabase = isSupabaseOAuthConfigured
         auth: {
             flowType: "pkce",
             detectSessionInUrl: false,
-            persistSession: false, // ✅ SECURITY: Don't store tokens in localStorage — backend uses HttpOnly cookies
+            persistSession: true, // ✅ Need this for code_verifier storage during OAuth
             autoRefreshToken: false,
             storageKey: SUPABASE_STORAGE_KEY,
         },
