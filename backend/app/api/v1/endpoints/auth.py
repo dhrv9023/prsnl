@@ -113,27 +113,42 @@ async def oauth_exchange_session(request: Request, body: OAuthSessionExchange, r
     Exchange Supabase OAuth PKCE `code` for a session and mirror it into HttpOnly cookies.
     Call this once from your OAuth redirect page; do not persist tokens in localStorage.
     """
+    logger.info("[OAuth] Received code exchange request")
+    logger.info("[OAuth] Code length: %d, Verifier length: %d", len(body.code), len(body.code_verifier))
+    
     anon = await get_supabase_anon()
     if anon is None:
+        logger.error("[OAuth] SUPABASE_ANON_KEY not configured on server")
         raise HTTPException(
             status_code=503,
             detail="Server missing SUPABASE_ANON_KEY; cannot complete OAuth exchange.",
         )
+    
+    logger.info("[OAuth] Attempting code exchange with Supabase...")
     try:
         exchanged = await anon.auth.exchange_code_for_session({
             "auth_code": body.code,
             "code_verifier": body.code_verifier,
         })
+        logger.info("[OAuth] Code exchange successful")
     except Exception as e:
-        logger.warning("OAuth code exchange failed: %s", e)
-        raise HTTPException(status_code=401, detail="Invalid or expired OAuth code")
+        logger.error("[OAuth] Code exchange failed: %s (type: %s)", str(e), type(e).__name__)
+        # Log more details about the error
+        import traceback
+        logger.error("[OAuth] Traceback: %s", traceback.format_exc())
+        raise HTTPException(status_code=401, detail=f"Invalid or expired OAuth code: {str(e)}")
 
     sess = exchanged.session
     user = exchanged.user
+    
     if not sess or not user:
+        logger.error("[OAuth] Exchange returned no session or user. Session: %s, User: %s", bool(sess), bool(user))
         raise HTTPException(status_code=401, detail="OAuth exchange returned no session")
 
+    logger.info("[OAuth] Setting session cookies for user: %s", user.email)
     set_session_cookies(response, sess.access_token, getattr(sess, "refresh_token", None))
+    logger.info("[OAuth] Session established successfully")
+    
     return {
         "msg": "Session established",
         "user": {"id": user.id, "email": user.email},

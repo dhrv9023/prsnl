@@ -26,19 +26,25 @@ export default function AuthCallback() {
             window.history.replaceState({}, "", window.location.pathname);
 
             if (oauthError) {
+                console.error("[AuthCallback] OAuth error from provider:", oauthError);
                 setError(oauthError);
                 setStatus("error");
                 return;
             }
             if (!code) {
+                console.error("[AuthCallback] No authorization code in URL");
                 setError("Google sign-in returned without an authorization code.");
                 setStatus("error");
                 return;
             }
 
+            console.log("[AuthCallback] Exchanging code for session...");
             const success = await completeOAuthLogin(code);
             if (success) {
-                navigate("/dashboard", { replace: true });
+                // Check for redirect intent
+                const redirectTo = sessionStorage.getItem("redirect_after_login");
+                sessionStorage.removeItem("redirect_after_login");
+                navigate(redirectTo || "/dashboard", { replace: true });
             } else {
                 setError("Google sign-in failed. Please try again.");
                 setStatus("error");
