@@ -29,6 +29,26 @@ export function useAuth() {
 
     // ── On mount: check if a valid session cookie already exists ─────────────
     useEffect(() => {
+        // Clear any stale Supabase session from localStorage on every mount.
+        // persistSession:true is needed so Supabase can store the PKCE code_verifier
+        // during OAuth, but we never want it to auto-restore a Supabase session —
+        // our backend HttpOnly cookies are the sole source of auth truth.
+        // Only clear the session entry, not the code-verifier key (needed mid-flow).
+        const stored = window.localStorage.getItem(SUPABASE_STORAGE_KEY);
+        if (stored) {
+            try {
+                const parsed = JSON.parse(stored);
+                // If it looks like a full session (has access_token), clear it.
+                // If it's just the code_verifier wrapper, leave it alone.
+                if (parsed?.access_token || parsed?.currentSession) {
+                    window.localStorage.removeItem(SUPABASE_STORAGE_KEY);
+                }
+            } catch {
+                // Malformed entry — remove it
+                window.localStorage.removeItem(SUPABASE_STORAGE_KEY);
+            }
+        }
+
         apiGetMe()
             .then((me) => setState({ user: { id: me.id, email: me.email }, isAdmin: me.is_admin ?? false, isLoading: false, isSubmitting: false, error: "" }))
             .catch(() => setState({ user: null, isAdmin: false, isLoading: false, isSubmitting: false, error: "" }));
