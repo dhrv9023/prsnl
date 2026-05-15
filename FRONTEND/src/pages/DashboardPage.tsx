@@ -142,11 +142,20 @@ function HistoryItem({
     isLast: boolean;
 }) {
     const [expanded, setExpanded] = useState(false);
-    const outputData = item.output_data as HiringIntelResponse | DeepAnalysisResult | { score: number } | null;
+    const outputData = item.output_data as HiringIntelResponse | DeepAnalysisResult | { score: number; mode?: string } | null;
 
     const isIntel = item.type === "hiring_intel";
     const isDeep = item.type === "deep_analysis";
+    const isATS = item.type === "job_match_score";
     const canExpand = (isIntel || isDeep) && outputData != null;
+
+    // Extract ATS mode from output_data
+    const atsMode = isATS && outputData && "mode" in outputData ? outputData.mode : null;
+    const atsLabel = isATS 
+        ? (atsMode === "jd" ? "ATS Score (with JD)" : "ATS Score (without JD)")
+        : isIntel 
+            ? "Hiring Intelligence" 
+            : "Deep Analysis";
 
     return (
         <div className={`flex flex-col py-4 ${!isLast ? "border-b border-border/10" : ""}`}>
@@ -168,7 +177,7 @@ function HistoryItem({
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                         <p className="text-sm font-medium text-foreground/80 truncate">
-                            {isIntel ? "Hiring Intelligence" : isDeep ? "Deep Analysis" : "ATS Score"}
+                            {atsLabel}
                         </p>
                         {item.resume_name && (
                             <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-secondary text-muted-foreground truncate max-w-[150px] md:max-w-xs">
