@@ -122,6 +122,8 @@ export function Navbar() {
     setIsMobileMenuOpen(false);
 
     if (!auth.isAuthenticated) {
+      // ✅ Store intended destination before showing auth modal
+      sessionStorage.setItem("redirectAfterLogin", feature.href);
       setShowAuthModal(true);
       return;
     }
@@ -149,7 +151,10 @@ export function Navbar() {
     >
       <nav className="container flex items-center justify-between h-16 md:h-20">
         {/* Logo */}
-        <Link to="/" className="text-xl font-semibold tracking-tight">
+        <Link 
+          to={auth.isAuthenticated ? "/dashboard" : "/"} 
+          className="text-xl font-semibold tracking-tight"
+        >
           KAREERIST
         </Link>
 
@@ -281,7 +286,11 @@ export function Navbar() {
           {/* Sign In Button — when logged out */}
           {!auth.isLoading && !auth.isAuthenticated && (
             <button
-              onClick={() => setShowAuthModal(true)}
+              onClick={() => {
+                // ✅ Direct login from navbar — no redirect, stay on current page
+                sessionStorage.removeItem("redirectAfterLogin");
+                setShowAuthModal(true);
+              }}
               className="hidden md:flex items-center justify-center h-9 px-4 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
             >
               Sign In
@@ -477,7 +486,12 @@ export function Navbar() {
             ) : (
               <div className="border-t border-border/30 pt-4 mt-2">
                 <button
-                  onClick={() => { setIsMobileMenuOpen(false); setShowAuthModal(true); }}
+                  onClick={() => { 
+                    setIsMobileMenuOpen(false); 
+                    // ✅ Direct login from mobile menu — no redirect
+                    sessionStorage.removeItem("redirectAfterLogin");
+                    setShowAuthModal(true); 
+                  }}
                   className="w-full flex items-center justify-center h-11 rounded-lg bg-primary text-primary-foreground text-base font-medium hover:opacity-90 transition-opacity"
                 >
                   Sign In
@@ -492,9 +506,20 @@ export function Navbar() {
         <AuthModal
           onSuccess={() => {
             setShowAuthModal(false);
-            navigate("/dashboard");
+            // ✅ Redirect to intended destination or dashboard
+            const redirectTo = sessionStorage.getItem("redirectAfterLogin");
+            if (redirectTo) {
+              sessionStorage.removeItem("redirectAfterLogin");
+              navigate(redirectTo);
+            } else {
+              navigate("/dashboard");
+            }
           }}
-          onClose={() => setShowAuthModal(false)}
+          onClose={() => {
+            setShowAuthModal(false);
+            // Clear redirect if user cancels login
+            sessionStorage.removeItem("redirectAfterLogin");
+          }}
           login={auth.login}
           signup={auth.signup}
           loginWithGoogle={auth.loginWithGoogle}

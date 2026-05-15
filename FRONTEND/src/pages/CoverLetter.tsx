@@ -68,6 +68,7 @@ export default function CoverLetter() {
 
     useEffect(() => {
         if (!auth.isLoading && !auth.isAuthenticated) {
+            sessionStorage.setItem("redirectAfterLogin", "/cover-letter");
             navigate("/", { replace: true });
         }
     }, [auth.isLoading, auth.isAuthenticated, navigate]);

@@ -158,6 +158,8 @@ export default function ResumeAnalysis() {
     // ── Auth Gate ─────────────────────────────────────────────────────────────
     useEffect(() => {
         if (!auth.isLoading && !auth.isAuthenticated) {
+            // ✅ Store current page as redirect destination
+            sessionStorage.setItem("redirectAfterLogin", "/resume-analysis");
             navigate("/", { replace: true });
         }
     }, [auth.isLoading, auth.isAuthenticated, navigate]);

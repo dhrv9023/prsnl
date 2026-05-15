@@ -687,6 +687,7 @@ export default function AIInterview() {
     // Auth guard
     useEffect(() => {
         if (!auth.isLoading && !auth.isAuthenticated) {
+            sessionStorage.setItem("redirectAfterLogin", "/interview");
             navigate("/", { replace: true });
         }
     }, [auth.isLoading, auth.isAuthenticated, navigate]);

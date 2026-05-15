@@ -286,6 +286,7 @@ const DashboardPage = () => {
     // Auth gate: redirect if not logged in
     useEffect(() => {
         if (!auth.isLoading && !auth.isAuthenticated) {
+            // ✅ Dashboard is default destination, no need to store redirect
             navigate("/", { replace: true });
         }
     }, [auth.isLoading, auth.isAuthenticated, navigate]);
