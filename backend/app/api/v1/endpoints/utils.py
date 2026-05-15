@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from app.api.dependencies import CurrentUser
 from app.core.rate_limit import limiter, ats_rate_key
 from app.services.prompt_sanitizer import sanitize_user_text
+from app.services.ai_retry import with_ai_retry
 from groq import AsyncGroq
 from app.core.config import settings
 
@@ -52,11 +53,14 @@ TEXT TO CONVERT:
 Output ONLY the converted Hinglish text, nothing else."""
 
     try:
-        completion = await client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.4,
-            timeout=20,
+        completion = await with_ai_retry(
+            lambda: client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.4,
+                timeout=20,
+            ),
+            label="hinglish_convert",
         )
         hinglish_text = completion.choices[0].message.content.strip()
         return {"hinglish_text": hinglish_text}

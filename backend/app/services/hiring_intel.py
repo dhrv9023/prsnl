@@ -21,6 +21,7 @@ from groq import AsyncGroq
 from app.core.config import settings
 from app.services.resume_analyzer import clean_llm_answer
 from app.services.prompt_sanitizer import sanitize_user_text
+from app.services.ai_retry import with_ai_retry
 
 logger = logging.getLogger(__name__)
 client = AsyncGroq(api_key=settings.GROQ_API_KEY)
@@ -151,22 +152,44 @@ async def generate_hiring_intel(
     )
 
     try:
-        completion = await client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_message},
-            ],
-            temperature=0.3,
-            response_format={"type": "json_object"},
-            stream=False,
-            timeout=60,
+        completion = await with_ai_retry(
+            lambda: client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": user_message},
+                ],
+                temperature=0.3,
+                response_format={"type": "json_object"},
+                stream=False,
+                timeout=60,
+            ),
+            label="hiring_intel",
         )
         raw = completion.choices[0].message.content
         cleaned = clean_llm_answer(raw)
         if not cleaned:
             raise RuntimeError("AI returned empty response")
-        return json.loads(cleaned)
+        result = json.loads(cleaned)
+
+        # ── Output validation ──────────────────────────────────────────────
+        result.setdefault("overall_alignment", "Analysis complete.")
+        result.setdefault("recruiter_pov", {})
+        result.setdefault("skill_gap", {})
+        result.setdefault("deep_hiring_analysis", {})
+        result.setdefault("role_aware_reasoning", {})
+        result.setdefault("why_this_matters", [])
+        result.setdefault("highest_impact_improvements", [])
+        result.setdefault("before_after_rewrites", [])
+        result.setdefault("final_verdict", {"hiring_readiness": "Borderline", "summary": ""})
+
+        # Clamp hiring_readiness to known values
+        valid_readiness = {"Not Ready", "Borderline", "Interview-Ready", "Strong Candidate"}
+        fv = result.get("final_verdict", {})
+        if isinstance(fv, dict) and fv.get("hiring_readiness") not in valid_readiness:
+            fv["hiring_readiness"] = "Borderline"
+
+        return result
 
     except json.JSONDecodeError:
         logger.error("Invalid JSON from hiring intel AI: %s", raw[:300])

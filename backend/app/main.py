@@ -191,3 +191,13 @@ async def health_check():
 
     status = "ok" if all(v == "ok" for v in checks.values()) else "degraded"
     return {"status": status, "checks": checks}
+
+
+@app.get("/ping", tags=["System"])
+async def ping():
+    """
+    Lightweight keep-alive endpoint for cron-job.org or UptimeRobot.
+    Ping every 10 minutes to prevent Render free-tier cold starts.
+    No auth required — returns minimal payload.
+    """
+    return {"ok": True}

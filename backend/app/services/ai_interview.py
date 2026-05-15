@@ -8,6 +8,7 @@ from groq import AsyncGroq
 from app.core.config import settings
 from app.schemas.models import InterviewQuestion, AnswerEvaluation
 from app.services.prompt_sanitizer import sanitize_user_text
+from app.services.ai_retry import with_ai_retry
 
 logger = logging.getLogger(__name__)
 client = AsyncGroq(api_key=settings.GROQ_API_KEY)
@@ -234,12 +235,15 @@ async def generate_questions(role: str, experience_level: str, resume_text: str,
     """
 
     try:
-        completion = await client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[{"role": "user", "content": prompt}],
-            response_format={"type": "json_object"},
-            temperature=round(random.uniform(0.55, 0.85), 2),
-            timeout=30,
+        completion = await with_ai_retry(
+            lambda: client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[{"role": "user", "content": prompt}],
+                response_format={"type": "json_object"},
+                temperature=round(random.uniform(0.55, 0.85), 2),
+                timeout=30,
+            ),
+            label="interview_generate_questions",
         )
         data = json.loads(completion.choices[0].message.content)
 
@@ -247,6 +251,28 @@ async def generate_questions(role: str, experience_level: str, resume_text: str,
         for key in ["q1", "q2", "q3", "q4", "q5", "q6"]:
             if key in data:
                 raw_qs.append(data[key])
+
+        if len(raw_qs) < 6:
+            logger.warning(
+                "LLM returned only %d questions (expected 6) — padding with fallback",
+                len(raw_qs)
+            )
+            # Pad with a generic fallback so the session always has 6 questions
+            fallback_types = ["theory", "theory", "mcq", "mcq", "code", "code"]
+            while len(raw_qs) < 6:
+                idx = len(raw_qs)
+                raw_qs.append({
+                    "id": idx + 1,
+                    "type": fallback_types[idx],
+                    "text": "Describe your experience with the primary technology listed on your resume and how you've applied it in a real project.",
+                })
+
+        # Validate and clamp question types
+        valid_types = {"theory", "mcq", "code"}
+        for q in raw_qs:
+            if isinstance(q, dict):
+                q_type = str(q.get("type", "theory")).lower().strip()
+                q["type"] = q_type if q_type in valid_types else "theory"
 
         return [InterviewQuestion(**q) for q in raw_qs]
 
@@ -296,14 +322,29 @@ async def evaluate_single_answer(role: str, question: InterviewQuestion, user_an
     """
 
     try:
-        completion = await client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[{"role": "user", "content": prompt}],
-            response_format={"type": "json_object"},
-            timeout=30,
+        completion = await with_ai_retry(
+            lambda: client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[{"role": "user", "content": prompt}],
+                response_format={"type": "json_object"},
+                timeout=30,
+            ),
+            label="interview_evaluate_answer",
         )
 
         eval_data = json.loads(completion.choices[0].message.content)
+
+        # ── Output validation: clamp score to 0–10 ─────────────────────────
+        raw_score = eval_data.get("score", 0)
+        try:
+            clamped_score = max(0, min(10, int(raw_score)))
+        except (TypeError, ValueError):
+            clamped_score = 0
+        eval_data["score"] = clamped_score
+
+        eval_data.setdefault("feedback", "No feedback provided.")
+        eval_data.setdefault("ideal_answer", "No ideal answer provided.")
+
         return AnswerEvaluation(**eval_data)
 
     except Exception as e:
@@ -386,12 +427,15 @@ async def generate_roast_questions(
     """
 
     try:
-        completion = await client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[{"role": "user", "content": prompt}],
-            response_format={"type": "json_object"},
-            temperature=0.7,
-            timeout=30,
+        completion = await with_ai_retry(
+            lambda: client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[{"role": "user", "content": prompt}],
+                response_format={"type": "json_object"},
+                temperature=0.7,
+                timeout=30,
+            ),
+            label="interview_roast_questions",
         )
         data = json.loads(completion.choices[0].message.content)
 
@@ -399,6 +443,23 @@ async def generate_roast_questions(
         for key in ["q1", "q2", "q3", "q4", "q5", "q6"]:
             if key in data:
                 raw_qs.append(data[key])
+
+        if len(raw_qs) < 6:
+            logger.warning("Roast LLM returned only %d questions — padding", len(raw_qs))
+            fallback_types = ["theory", "theory", "mcq", "mcq", "code", "code"]
+            while len(raw_qs) < 6:
+                idx = len(raw_qs)
+                raw_qs.append({
+                    "id": idx + 1,
+                    "type": fallback_types[idx],
+                    "text": "Explain the most complex technical problem you've solved and walk through your approach.",
+                })
+
+        valid_types = {"theory", "mcq", "code"}
+        for q in raw_qs:
+            if isinstance(q, dict):
+                q_type = str(q.get("type", "theory")).lower().strip()
+                q["type"] = q_type if q_type in valid_types else "theory"
 
         return [InterviewQuestion(**q) for q in raw_qs]
 
@@ -460,15 +521,30 @@ async def evaluate_roast_answer(
     """
 
     try:
-        completion = await client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[{"role": "user", "content": prompt}],
-            response_format={"type": "json_object"},
-            temperature=0.7,
-            timeout=30,
+        completion = await with_ai_retry(
+            lambda: client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[{"role": "user", "content": prompt}],
+                response_format={"type": "json_object"},
+                temperature=0.7,
+                timeout=30,
+            ),
+            label="interview_roast_evaluate",
         )
 
         eval_data = json.loads(completion.choices[0].message.content)
+
+        # Clamp score to 0–10
+        raw_score = eval_data.get("score", 0)
+        try:
+            clamped_score = max(0, min(10, int(raw_score)))
+        except (TypeError, ValueError):
+            clamped_score = 0
+        eval_data["score"] = clamped_score
+
+        eval_data.setdefault("feedback", "No feedback provided.")
+        eval_data.setdefault("ideal_answer", "No ideal answer provided.")
+
         return AnswerEvaluation(**eval_data)
 
     except Exception as e:

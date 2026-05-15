@@ -9,6 +9,7 @@ from app.db.supabase import get_db
 from app.services.math_engine import ats_score
 from app.services.hiring_intel import generate_hiring_intel
 from app.services.deep_analysis import generate_deep_analysis
+from app.services.credits import refund_feature_credits
 from app.schemas.models import MatchRequest, HiringIntelRequest, DeepAnalysisRequest
 
 logger = logging.getLogger(__name__)
@@ -47,10 +48,12 @@ async def ats_score_calculator(
         match_result = await ats_score(resume_text, body.job_description or None)
     except Exception as e:
         logger.error("ATS scoring failed: %s", e)
+        await refund_feature_credits(supabase, str(user.id), "ats_score", 5)
         raise HTTPException(status_code=500, detail="Error calculating ATS score")
 
     analysis_record = {
         "resume_id": body.resume_id,
+        "user_id": str(user.id),
         "analysis_type": "job_match_score",
         "output_data": {
             "job_description_snippet": (body.job_description or "")[:100],
@@ -102,10 +105,12 @@ async def deep_analysis(
     )
 
     if not result:
+        await refund_feature_credits(supabase, str(user.id), "deep_analysis", 15)
         raise HTTPException(status_code=502, detail="Deep analysis failed — please try again")
 
     analysis_record = {
         "resume_id": body.resume_id,
+        "user_id": str(user.id),
         "analysis_type": "deep_analysis",
         "output_data": {
             "jd_provided": bool(body.job_description),
@@ -166,11 +171,13 @@ async def hiring_intelligence(
     )
 
     if not intel_report:
+        await refund_feature_credits(supabase, str(user.id), "hiring_intel", 25)
         raise HTTPException(status_code=502, detail="Hiring intelligence analysis failed — please try again")
 
     # 3. Save to DB
     analysis_record = {
         "resume_id": body.resume_id,
+        "user_id": str(user.id),
         "analysis_type": "hiring_intel",
         "output_data": {
             "target_role": body.target_role,

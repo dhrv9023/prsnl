@@ -6,6 +6,7 @@ from groq import AsyncGroq
 from app.core.config import settings
 from app.services.resume_analyzer import clean_llm_answer
 from app.services.prompt_sanitizer import sanitize_user_text
+from app.services.ai_retry import with_ai_retry
 
 logger = logging.getLogger(__name__)
 client = AsyncGroq(api_key=settings.GROQ_API_KEY)
@@ -48,26 +49,29 @@ async def cover_letter_generator(
     safe_jd = sanitize_user_text(job_description)
 
     try:
-        completion = await client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[
-                {"role": "system", "content": prompt},
-                {
-                    "role": "user",
-                    "content": (
-                        "Use only the untrusted data between the delimiters.\n\n"
-                        "<RESUME_TEXT>\n"
-                        f"{safe_resume}\n"
-                        "</RESUME_TEXT>\n\n"
-                        "<JOB_DESCRIPTION>\n"
-                        f"{safe_jd}\n"
-                        "</JOB_DESCRIPTION>"
-                    ),
-                }
-            ],
-            temperature=0.4,
-            stream=False,
-            timeout=30,
+        completion = await with_ai_retry(
+            lambda: client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[
+                    {"role": "system", "content": prompt},
+                    {
+                        "role": "user",
+                        "content": (
+                            "Use only the untrusted data between the delimiters.\n\n"
+                            "<RESUME_TEXT>\n"
+                            f"{safe_resume}\n"
+                            "</RESUME_TEXT>\n\n"
+                            "<JOB_DESCRIPTION>\n"
+                            f"{safe_jd}\n"
+                            "</JOB_DESCRIPTION>"
+                        ),
+                    }
+                ],
+                temperature=0.4,
+                stream=False,
+                timeout=30,
+            ),
+            label="cover_letter_generate",
         )
         raw = completion.choices[0].message.content
         clean = clean_llm_answer(raw)
@@ -144,26 +148,29 @@ ROAST COVER LETTER RULES:
     safe_jd = sanitize_user_text(job_description)
 
     try:
-        completion = await client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[
-                {"role": "system", "content": prompt},
-                {
-                    "role": "user",
-                    "content": (
-                        "Write a roast-mode cover letter using only this data:\n\n"
-                        "<RESUME_TEXT>\n"
-                        f"{safe_resume}\n"
-                        "</RESUME_TEXT>\n\n"
-                        "<JOB_DESCRIPTION>\n"
-                        f"{safe_jd}\n"
-                        "</JOB_DESCRIPTION>"
-                    ),
-                },
-            ],
-            temperature=0.75,
-            stream=False,
-            timeout=30,
+        completion = await with_ai_retry(
+            lambda: client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[
+                    {"role": "system", "content": prompt},
+                    {
+                        "role": "user",
+                        "content": (
+                            "Write a roast-mode cover letter using only this data:\n\n"
+                            "<RESUME_TEXT>\n"
+                            f"{safe_resume}\n"
+                            "</RESUME_TEXT>\n\n"
+                            "<JOB_DESCRIPTION>\n"
+                            f"{safe_jd}\n"
+                            "</JOB_DESCRIPTION>"
+                        ),
+                    },
+                ],
+                temperature=0.75,
+                stream=False,
+                timeout=30,
+            ),
+            label="cover_letter_roast",
         )
         raw = completion.choices[0].message.content
         clean = clean_llm_answer(raw)

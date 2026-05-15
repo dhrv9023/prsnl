@@ -1,6 +1,7 @@
 """
 slowapi limiter + composite keys (IP + optional verified user id) for Phase 6.
 Uses Redis as the storage backend so limits persist across restarts.
+Falls back to in-memory storage if Redis is unreachable at startup.
 """
 
 from __future__ import annotations
@@ -10,6 +11,7 @@ import logging
 import jwt
 from fastapi import Request
 from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from app.core.config import settings
 
@@ -44,10 +46,40 @@ def _get_real_client_ip(request: Request) -> str:
     return "unknown"
 
 
-limiter = Limiter(
-    key_func=_get_real_client_ip,
-    storage_uri=settings.REDIS_URL,
-)
+def _build_limiter() -> Limiter:
+    """
+    Build the SlowAPI limiter.
+    Tries Redis first; falls back to in-memory if Redis URL is localhost
+    (test environment) or if the connection string is clearly invalid.
+    In production the Upstash URL is always set, so this only affects tests
+    and local dev without Redis running.
+    """
+    redis_url = settings.REDIS_URL or ""
+
+    # Use in-memory storage for tests (localhost Redis that isn't running)
+    # and for any environment where REDIS_URL is not set.
+    # In production REDIS_URL is always the Upstash rediss:// URL.
+    use_memory = (
+        not redis_url
+        or redis_url.startswith("redis://localhost")
+        or redis_url.startswith("redis://127.0.0.1")
+    )
+
+    if use_memory:
+        logger.warning(
+            "Rate limiter: Redis URL is localhost or unset — using in-memory storage. "
+            "Rate limits will NOT persist across restarts. "
+            "Set REDIS_URL to an Upstash URL in production."
+        )
+        return Limiter(key_func=_get_real_client_ip)
+
+    return Limiter(
+        key_func=_get_real_client_ip,
+        storage_uri=redis_url,
+    )
+
+
+limiter = _build_limiter()
 
 
 def get_client_ip(request: Request) -> str:

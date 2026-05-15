@@ -6,6 +6,7 @@ from groq import AsyncGroq
 from app.core.config import settings
 from app.services.resume_analyzer import clean_llm_answer
 from app.services.prompt_sanitizer import sanitize_user_text
+from app.services.ai_retry import with_ai_retry
 
 logger = logging.getLogger(__name__)
 client = AsyncGroq(api_key=settings.GROQ_API_KEY)
@@ -49,23 +50,26 @@ RULES:
     safe_text = sanitize_user_text(text)
 
     try:
-        completion = await client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[
-                {"role": "system", "content": prompt},
-                {
-                    "role": "user",
-                    "content": (
-                        "Rewrite the following cover letter to sound more human:\n\n"
-                        "<COVER_LETTER>\n"
-                        f"{safe_text}\n"
-                        "</COVER_LETTER>"
-                    ),
-                }
-            ],
-            temperature=0.7,
-            stream=False,
-            timeout=30,
+        completion = await with_ai_retry(
+            lambda: client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[
+                    {"role": "system", "content": prompt},
+                    {
+                        "role": "user",
+                        "content": (
+                            "Rewrite the following cover letter to sound more human:\n\n"
+                            "<COVER_LETTER>\n"
+                            f"{safe_text}\n"
+                            "</COVER_LETTER>"
+                        ),
+                    }
+                ],
+                temperature=0.7,
+                stream=False,
+                timeout=30,
+            ),
+            label="humanizer",
         )
         raw = completion.choices[0].message.content
         clean = clean_llm_answer(raw)

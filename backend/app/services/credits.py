@@ -7,6 +7,7 @@ Handles:
 - IP-based initial credit grant (anti-farming)
 - Atomic credit deduction via PostgreSQL RPC
 - Admin unlimited bypass
+- Credit refund on AI failure
 """
 import logging
 from typing import Optional
@@ -185,6 +186,47 @@ async def deduct_feature_credits(
             raise HTTPException(status_code=404, detail="User profile not found.")
         logger.error("deduct_feature_credits failed for user %s: %s", user_id, e)
         raise HTTPException(status_code=500, detail="Credit system error — please try again.")
+
+
+async def refund_feature_credits(
+    supabase,
+    user_id: str,
+    feature: str,
+    cost: int,
+    reason: str = "ai_failure_refund",
+) -> None:
+    """
+    Refunds `cost` credits to the user when an AI call fails after deduction.
+    Uses the same grant_credits RPC for atomicity.
+    Non-fatal — logs on failure but does not raise.
+    """
+    try:
+        # Skip refund for unlimited users (they were never charged)
+        profile_resp = await supabase.table("profiles") \
+            .select("is_unlimited") \
+            .eq("id", user_id) \
+            .limit(1).execute()
+
+        if profile_resp.data and profile_resp.data[0].get("is_unlimited"):
+            return
+
+        await supabase.rpc("grant_credits", {
+            "p_user_id": user_id,
+            "p_amount":  cost,
+            "p_feature": reason,
+            "p_metadata": {"refund_for": feature, "reason": reason},
+        }).execute()
+
+        logger.info(
+            "refund_feature_credits: refunded %d credits to user %s for failed %s",
+            cost, user_id, feature
+        )
+    except Exception as e:
+        # Non-fatal — log and continue. Manual refund may be needed.
+        logger.error(
+            "refund_feature_credits FAILED for user %s feature %s: %s",
+            user_id, feature, e
+        )
 
 
 async def admin_grant_credits(

@@ -57,6 +57,10 @@ class Settings(BaseSettings):
                     "CORS_ORIGINS must not contain '*' in production. "
                     "Set it to the exact frontend origin (e.g. https://kareerist.com)."
                 )
+        # Treat empty string SENTRY_DSN as None so tests don't accidentally
+        # initialise Sentry with a real DSN loaded from .env
+        if self.SENTRY_DSN is not None and not self.SENTRY_DSN.strip():
+            self.SENTRY_DSN = None
         return self
 
 

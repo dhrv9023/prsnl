@@ -56,6 +56,20 @@ async def sign_up(request: Request, user_data: UserAuth):
         if not response.user and not response.session:
             return {"msg": "Registration successful. Please check email if verify is on."}
 
+        # ── IP-gated initial credit grant ──────────────────────────────────
+        # The Supabase trigger sets credits to 0 (see migration).
+        # We grant 100 here only if this IP hasn't already claimed credits.
+        # This prevents multi-account farming from the same IP.
+        if response.user:
+            from app.services.credits import grant_initial_credits
+            from app.core.rate_limit import get_client_ip
+            client_ip = get_client_ip(request)
+            await grant_initial_credits(
+                supabase=supabase,
+                user_id=str(response.user.id),
+                client_ip=client_ip,
+            )
+
         return {"msg": "User created successfully", "user_id": response.user.id}
 
     except Exception as e:
@@ -147,8 +161,22 @@ async def oauth_exchange_session(request: Request, body: OAuthSessionExchange, r
 
     logger.info("[OAuth] Setting session cookies for user: %s", user.email)
     set_session_cookies(response, sess.access_token, getattr(sess, "refresh_token", None))
-    logger.info("[OAuth] Session established successfully")
-    
+
+    # ── IP-gated initial credit grant for new OAuth users ─────────────────
+    # grant_initial_credits is idempotent — safe to call on every OAuth login.
+    # It checks if the user already has credits before granting.
+    try:
+        from app.services.credits import grant_initial_credits
+        from app.core.rate_limit import get_client_ip
+        client_ip = get_client_ip(request)
+        await grant_initial_credits(
+            supabase=anon,
+            user_id=str(user.id),
+            client_ip=client_ip,
+        )
+    except Exception as e:
+        logger.warning("[OAuth] grant_initial_credits failed (non-fatal): %s", e)
+
     return {
         "msg": "Session established",
         "user": {"id": user.id, "email": user.email},

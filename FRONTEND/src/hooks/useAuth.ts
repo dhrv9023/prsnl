@@ -122,17 +122,13 @@ export function useAuth() {
         try {
             let verifier = window.localStorage.getItem(SUPABASE_CODE_VERIFIER_KEY);
             if (!verifier) {
-                console.error("[OAuth] Code verifier missing from localStorage");
                 throw new Error("OAuth verifier missing. Please try Google sign-in again.");
             }
 
             // Remove quotes if supabase-js stringified it
             verifier = verifier.replace(/^"|"$/g, "");
-            console.log("[OAuth] Exchanging code with backend...");
 
             const res = await apiExchangeOAuthSession(code, verifier);
-            console.log("[OAuth] Exchange successful, clearing localStorage...");
-            
             window.localStorage.removeItem(SUPABASE_CODE_VERIFIER_KEY);
             
             // ✅ SECURITY: Clear any Supabase session from localStorage (we use HttpOnly cookies)
@@ -141,10 +137,8 @@ export function useAuth() {
             // Fetch /me to get is_admin flag
             const me = await apiGetMe().catch(() => null);
             setState({ user: res.user, isAdmin: me?.is_admin ?? false, isLoading: false, isSubmitting: false, error: "" });
-            console.log("[OAuth] Login complete");
             return true;
         } catch (e: unknown) {
-            console.error("[OAuth] Exchange failed:", e);
             const msg = friendlyError(e, "Google sign-in failed. Please try again.");
             setState({ user: null, isAdmin: false, isLoading: false, isSubmitting: false, error: msg });
             return false;

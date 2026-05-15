@@ -8,6 +8,7 @@ from app.core.config import settings
 from app.core.rate_limit import ats_rate_key, limiter
 from app.db.supabase import get_db
 from app.db.redis_client import save_session, load_session, delete_session
+from app.services.credits import refund_feature_credits
 from app.schemas.models import (
     StartInterviewRequest,
     InterviewQuestion,
@@ -43,6 +44,30 @@ async def start_interview_route(
     _credits=require_credits("interview", 25),
 ) -> List[InterviewQuestion]:
     user_id_str = str(user.id)
+
+    # ── Check for existing active session ─────────────────────────────────
+    # If a session already exists, warn the user instead of silently overwriting
+    # and charging them 25 credits again.
+    try:
+        existing_session = await load_session(user_id_str)
+        if existing_session and existing_session.questions:
+            answered = len(existing_session.evaluations)
+            total = len(existing_session.questions)
+            if answered < total:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        f"You have an active interview in progress "
+                        f"({answered}/{total} questions answered). "
+                        f"Submit a POST to /api/v1/interview/end to finish it first, "
+                        f"or POST to /api/v1/interview/abandon to discard it and start fresh."
+                    ),
+                )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning("Could not check for existing session for user %s: %s", user_id_str, e)
+        # Non-fatal — proceed with starting new interview
 
     # 1. Fetch Resume Data
     supabase = await get_db()
@@ -139,6 +164,8 @@ async def start_interview_route(
                 analysis_context=analysis_context,
             )
     except ValueError as e:
+        supabase_ref = await get_db()
+        await refund_feature_credits(supabase_ref, user_id_str, "interview", 25)
         raise HTTPException(status_code=500, detail=str(e))
 
     session.questions = questions
@@ -325,6 +352,22 @@ async def get_interview_history(user: CurrentUser):
     except Exception as e:
         logger.error("Failed to fetch interview history for user %s: %s", user_id_str, e)
         raise HTTPException(status_code=500, detail="Failed to load interview history.")
+
+
+@router.post("/abandon")
+async def abandon_interview_route(request: Request, user: CurrentUser):
+    """
+    Discards the current active interview session from Redis without saving a report.
+    Use this when the user explicitly wants to start a fresh interview.
+    Credits are NOT refunded — the session was already started.
+    """
+    user_id_str = str(user.id)
+    try:
+        await delete_session(user_id_str)
+        logger.info("Interview session abandoned for user %s", user_id_str)
+    except Exception as e:
+        logger.warning("Redis delete_session (abandon) failed for user %s: %s", user_id_str, e)
+    return {"msg": "Interview session discarded. You can now start a new interview."}
 
 
 @router.get("/session")

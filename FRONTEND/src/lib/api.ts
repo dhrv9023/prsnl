@@ -614,3 +614,7 @@ export async function apiGetActiveInterviewSession(): Promise<{
 }> {
     return interviewRequest("/session");
 }
+
+export async function apiAbandonInterview(): Promise<{ msg: string }> {
+    return interviewRequest("/abandon", { method: "POST" });
+}

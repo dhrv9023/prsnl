@@ -9,6 +9,7 @@ import {
     apiSubmitAnswer,
     apiEndInterview,
     apiGetActiveInterviewSession,
+    apiAbandonInterview,
     type ResumeListItem,
     type InterviewQuestion,
     type AnswerEvaluation,
@@ -750,6 +751,17 @@ export default function AIInterview() {
         }
     }, [isRoastMode, roastLanguage, deductLocal, refreshCredits]);
 
+    // Abandon the old session then go to setup — no credit refund (session was started)
+    const handleAbandonAndStartNew = useCallback(async () => {
+        try {
+            await apiAbandonInterview();
+        } catch {
+            // Non-fatal — proceed to setup regardless
+        }
+        setActiveSessionMeta(null);
+        setStep("setup");
+    }, []);
+
     const handleResumeSession = useCallback(async () => {
         // Fetch the full session from Redis and jump straight into the interview
         try {
@@ -854,7 +866,7 @@ export default function AIInterview() {
                                 Continue Interview
                             </button>
                             <button
-                                onClick={() => { setActiveSessionMeta(null); setStep("setup"); }}
+                                onClick={handleAbandonAndStartNew}
                                 className="w-full h-11 flex items-center justify-center gap-2 border border-border/30 rounded-xl text-sm text-muted-foreground hover:text-foreground hover:bg-secondary/20 transition-colors"
                             >
                                 Start New Interview

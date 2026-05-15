@@ -21,6 +21,19 @@ router = APIRouter()
 async def upload_resume(request: Request, user: CurrentUser, file: UploadFile = File(...)):
     supabase = await get_db()
 
+    # 0. Enforce per-user resume cap (prevents unbounded storage + slow dashboard queries)
+    MAX_RESUMES_PER_USER = 20
+    count_res = await supabase.table("resumes") \
+        .select("id", count="exact") \
+        .eq("user_id", user.id).execute()
+    current_count = count_res.count or 0
+    if current_count >= MAX_RESUMES_PER_USER:
+        raise HTTPException(
+            status_code=400,
+            detail=f"You have reached the maximum of {MAX_RESUMES_PER_USER} resumes. "
+                   f"Please delete old resumes before uploading a new one."
+        )
+
     # 1. Validate file type
     if file.content_type != "application/pdf":
         raise HTTPException(status_code=400, detail="Only PDF files are allowed")
@@ -94,6 +107,12 @@ async def upload_resume(request: Request, user: CurrentUser, file: UploadFile = 
         }
     except Exception as e:
         logger.error("Database insert failed for user %s: %s", user.id, e)
+        # Clean up the orphaned storage file so it doesn't accumulate
+        try:
+            await supabase.storage.from_("Resumes").remove([file_path])
+            logger.info("Cleaned up orphaned storage file: %s", file_path)
+        except Exception as cleanup_err:
+            logger.warning("Failed to clean up orphaned file %s: %s", file_path, cleanup_err)
         raise HTTPException(status_code=500, detail="An internal error occurred while saving the record.")
 
 
@@ -102,7 +121,10 @@ async def list_resumes(user: CurrentUser):
     supabase = await get_db()
     res = await supabase.table("resumes") \
         .select("id, file_url, resume_quality_feedback, created_at") \
-        .eq("user_id", user.id).execute()
+        .eq("user_id", user.id) \
+        .order("created_at", desc=True) \
+        .limit(50) \
+        .execute()
     return res.data
 
 

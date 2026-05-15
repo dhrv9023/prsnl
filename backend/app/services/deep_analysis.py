@@ -29,6 +29,7 @@ from groq import AsyncGroq
 from app.core.config import settings
 from app.services.resume_analyzer import clean_llm_answer
 from app.services.prompt_sanitizer import sanitize_user_text
+from app.services.ai_retry import with_ai_retry
 
 logger = logging.getLogger(__name__)
 client = AsyncGroq(api_key=settings.GROQ_API_KEY)
@@ -141,22 +142,39 @@ async def generate_deep_analysis(
     )
 
     try:
-        completion = await client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_message},
-            ],
-            temperature=0.25,
-            response_format={"type": "json_object"},
-            stream=False,
-            timeout=45,
+        completion = await with_ai_retry(
+            lambda: client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": user_message},
+                ],
+                temperature=0.25,
+                response_format={"type": "json_object"},
+                stream=False,
+                timeout=45,
+            ),
+            label="deep_analysis",
         )
         raw = completion.choices[0].message.content
         cleaned = clean_llm_answer(raw)
         if not cleaned:
             raise RuntimeError("AI returned empty response")
-        return json.loads(cleaned)
+        result = json.loads(cleaned)
+
+        # ── Output validation ──────────────────────────────────────────────
+        # Ensure required top-level keys exist so the frontend never crashes
+        result.setdefault("summary", "Analysis complete.")
+        result.setdefault("overall_feedback", "Fair")
+        result.setdefault("sections", {})
+        result.setdefault("action_items", [])
+
+        # Clamp overall_feedback to known values
+        valid_feedback = {"Excellent", "Good", "Fair", "Poor"}
+        if result["overall_feedback"] not in valid_feedback:
+            result["overall_feedback"] = "Fair"
+
+        return result
 
     except json.JSONDecodeError:
         logger.error("Invalid JSON from deep analysis AI: %s", raw[:300])

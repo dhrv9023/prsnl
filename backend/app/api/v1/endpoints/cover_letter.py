@@ -15,6 +15,7 @@ from app.core.rate_limit import ats_rate_key, limiter
 from app.db.supabase import get_db
 from app.services.cover_letter_gen import cover_letter_generator, roast_cover_letter_generator
 from app.services.humanizer import humanize_text
+from app.services.credits import refund_feature_credits
 from app.schemas.models import CoverLetterRequest, CoverLetterRoastRequest, HumanizeRequest, SavePDFRequest
 
 logger = logging.getLogger(__name__)
@@ -75,6 +76,7 @@ async def create_cover_letter(
         body.job_title
     )
     if not cover_letter_content:
+        await refund_feature_credits(supabase, str(user.id), "cover_letter", 10)
         raise HTTPException(502, "AI failed to generate text")
 
     app_data = {
@@ -129,6 +131,7 @@ async def create_roast_cover_letter(
         body.job_title
     )
     if not cover_letter_content:
+        await refund_feature_credits(supabase, str(user.id), "cover_letter", 10)
         raise HTTPException(502, "AI failed to generate roast cover letter")
 
     app_data = {
@@ -200,7 +203,10 @@ async def list_applications(user: CurrentUser):
     supabase = await get_db()
     res = await supabase.table("job_applications") \
         .select("id, company_name, job_title, status, created_at") \
-        .eq("user_id", user.id).execute()
+        .eq("user_id", user.id) \
+        .order("created_at", desc=True) \
+        .limit(50) \
+        .execute()
     return res.data
 
 
@@ -230,6 +236,8 @@ async def humanize_cover_letter(
 
     result = await humanize_text(body.text)
     if not result:
+        supabase = await get_db()
+        await refund_feature_credits(supabase, str(user.id), "humanize", 15)
         raise HTTPException(502, "AI failed to humanize the text. Please try again.")
 
     return {"humanized_text": result}
