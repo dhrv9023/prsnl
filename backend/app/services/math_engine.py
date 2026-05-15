@@ -1,6 +1,7 @@
 # app/services/math_engine.py
 import logging
 import re
+import asyncio
 
 import numpy as np
 from huggingface_hub import AsyncInferenceClient
@@ -20,13 +21,19 @@ def clean_text(text: str) -> str:
 
 
 async def get_embedding(text: str):
-    """Uses the HuggingFace Inference API to get sentence embeddings."""
+    """Uses the HuggingFace Inference API to get sentence embeddings. Times out after 15s."""
     try:
-        response = await client.feature_extraction(
-            text,
-            model="sentence-transformers/all-mpnet-base-v2"
+        response = await asyncio.wait_for(
+            client.feature_extraction(
+                text,
+                model="sentence-transformers/all-mpnet-base-v2"
+            ),
+            timeout=15.0,
         )
         return response
+    except asyncio.TimeoutError:
+        logger.warning("Embedding API timed out after 15s")
+        return None
     except Exception as e:
         logger.error("Embedding API error: %s", e)
         return None

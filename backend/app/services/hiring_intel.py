@@ -160,7 +160,7 @@ async def generate_hiring_intel(
             temperature=0.3,
             response_format={"type": "json_object"},
             stream=False,
-            timeout=60,
+            timeout=45,
         )
         raw = completion.choices[0].message.content
         cleaned = clean_llm_answer(raw)
