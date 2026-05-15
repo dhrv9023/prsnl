@@ -59,7 +59,6 @@ export default function CoverLetter() {
     const [jobTitle, setJobTitle] = useState("");
     const [jobDescription, setJobDescription] = useState("");
     const [letter, setLetter] = useState("");
-    const [applicationId, setApplicationId] = useState("");
     const [error, setError] = useState("");
     const [notice, setNotice] = useState("");
 
@@ -115,7 +114,6 @@ export default function CoverLetter() {
         setGenerating(true);
         setError("");
         setNotice("");
-        setSavedPdfPath("");
         deductLocal("cover_letter");
         try {
             const result = isRoastMode
@@ -132,7 +130,6 @@ export default function CoverLetter() {
                     companyName.trim(),
                     jobTitle.trim()
                   );
-            setApplicationId(result.application_id);
             setLetter(result.content);
             setNotice(isRoastMode ? "🔥 Roast cover letter generated! Edit it before saving." : "Cover letter generated. You can edit it before saving.");
         } catch (e: unknown) {
