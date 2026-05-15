@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { CheckCircle2, XCircle, AlertTriangle, MinusCircle, ChevronDown, ChevronUp, Layers, Zap } from "lucide-react";
 import type { DeepAnalysisResult, DeepAnalysisSection } from "@/lib/api";
+import { HinglishToggle } from "@/components/ui/HinglishToggle";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -118,6 +119,7 @@ interface Props {
 
 export function DeepAnalysisPanel({ result }: Props) {
     const sectionEntries = Object.entries(result.sections ?? {});
+    const [displaySummary, setDisplaySummary] = useState(result.summary);
 
     return (
         <div className="space-y-4">
@@ -135,7 +137,12 @@ export function DeepAnalysisPanel({ result }: Props) {
                 <div className="flex items-center gap-3 flex-wrap">
                     <OverallBadge grade={result.overall_feedback} />
                 </div>
-                <p className="text-sm text-muted-foreground leading-relaxed">{result.summary}</p>
+                <p className="text-sm text-muted-foreground leading-relaxed">{displaySummary}</p>
+                <HinglishToggle
+                    originalText={result.summary}
+                    onConverted={setDisplaySummary}
+                    label="Hinglish mein samjho"
+                />
             </div>
 
             {/* Section breakdown */}

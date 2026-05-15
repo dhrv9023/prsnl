@@ -283,6 +283,41 @@ function SetupStep({
     );
 }
 
+// ── Feedback with Hinglish toggle ─────────────────────────────────────────────
+
+function FeedbackWithHinglish({ feedback, idealAnswer }: { feedback: string; idealAnswer: string }) {
+    const [displayFeedback, setDisplayFeedback] = useState(feedback);
+    const [displayIdeal, setDisplayIdeal] = useState(idealAnswer);
+
+    return (
+        <div className="rounded-xl border border-border/30 bg-card/40 p-5 space-y-4">
+            <div>
+                <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground/50 mb-2">Feedback</p>
+                <p className="text-sm text-foreground/80 leading-relaxed whitespace-pre-wrap">{displayFeedback}</p>
+                <HinglishToggle
+                    originalText={feedback}
+                    onConverted={setDisplayFeedback}
+                    label="Hinglish mein"
+                    className="mt-2"
+                />
+            </div>
+            <div className="border-t border-border/20 pt-4">
+                <div className="flex items-center gap-1.5 mb-2">
+                    <Lightbulb className="w-3.5 h-3.5 text-amber-400/70" />
+                    <p className="text-xs font-mono uppercase tracking-widest text-amber-400/60">Ideal Answer</p>
+                </div>
+                <p className="text-xs text-muted-foreground/70 leading-relaxed whitespace-pre-wrap font-mono bg-secondary/20 rounded-lg p-3">{displayIdeal}</p>
+                <HinglishToggle
+                    originalText={idealAnswer}
+                    onConverted={setDisplayIdeal}
+                    label="Hinglish mein"
+                    className="mt-2"
+                />
+            </div>
+        </div>
+    );
+}
+
 // ── Step 2: Interview ─────────────────────────────────────────────────────────
 
 function InterviewStep({
@@ -503,25 +538,13 @@ function InterviewStep({
                             </div>
 
                             {/* Feedback */}
-                            <div className="rounded-xl border border-border/30 bg-card/40 p-5 space-y-4">
-                                <div>
-                                    <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground/50 mb-2">Feedback</p>
-                                    <p className="text-sm text-foreground/80 leading-relaxed whitespace-pre-wrap">{evaluation.feedback}</p>
+                            <FeedbackWithHinglish feedback={evaluation.feedback} idealAnswer={evaluation.ideal_answer} />
+                            {q.type === "code" && evaluation.time_complexity && (
+                                <div className="flex gap-3 pt-1">
+                                    <span className="text-xs px-2 py-1 rounded-lg bg-blue-400/10 border border-blue-400/15 text-blue-400/80">TC: {evaluation.time_complexity}</span>
+                                    {evaluation.space_complexity && <span className="text-xs px-2 py-1 rounded-lg bg-purple-400/10 border border-purple-400/15 text-purple-400/80">SC: {evaluation.space_complexity}</span>}
                                 </div>
-                                <div className="border-t border-border/20 pt-4">
-                                    <div className="flex items-center gap-1.5 mb-2">
-                                        <Lightbulb className="w-3.5 h-3.5 text-amber-400/70" />
-                                        <p className="text-xs font-mono uppercase tracking-widest text-amber-400/60">Ideal Answer</p>
-                                    </div>
-                                    <p className="text-xs text-muted-foreground/70 leading-relaxed whitespace-pre-wrap font-mono bg-secondary/20 rounded-lg p-3">{evaluation.ideal_answer}</p>
-                                </div>
-                                {q.type === "code" && evaluation.time_complexity && (
-                                    <div className="flex gap-3 pt-1">
-                                        <span className="text-xs px-2 py-1 rounded-lg bg-blue-400/10 border border-blue-400/15 text-blue-400/80">TC: {evaluation.time_complexity}</span>
-                                        {evaluation.space_complexity && <span className="text-xs px-2 py-1 rounded-lg bg-purple-400/10 border border-purple-400/15 text-purple-400/80">SC: {evaluation.space_complexity}</span>}
-                                    </div>
-                                )}
-                            </div>
+                            )}
 
                             {/* Next */}
                             <button
