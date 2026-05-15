@@ -12,7 +12,6 @@ import {
     FileText,
     Loader2,
     PenTool,
-    Save,
     Sparkles,
     Upload,
 } from "lucide-react";
@@ -21,7 +20,6 @@ import {
     apiGenerateRoastCoverLetter,
     apiHumanizeCoverLetter,
     apiListResumes,
-    apiSaveCoverLetterPdf,
     apiUploadResume,
     type ResumeListItem,
 } from "@/lib/api";
@@ -62,7 +60,6 @@ export default function CoverLetter() {
     const [jobDescription, setJobDescription] = useState("");
     const [letter, setLetter] = useState("");
     const [applicationId, setApplicationId] = useState("");
-    const [savedPdfPath, setSavedPdfPath] = useState("");
     const [error, setError] = useState("");
     const [notice, setNotice] = useState("");
 
@@ -170,18 +167,14 @@ export default function CoverLetter() {
     };
 
     async function handleSavePdf() {
-        if (!applicationId || !letter.trim()) {
-            setError("Generate a cover letter before saving PDF.");
+        if (!letter.trim()) {
+            setError("Generate a cover letter before downloading PDF.");
             return;
         }
         setSaving(true);
         setError("");
         setNotice("");
         try {
-            const result = await apiSaveCoverLetterPdf(applicationId, letter.trim());
-            setSavedPdfPath(result.pdf_url);
-            
-            // ✅ Download PDF for user immediately after saving to Supabase
             const pdfBlob = await generatePdfBlob(letter.trim(), companyName.trim(), jobTitle.trim());
             const url = URL.createObjectURL(pdfBlob);
             const anchor = document.createElement("a");
@@ -192,10 +185,10 @@ export default function CoverLetter() {
             anchor.click();
             document.body.removeChild(anchor);
             URL.revokeObjectURL(url);
-            
-            setNotice("PDF saved to Supabase and downloaded.");
+            setNotice("Cover letter downloaded successfully.");
+            setTimeout(() => setNotice(""), 4000);
         } catch (e: unknown) {
-            setError(friendlyError(e, "Failed to save PDF."));
+            setError(friendlyError(e, "Failed to download PDF."));
         } finally {
             setSaving(false);
         }
@@ -435,11 +428,11 @@ export default function CoverLetter() {
                                     </button>
                                     <button
                                         onClick={handleSavePdf}
-                                        disabled={!letter.trim() || !applicationId || saving}
+                                        disabled={!letter.trim() || saving}
                                         className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
                                     >
-                                        {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                                        Save PDF
+                                        {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                                        Download PDF
                                     </button>
                                 </div>
                             </div>
@@ -452,16 +445,6 @@ export default function CoverLetter() {
                                     rows={24}
                                     className="min-h-[560px] w-full resize-none rounded-lg border border-border/25 bg-background/60 px-4 py-4 text-sm leading-7 text-foreground outline-none focus:border-primary/35"
                                 />
-
-                                {savedPdfPath && (
-                                    <div className="mt-4 flex items-start gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-4">
-                                        <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-600 dark:text-emerald-400" />
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">PDF saved to Supabase and downloaded</p>
-                                            <p className="mt-0.5 text-xs text-muted-foreground truncate">{savedPdfPath}</p>
-                                        </div>
-                                    </div>
-                                )}
                             </div>
                         </section>
                     </div>

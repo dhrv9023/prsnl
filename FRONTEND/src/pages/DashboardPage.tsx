@@ -9,7 +9,7 @@ import { HinglishToggle } from "@/components/ui/HinglishToggle";
 import {
     BarChart3, FileText, Loader2, ArrowRight, Zap,
     TrendingUp, CheckCircle2, Clock, AlertTriangle,
-    Sparkles, Target, Upload, ChevronDown, Brain, Layers, Mic2, MessageSquare
+    Sparkles, Target, Upload, ChevronDown, Brain, Layers, Mic2, MessageSquare, PenTool
 } from "lucide-react";
 
 // ── Skeleton loader ──────────────────────────────────────────────────────────
@@ -151,11 +151,31 @@ function HistoryItem({
 
     // Extract ATS mode from output_data
     const atsMode = isATS && outputData && "mode" in outputData ? outputData.mode : null;
-    const atsLabel = isATS 
-        ? (atsMode === "jd" ? "ATS Score (with JD)" : "ATS Score (without JD)")
-        : isIntel 
-            ? "Hiring Intelligence" 
-            : "Deep Analysis";
+
+    function getLabel(): string {
+        if (isATS) {
+            return atsMode === "jd" || atsMode === "jd_match"
+                ? "ATS Score (with JD)"
+                : "ATS Score (without JD)";
+        }
+        if (isIntel) return "Hiring Intelligence";
+        if (isDeep) {
+            const jdProvided = outputData && "jd_provided" in outputData
+                ? (outputData as DeepAnalysisResult).jd_provided
+                : undefined;
+            if (jdProvided === true) return "Deep Analysis (with JD)";
+            if (jdProvided === false) return "Deep Analysis (without JD)";
+            return "Deep Analysis";
+        }
+        if (item.type === "cover_letter") return "Cover Letter";
+        if (item.type === "cover_letter_roast") return "Roast Cover Letter";
+        if (item.type === "humanize") return "Cover Letter Humanized";
+        if (item.type === "interview") return "AI Interview";
+        // fallback: prettify snake_case
+        return item.type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    }
+
+    const atsLabel = getLabel();
 
     return (
         <div className={`flex flex-col py-4 ${!isLast ? "border-b border-border/10" : ""}`}>
@@ -165,13 +185,21 @@ function HistoryItem({
                 onClick={() => canExpand && setExpanded(!expanded)}
             >
                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0
-                    ${isIntel ? "bg-purple-400/10" : isDeep ? "bg-blue-400/10" : "bg-emerald-400/10"}`}
+                    ${isIntel ? "bg-purple-400/10"
+                    : isDeep ? "bg-blue-400/10"
+                    : isATS ? "bg-emerald-400/10"
+                    : item.type === "interview" ? "bg-amber-400/10"
+                    : "bg-pink-400/10"}`}
                 >
                     {isIntel
                         ? <Brain className="w-3.5 h-3.5 text-purple-400" />
                         : isDeep
                         ? <Layers className="w-3.5 h-3.5 text-blue-400" />
-                        : <Target className="w-3.5 h-3.5 text-emerald-400" />
+                        : isATS
+                        ? <Target className="w-3.5 h-3.5 text-emerald-400" />
+                        : item.type === "interview"
+                        ? <Mic2 className="w-3.5 h-3.5 text-amber-400" />
+                        : <PenTool className="w-3.5 h-3.5 text-pink-400" />
                     }
                 </div>
                 <div className="flex-1 min-w-0">
