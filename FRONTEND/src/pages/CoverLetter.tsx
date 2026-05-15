@@ -179,12 +179,54 @@ export default function CoverLetter() {
         try {
             const result = await apiSaveCoverLetterPdf(applicationId, letter.trim());
             setSavedPdfPath(result.pdf_url);
-            setNotice("PDF saved to Supabase storage.");
+            
+            // ✅ Download PDF for user immediately after saving to Supabase
+            const pdfBlob = await generatePdfBlob(letter.trim(), companyName.trim(), jobTitle.trim());
+            const url = URL.createObjectURL(pdfBlob);
+            const anchor = document.createElement("a");
+            const safeCompany = companyName.trim().replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "") || "company";
+            anchor.href = url;
+            anchor.download = `${safeCompany}-cover-letter.pdf`;
+            document.body.appendChild(anchor);
+            anchor.click();
+            document.body.removeChild(anchor);
+            URL.revokeObjectURL(url);
+            
+            setNotice("PDF saved to Supabase and downloaded.");
         } catch (e: unknown) {
             setError(friendlyError(e, "Failed to save PDF."));
         } finally {
             setSaving(false);
         }
+    }
+
+    // Helper to generate PDF blob client-side for download
+    async function generatePdfBlob(text: string, company: string, role: string): Promise<Blob> {
+        // Use jsPDF for client-side PDF generation
+        const { jsPDF } = await import("jspdf");
+        const doc = new jsPDF();
+        
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const margin = 20;
+        const maxWidth = pageWidth - 2 * margin;
+        
+        // Split text into lines that fit the page width
+        const lines = doc.splitTextToSize(text, maxWidth);
+        
+        let y = 20;
+        const lineHeight = 7;
+        const pageHeight = doc.internal.pageSize.getHeight();
+        
+        lines.forEach((line: string) => {
+            if (y + lineHeight > pageHeight - 20) {
+                doc.addPage();
+                y = 20;
+            }
+            doc.text(line, margin, y);
+            y += lineHeight;
+        });
+        
+        return doc.output("blob");
     }
 
     function handleDownloadText() {
@@ -253,9 +295,9 @@ export default function CoverLetter() {
                     )}
 
                     {notice && (
-                        <div className="mb-5 flex items-start gap-3 rounded-lg border border-emerald-400/20 bg-emerald-400/10 p-4">
-                            <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-300" />
-                            <p className="text-sm text-emerald-200">{notice}</p>
+                        <div className="mb-5 flex items-start gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-4">
+                            <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-600 dark:text-emerald-400" />
+                            <p className="text-sm text-emerald-700 dark:text-emerald-200">{notice}</p>
                         </div>
                     )}
 
@@ -411,11 +453,11 @@ export default function CoverLetter() {
                                 />
 
                                 {savedPdfPath && (
-                                    <div className="mt-4 flex items-start gap-3 rounded-lg border border-emerald-400/20 bg-emerald-400/8 p-4">
-                                        <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-400" />
+                                    <div className="mt-4 flex items-start gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-4">
+                                        <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-600 dark:text-emerald-400" />
                                         <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-medium text-emerald-300">PDF saved to Supabase Storage</p>
-                                            <p className="mt-0.5 text-xs text-muted-foreground/60 truncate">{savedPdfPath}</p>
+                                            <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">PDF saved to Supabase and downloaded</p>
+                                            <p className="mt-0.5 text-xs text-muted-foreground truncate">{savedPdfPath}</p>
                                         </div>
                                     </div>
                                 )}

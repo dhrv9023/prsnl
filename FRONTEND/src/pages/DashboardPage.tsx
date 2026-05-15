@@ -412,7 +412,7 @@ const DashboardPage = () => {
                             {/* SECTION 2: User Metrics */}
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                 <MetricCard
-                                    label={atsMode === "jd_match" ? "ATS Score (with JD)" : atsMode === "general" ? "ATS Score (General)" : "ATS Match"}
+                                    label={atsMode === "jd_match" ? "ATS Score (with JD)" : "ATS Score (without JD)"}
                                     value={atsScore != null ? `${atsScore}` : "--"}
                                     subtext={atsScore != null ? (atsScore >= 75 ? "Strong match" : atsScore >= 50 ? "Moderate fit" : "Needs work") : "Run ATS scoring"}
                                     icon={Target}

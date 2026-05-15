@@ -68,7 +68,12 @@ async def create_cover_letter(
 
     resume_text = res_data.data[0]['parsed_content']['raw_text']
 
-    cover_letter_content = await cover_letter_generator(resume_text, body.job_description)
+    cover_letter_content = await cover_letter_generator(
+        resume_text, 
+        body.job_description,
+        body.company_name,
+        body.job_title
+    )
     if not cover_letter_content:
         raise HTTPException(502, "AI failed to generate text")
 
@@ -117,7 +122,11 @@ async def create_roast_cover_letter(
     resume_text = res_data.data[0]['parsed_content']['raw_text']
 
     cover_letter_content = await roast_cover_letter_generator(
-        resume_text, body.job_description, body.language
+        resume_text, 
+        body.job_description, 
+        body.language,
+        body.company_name,
+        body.job_title
     )
     if not cover_letter_content:
         raise HTTPException(502, "AI failed to generate roast cover letter")

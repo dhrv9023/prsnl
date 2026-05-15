@@ -11,6 +11,15 @@ export default function AuthCallback() {
     const [attempt, setAttempt] = useState(0);
     const hasRun = useRef(false);
 
+    // ✅ SECURITY: Clean OAuth code from URL IMMEDIATELY (before React renders)
+    // This prevents the code from being visible in the address bar even for a moment
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        if (params.has("code") || params.has("error") || params.has("error_description")) {
+            window.history.replaceState({}, "", window.location.pathname);
+        }
+    }, []);
+
     useEffect(() => {
         // Guard against React StrictMode double-invoke
         if (hasRun.current) return;
@@ -20,11 +29,6 @@ export default function AuthCallback() {
             const params = new URLSearchParams(window.location.search);
             const code = params.get("code");
             const oauthError = params.get("error_description") || params.get("error");
-
-            // Immediately clean the URL to hide the OAuth code (security)
-            if (code || oauthError) {
-                window.history.replaceState({}, "", window.location.pathname);
-            }
 
             if (oauthError) {
                 setError(oauthError);
