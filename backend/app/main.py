@@ -57,15 +57,16 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         # API-only backend doesn't serve HTML, but this protects any error pages
         if _is_prod:
             csp_parts = [
-                "default-src 'self'",
+                "default-src 'none'",  # Deny everything by default
                 "script-src 'self'",
-                "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+                "style-src 'self' https://fonts.googleapis.com",
                 "font-src 'self' https://fonts.gstatic.com",
                 "img-src 'self' data: https://*.supabase.co",
                 "connect-src 'self' https://*.supabase.co",
                 "frame-ancestors 'none'",
                 "base-uri 'self'",
                 "form-action 'self'",
+                "upgrade-insecure-requests",  # Force HTTPS for all resources
             ]
             response.headers["Content-Security-Policy"] = "; ".join(csp_parts)
         else:

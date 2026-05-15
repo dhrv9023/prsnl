@@ -241,9 +241,15 @@ async def grant_credits_to_user(
         reason=body.reason,
     )
 
-    logger.info(
-        "Admin %s granted %d credits to user %s (reason: %s)",
-        admin.get("email"), body.amount, target_user_id, body.reason
+    # ✅ SECURITY: Audit log for admin credit grants
+    logger.warning(
+        "AUDIT: Admin %s (%s) granted %d credits to user %s. Reason: %s. New balance: %d",
+        admin.get("email"),
+        str(user.id),
+        body.amount,
+        target_user_id,
+        body.reason,
+        result.get("remaining", 0)
     )
 
     return {
@@ -277,9 +283,13 @@ async def set_user_unlimited(
             .update({"is_unlimited": body.unlimited}) \
             .eq("id", target_user_id).execute()
 
-        logger.info(
-            "Admin %s set is_unlimited=%s for user %s",
-            admin.get("email"), body.unlimited, target_user_id
+        # ✅ SECURITY: Audit log for unlimited status changes
+        logger.warning(
+            "AUDIT: Admin %s (%s) set is_unlimited=%s for user %s",
+            admin.get("email"),
+            str(user.id),
+            body.unlimited,
+            target_user_id
         )
 
         return {
