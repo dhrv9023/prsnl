@@ -95,18 +95,28 @@ function InsightWithHinglish({
     insightSummary,
     intelData,
     deepData,
+    resumeName,
 }: {
     insightTitle: string | null;
     insightSummary: string;
     intelData: HiringIntelResponse | null;
     deepData: DeepAnalysisResult | null;
+    resumeName?: string;
 }) {
     const [displayText, setDisplayText] = useState(insightSummary);
 
     return (
         <div>
             <div className="flex items-start justify-between gap-3 mb-2">
-                <h2 className="text-lg font-semibold text-foreground">{insightTitle}</h2>
+                <div>
+                    <h2 className="text-lg font-semibold text-foreground">{insightTitle}</h2>
+                    {resumeName && (
+                        <div className="flex items-center gap-1.5 mt-1">
+                            <FileText className="w-3 h-3 text-muted-foreground/40" />
+                            <span className="text-xs text-muted-foreground/50">{resumeName}</span>
+                        </div>
+                    )}
+                </div>
                 <HinglishToggle
                     originalText={insightSummary}
                     onConverted={setDisplayText}
@@ -423,6 +433,7 @@ const DashboardPage = () => {
                                             insightSummary={insightSummary}
                                             intelData={intelData ?? null}
                                             deepData={deepData ?? null}
+                                            resumeName={data.latest_insight_resume_name}
                                         />
                                     ) : (
                                         <div className="py-4">

@@ -111,4 +111,11 @@ async def get_dashboard_summary(user: CurrentUser):
         "latest_intel": latest_intel,
         "latest_deep_analysis": latest_deep_analysis,
         "analysis_history": history[:20],
+        # Resume name for the latest insight shown in the Career Intelligence panel
+        "latest_insight_resume_name": (
+            resume_id_to_name.get(
+                next((a["resume_id"] for a in analyses if a["analysis_type"] in ("hiring_intel", "deep_analysis")), None)
+                or "", ""
+            )
+        ),
     }

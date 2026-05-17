@@ -229,10 +229,12 @@ async def get_current_user_profile(user: CurrentUser):
     Protected route: valid HttpOnly session cookie.
     Includes `profile` from public.profiles when the Phase 4 migration has been applied.
     Returns `is_admin: bool` so the frontend can enforce role-based access.
+    Also triggers daily credit grant check — safe to call on every page load.
     """
     supabase = await get_db()
     profile = None
     is_admin = False
+    daily_grant = None
     try:
         uid = getattr(user, "id", None)
         if uid is not None:
@@ -240,6 +242,12 @@ async def get_current_user_profile(user: CurrentUser):
             if res.data:
                 profile = res.data[0]
                 is_admin = bool(profile.get("is_admin", False))
+
+            # ── Daily credit grant check ───────────────────────────────────
+            # Idempotent — only grants once per UTC day after initial 100 used.
+            from app.services.credits import grant_daily_credits
+            daily_grant = await grant_daily_credits(supabase=supabase, user_id=str(uid))
+
     except Exception as e:
         logger.warning("Could not load public.profiles for /me: %s", e)
 
@@ -248,5 +256,6 @@ async def get_current_user_profile(user: CurrentUser):
         "email": getattr(user, "email", None),
         "profile": profile,
         "is_admin": is_admin,
+        "daily_grant": daily_grant,   # { granted, amount, already_granted_today, not_eligible }
         "msg": "You are fully authenticated!",
     }

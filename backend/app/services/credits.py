@@ -38,7 +38,7 @@ FEATURE_LABELS: dict[str, str] = {
 }
 
 INITIAL_CREDIT_GRANT = 100
-
+DAILY_CREDIT_GRANT = 50       # granted once per calendar day after initial 100 are used
 LOW_CREDIT_THRESHOLD = 20  # warn the user when remaining credits fall below this
 
 
@@ -229,8 +229,109 @@ async def refund_feature_credits(
         )
 
 
-async def admin_grant_credits(
-    supabase,
+async def grant_daily_credits(supabase, user_id: str) -> dict:
+    """
+    Grants DAILY_CREDIT_GRANT (50) credits to a user once per calendar day (UTC),
+    but ONLY after their initial 100-credit grant has been fully used.
+
+    Rules:
+    - Unlimited users are exempt (they don't need daily credits)
+    - Only triggers when total_credits_granted >= INITIAL_CREDIT_GRANT (user has used the initial grant)
+    - One grant per user per UTC calendar day
+    - Non-cumulative: daily credits don't carry over (enforced by the 50-credit cap per day)
+
+    Returns:
+        {
+            "granted": bool,          # True if credits were granted this call
+            "amount": int,            # 50 if granted, 0 otherwise
+            "already_granted_today": bool,
+            "not_eligible": bool,     # True if initial 100 not yet used
+        }
+    """
+    from datetime import datetime, timezone
+
+    if not user_id:
+        return {"granted": False, "amount": 0, "already_granted_today": False, "not_eligible": True}
+
+    try:
+        today_utc = datetime.now(timezone.utc).date().isoformat()  # "2026-05-17"
+
+        # ── 1. Fetch profile ───────────────────────────────────────────────
+        profile_resp = await supabase.table("profiles") \
+            .select("remaining_credits, total_credits_granted, is_unlimited, last_daily_grant_date") \
+            .eq("id", user_id).limit(1).execute()
+
+        if not profile_resp.data:
+            logger.warning("grant_daily_credits: profile not found for user %s", user_id)
+            return {"granted": False, "amount": 0, "already_granted_today": False, "not_eligible": True}
+
+        profile = profile_resp.data[0]
+
+        # ── 2. Unlimited users are exempt ──────────────────────────────────
+        if profile.get("is_unlimited"):
+            return {"granted": False, "amount": 0, "already_granted_today": False, "not_eligible": True}
+
+        # ── 3. Only eligible after initial 100 credits are used ────────────
+        total_granted = profile.get("total_credits_granted", 0)
+        if total_granted < INITIAL_CREDIT_GRANT:
+            logger.info(
+                "grant_daily_credits: user %s not yet eligible (total_granted=%d < %d)",
+                user_id, total_granted, INITIAL_CREDIT_GRANT
+            )
+            return {"granted": False, "amount": 0, "already_granted_today": False, "not_eligible": True}
+
+        # ── 4. Check if already granted today (fast path via profiles column) ──
+        last_grant = profile.get("last_daily_grant_date")
+        if last_grant and str(last_grant)[:10] == today_utc:
+            logger.info("grant_daily_credits: user %s already received daily credits today", user_id)
+            return {"granted": False, "amount": 0, "already_granted_today": True, "not_eligible": False}
+
+        # ── 5. Double-check via daily_credit_grants table (race condition guard) ──
+        existing = await supabase.table("daily_credit_grants") \
+            .select("id") \
+            .eq("user_id", user_id) \
+            .eq("grant_date", today_utc) \
+            .limit(1).execute()
+
+        if existing.data:
+            # Update the fast-path column so next check is instant
+            await supabase.table("profiles") \
+                .update({"last_daily_grant_date": today_utc}) \
+                .eq("id", user_id).execute()
+            return {"granted": False, "amount": 0, "already_granted_today": True, "not_eligible": False}
+
+        # ── 6. Grant 50 credits ────────────────────────────────────────────
+        await supabase.rpc("grant_credits", {
+            "p_user_id": user_id,
+            "p_amount":  DAILY_CREDIT_GRANT,
+            "p_feature": "daily_grant",
+            "p_metadata": {"source": "daily_login", "date": today_utc},
+        }).execute()
+
+        # ── 7. Record the grant ────────────────────────────────────────────
+        await supabase.table("daily_credit_grants").insert({
+            "user_id":    user_id,
+            "grant_date": today_utc,
+            "amount":     DAILY_CREDIT_GRANT,
+        }).execute()
+
+        # ── 8. Update fast-path column ─────────────────────────────────────
+        await supabase.table("profiles") \
+            .update({"last_daily_grant_date": today_utc}) \
+            .eq("id", user_id).execute()
+
+        logger.info(
+            "grant_daily_credits: granted %d credits to user %s for %s",
+            DAILY_CREDIT_GRANT, user_id, today_utc
+        )
+        return {"granted": True, "amount": DAILY_CREDIT_GRANT, "already_granted_today": False, "not_eligible": False}
+
+    except Exception as e:
+        logger.error("grant_daily_credits failed for user %s: %s", user_id, e)
+        return {"granted": False, "amount": 0, "already_granted_today": False, "not_eligible": False}
+
+
+async def admin_grant_credits(    supabase,
     target_user_id: str,
     amount: int,
     granted_by: str,

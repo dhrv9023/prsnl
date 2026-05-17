@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from app.api.dependencies import CurrentUser
 from app.db.supabase import get_db
-from app.services.credits import FEATURE_COSTS, FEATURE_LABELS, LOW_CREDIT_THRESHOLD
+from app.services.credits import FEATURE_COSTS, FEATURE_LABELS, LOW_CREDIT_THRESHOLD, grant_daily_credits
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -133,3 +133,35 @@ async def get_credit_history(user: CurrentUser):
         row["label"] = FEATURE_LABELS.get(feature, feature)
 
     return rows
+
+
+# ── POST /credits/daily-grant ──────────────────────────────────────────────────
+
+@router.post("/daily-grant")
+async def claim_daily_credits(user: CurrentUser):
+    """
+    Claims the daily 50-credit grant for the current user.
+    Only eligible after the initial 100 credits have been used.
+    Safe to call on every login/page load — idempotent within the same UTC day.
+
+    Returns:
+        {
+            "granted": bool,
+            "amount": int,
+            "already_granted_today": bool,
+            "not_eligible": bool,
+            "remaining": int,
+        }
+    """
+    supabase = await get_db()
+    uid = str(user.id)
+
+    result = await grant_daily_credits(supabase=supabase, user_id=uid)
+
+    # Fetch updated balance to return
+    balance_resp = await supabase.table("profiles") \
+        .select("remaining_credits") \
+        .eq("id", uid).limit(1).execute()
+    remaining = balance_resp.data[0].get("remaining_credits", 0) if balance_resp.data else 0
+
+    return {**result, "remaining": remaining}

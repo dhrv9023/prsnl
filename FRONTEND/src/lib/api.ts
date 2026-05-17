@@ -72,6 +72,12 @@ export interface AuthUser {
 export interface AuthMeResponse extends AuthUser {
     msg: string;
     is_admin?: boolean;
+    daily_grant?: {
+        granted: boolean;
+        amount: number;
+        already_granted_today: boolean;
+        not_eligible: boolean;
+    };
 }
 
 // ── Auth endpoints ───────────────────────────────────────────────────────────
@@ -377,6 +383,7 @@ export interface DashboardSummary {
     latest_intel: HiringIntelResponse | null;
     latest_deep_analysis: DeepAnalysisResult | null;
     analysis_history: AnalysisHistoryItem[];
+    latest_insight_resume_name?: string;
 }
 
 // ── Dashboard endpoints ──────────────────────────────────────────────────────
@@ -390,12 +397,35 @@ export async function apiGetDashboard(): Promise<DashboardSummary> {
 export interface ResumeListItem {
     id: string;
     file_url: string;
+    original_filename: string;   // human-readable name, stripped of timestamp prefix
     resume_quality_feedback: number;
     created_at: string;
 }
 
 export async function apiListResumes(): Promise<ResumeListItem[]> {
-    return request("/resumes/");
+    const items = await request<Omit<ResumeListItem, "original_filename">[]>("/resumes/");
+    // Derive a human-readable name from file_url on the client side
+    return items.map((r) => ({
+        ...r,
+        original_filename: r.file_url
+            .split("/")
+            .pop()!
+            .replace(/^\d+_/, ""),   // strip leading timestamp
+    }));
+}
+
+// ── Daily credit grant ────────────────────────────────────────────────────────
+
+export interface DailyGrantResult {
+    granted: boolean;
+    amount: number;
+    already_granted_today: boolean;
+    not_eligible: boolean;
+    remaining: number;
+}
+
+export async function apiClaimDailyCredits(): Promise<DailyGrantResult> {
+    return request("/credits/daily-grant", { method: "POST" });
 }
 
 // ── Interview types ──────────────────────────────────────────────────────────

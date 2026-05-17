@@ -4,12 +4,14 @@ import { useAuthContext } from "@/contexts/AuthContext";
 import { useCreditContext } from "@/contexts/CreditContext";
 import {
     apiUploadResume,
+    apiListResumes,
     apiGetAtsScore,
     apiGetDeepAnalysis,
     apiGetHiringIntel,
     type MatchResult,
     type HiringIntelReport,
     type DeepAnalysisResult,
+    type ResumeListItem,
 } from "@/lib/api";
 import { friendlyError } from "@/lib/errors";
 import { HiringIntelPanel } from "@/components/analysis/HiringIntelPanel";
@@ -176,6 +178,11 @@ export default function ResumeAnalysis() {
     const [mobileTab, setMobileTab] = useState<MobileTab>("controls");
     const [isExpanded, setIsExpanded] = useState(false);
 
+    // ── Saved resume list (shared across all features) ────────────────────────
+    const [savedResumes, setSavedResumes] = useState<ResumeListItem[]>([]);
+    const [loadingResumes, setLoadingResumes] = useState(false);
+    const [selectedSavedId, setSelectedSavedId] = useState<string>("");
+
     const [resumeId, setResumeId] = useState<string | null>(null);
     const [atsLoading, setAtsLoading] = useState(false);
     const [match, setMatch] = useState<MatchResult | null>(null);
@@ -191,6 +198,34 @@ export default function ResumeAnalysis() {
     // ── Deep Analysis state ────────────────────────────────────────────────
     const [deepLoading, setDeepLoading] = useState(false);
     const [deepResult, setDeepResult] = useState<DeepAnalysisResult | null>(null);
+
+    // ── Load saved resumes on mount ───────────────────────────────────────────
+    useEffect(() => {
+        if (!auth.isAuthenticated) return;
+        setLoadingResumes(true);
+        apiListResumes()
+            .then((items) => {
+                setSavedResumes(items);
+                if (items.length > 0 && !selectedSavedId) {
+                    setSelectedSavedId(items[0].id);
+                    setResumeId(items[0].id);
+                }
+            })
+            .catch(() => { /* non-fatal */ })
+            .finally(() => setLoadingResumes(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [auth.isAuthenticated]);
+
+    // When user selects a saved resume, use it directly (no re-upload needed)
+    function selectSavedResume(id: string) {
+        setSelectedSavedId(id);
+        setResumeId(id);
+        setFile(null);          // clear any locally uploaded file
+        setMatch(null);
+        setIntel(null);
+        setDeepResult(null);
+        setError("");
+    }
 
     // ── PDF object URL ────────────────────────────────────────────────────────
     useEffect(() => {
@@ -211,7 +246,7 @@ export default function ResumeAnalysis() {
 
     function acceptFile(f: File) {
         setFile(f); setMatch(null); setIntel(null); setDeepResult(null);
-        setError(""); setResumeId(null); setEditText("");
+        setError(""); setResumeId(null); setSelectedSavedId(""); setEditText("");
     }
 
     // ── Download ──────────────────────────────────────────────────────────────
@@ -227,16 +262,19 @@ export default function ResumeAnalysis() {
 
     // ── Upload helper ─────────────────────────────────────────────────────────
     async function ensureUploaded(): Promise<string> {
+        // Saved resume selected — use directly, no re-upload
         if (resumeId) return resumeId;
-        if (!file) throw new Error("Please upload a resume PDF.");
+        if (!file) throw new Error("Please select a saved resume or upload a new PDF.");
         const res = await apiUploadResume(file);
         setResumeId(res.id);
+        // Refresh the saved list so the new upload appears in the dropdown
+        apiListResumes().then(setSavedResumes).catch(() => {});
+        setSelectedSavedId(res.id);
         return res.id;
     }
-
     // ── Action: ATS Score ─────────────────────────────────────────────────────
     async function handleAtsScore() {
-        if (!file) { setError("Please upload a resume PDF first."); return; }
+        if (!file && !resumeId) { setError("Please select a resume or upload a PDF first."); return; }
         if (!canUse("ats_score")) { setError("Insufficient credits. ATS Score costs 5 credits."); return; }
         setError(""); setAtsLoading(true);
         deductLocal("ats_score");
@@ -257,7 +295,7 @@ export default function ResumeAnalysis() {
 
     // ── Action: Deep Analysis ──────────────────────────────────────────────
     async function handleDeepAnalysis() {
-        if (!file) { setError("Please upload a resume PDF first."); return; }
+        if (!file && !resumeId) { setError("Please select a resume or upload a PDF first."); return; }
         if (!canUse("deep_analysis")) { setError("Insufficient credits. Deep Analysis costs 15 credits."); return; }
         setError(""); setDeepLoading(true);
         deductLocal("deep_analysis");
@@ -277,7 +315,7 @@ export default function ResumeAnalysis() {
 
     // ── Action: Hiring Intel ──────────────────────────────────────────────────
     async function handleHiringIntel() {
-        if (!file) { setError("Please upload a resume PDF first."); return; }
+        if (!file && !resumeId) { setError("Please select a resume or upload a PDF first."); return; }
         if (!jobDesc.trim()) { setError("Hiring Intel requires a job description."); return; }
         if (!targetRole.trim()) { setError("Please enter the target role."); return; }
         if (!canUse("hiring_intel")) { setError("Insufficient credits. Hiring Intelligence costs 25 credits."); return; }
@@ -306,7 +344,38 @@ export default function ResumeAnalysis() {
         <nav className="flex-1 p-3 space-y-1">
             <p className="text-xs font-mono text-muted-foreground/40 uppercase tracking-widest px-2 pb-1">Workspace</p>
 
-            {/* Upload */}
+            {/* Saved Resume Selector */}
+            {savedResumes.length > 0 && (
+                <div className="space-y-1.5 pb-1">
+                    <p className="text-xs font-mono text-muted-foreground/40 uppercase tracking-widest px-2">Select Resume</p>
+                    <div className="space-y-1">
+                        {loadingResumes ? (
+                            <div className="h-8 bg-secondary/20 rounded-lg animate-pulse" />
+                        ) : (
+                            savedResumes.map((r) => (
+                                <button
+                                    key={r.id}
+                                    type="button"
+                                    onClick={() => selectSavedResume(r.id)}
+                                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-colors text-left ${
+                                        selectedSavedId === r.id
+                                            ? "bg-primary/10 border border-primary/30 text-foreground"
+                                            : "bg-secondary/20 border border-border/20 text-muted-foreground hover:bg-secondary/40 hover:text-foreground"
+                                    }`}
+                                >
+                                    <FileText className="w-3.5 h-3.5 flex-shrink-0" />
+                                    <span className="truncate">{r.original_filename}</span>
+                                    {selectedSavedId === r.id && (
+                                        <span className="ml-auto text-[9px] font-bold text-primary/70 uppercase tracking-wider flex-shrink-0">Active</span>
+                                    )}
+                                </button>
+                            ))
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* Upload new resume */}
             <div
                 onDragOver={onDragOver}
                 onDragLeave={onDragLeave}
@@ -319,7 +388,7 @@ export default function ResumeAnalysis() {
             >
                 <Upload className="w-4 h-4 text-muted-foreground/50 group-hover:text-muted-foreground transition-colors flex-shrink-0" />
                 <span className="text-xs text-muted-foreground/70 group-hover:text-muted-foreground transition-colors leading-tight">
-                    {file ? "Change PDF" : "Upload Resume"}
+                    {file ? `New: ${file.name}` : savedResumes.length > 0 ? "Upload another PDF" : "Upload Resume"}
                 </span>
                 <input ref={fileInputRef} type="file" accept=".pdf" className="hidden"
                     onChange={(e) => { const f = e.target.files?.[0]; if (f) acceptFile(f); }} />

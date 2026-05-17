@@ -25,8 +25,8 @@ class Settings(BaseSettings):
     AUTH_COOKIE_DOMAIN: str | None = None
     AUTH_ACCESS_COOKIE_NAME: str = "access_token"
     AUTH_REFRESH_COOKIE_NAME: str = "refresh_token"
-    AUTH_ACCESS_MAX_AGE_SECONDS: int = 60 * 60  # 1 hour (use refresh to rotate)
-    AUTH_REFRESH_MAX_AGE_SECONDS: int = 60 * 60 * 24 * 30
+    AUTH_ACCESS_MAX_AGE_SECONDS: int = 60 * 60 * 24 * 4   # 4 days — stays logged in if active daily
+    AUTH_REFRESH_MAX_AGE_SECONDS: int = 60 * 60 * 24 * 30  # 30 days
     MIN_PASSWORD_LENGTH: int = 8
     RATE_LIMIT_AUTH: str = "5/minute"
     RATE_LIMIT_UPLOAD: str = "5/day"
