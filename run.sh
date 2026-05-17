@@ -149,7 +149,29 @@ fi
 # Fix WSL2 localhost port forwarding issue when Vite runs via Windows Node executable
 echo "   [setup] Configuring proxy IP for WSL2 networking..."
 WSL_IP=$(hostname -I | awk '{print $1}')
-echo "VITE_WSL_IP=$WSL_IP" > .env.local
+
+# Write .env.local — preserves any existing VITE_SUPABASE_* vars already in the file,
+# only updates VITE_WSL_IP and VITE_API_BASE.
+# We use a temp file approach so we don't clobber manually added keys.
+ENV_FILE=".env.local"
+
+# Start fresh with the dynamic values
+{
+  echo "VITE_WSL_IP=$WSL_IP"
+  echo "VITE_API_BASE="
+  # Carry over VITE_SUPABASE_* from the existing file if present
+  if [ -f "$ENV_FILE" ]; then
+    grep "^VITE_SUPABASE_" "$ENV_FILE" || true
+  fi
+} > "${ENV_FILE}.tmp" && mv "${ENV_FILE}.tmp" "$ENV_FILE"
+
+# If Supabase vars are still missing, warn the user
+if ! grep -q "VITE_SUPABASE_URL" "$ENV_FILE"; then
+  echo -e "   ${YELLOW}[warn] VITE_SUPABASE_URL not set in FRONTEND/.env.local — Google OAuth will not work.${NC}"
+  echo -e "   ${YELLOW}       Add these lines to FRONTEND/.env.local:${NC}"
+  echo -e "   ${YELLOW}       VITE_SUPABASE_URL=https://<your-project>.supabase.co${NC}"
+  echo -e "   ${YELLOW}       VITE_SUPABASE_ANON_KEY=<your-anon-key>${NC}"
+fi
 
 echo "   [ok] Starting Vite dev server..."
 npm run dev &
