@@ -52,7 +52,12 @@ async function request<T>(
         let detail = `HTTP ${res.status}`;
         try {
             const body = await res.json();
-            detail = body?.detail ?? detail;
+            // FastAPI validation errors (422) return { detail: [ { msg: "..." } ] }
+            if (Array.isArray(body?.detail)) {
+                detail = body.detail.map((d: { msg?: string }) => d.msg ?? String(d)).join(". ");
+            } else {
+                detail = body?.detail ?? detail;
+            }
         } catch {
             // ignore parse failure
         }
@@ -153,7 +158,11 @@ export async function apiUploadResume(
         let detail = `Upload failed (HTTP ${res.status})`;
         try {
             const body = await res.json();
-            detail = body?.detail ?? detail;
+            if (Array.isArray(body?.detail)) {
+                detail = body.detail.map((d: { msg?: string }) => d.msg ?? String(d)).join(". ");
+            } else {
+                detail = body?.detail ?? detail;
+            }
         } catch {
             //
         }
@@ -496,7 +505,11 @@ async function interviewRequest<T>(
         let detail = `HTTP ${res.status}`;
         try {
             const body = await res.json();
-            detail = body?.detail ?? detail;
+            if (Array.isArray(body?.detail)) {
+                detail = body.detail.map((d: { msg?: string }) => d.msg ?? String(d)).join(". ");
+            } else {
+                detail = body?.detail ?? detail;
+            }
         } catch { /* ignore */ }
         throw new Error(detail);
     }
