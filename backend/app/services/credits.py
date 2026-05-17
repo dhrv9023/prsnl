@@ -271,12 +271,20 @@ async def grant_daily_credits(supabase, user_id: str) -> dict:
         if profile.get("is_unlimited"):
             return {"granted": False, "amount": 0, "already_granted_today": False, "not_eligible": True}
 
-        # ── 3. Only eligible after initial 100 credits are used ────────────
+        # ── 3. Only eligible after initial 100 credits are FULLY exhausted ──
+        # Rules:
+        # - User must have received the initial 100 grant (total_granted >= 100)
+        # - User must have 0 remaining credits (fully exhausted)
+        # - Once eligible, they get 50 credits per day on login
+        # - These 50 credits are non-cumulative (capped at 50 per day)
+        remaining_credits = profile.get("remaining_credits", 0)
         total_granted = profile.get("total_credits_granted", 0)
-        if total_granted < INITIAL_CREDIT_GRANT:
+
+        if total_granted < INITIAL_CREDIT_GRANT or remaining_credits > 0:
             logger.info(
-                "grant_daily_credits: user %s not yet eligible (total_granted=%d < %d)",
-                user_id, total_granted, INITIAL_CREDIT_GRANT
+                "grant_daily_credits: user %s not eligible "
+                "(total_granted=%d, remaining=%d — must have 0 remaining after using initial 100)",
+                user_id, total_granted, remaining_credits
             )
             return {"granted": False, "amount": 0, "already_granted_today": False, "not_eligible": True}
 
@@ -300,7 +308,29 @@ async def grant_daily_credits(supabase, user_id: str) -> dict:
                 .eq("id", user_id).execute()
             return {"granted": False, "amount": 0, "already_granted_today": True, "not_eligible": False}
 
-        # ── 6. Grant 50 credits ────────────────────────────────────────────
+        # ── 6. Expire yesterday's unused daily credits (non-cumulative) ───
+        # If the user still has credits left from a previous daily grant,
+        # zero them out before granting today's 50. This ensures daily credits
+        # never accumulate — each day starts fresh at 50.
+        if remaining_credits > 0 and last_grant and str(last_grant)[:10] < today_utc:
+            # They have leftover daily credits from a previous day — expire them
+            logger.info(
+                "grant_daily_credits: expiring %d leftover daily credits for user %s (from %s)",
+                remaining_credits, user_id, last_grant
+            )
+            # Deduct the leftover amount to zero out the balance
+            try:
+                await supabase.rpc("deduct_credits", {
+                    "p_user_id":  user_id,
+                    "p_feature":  "daily_grant_expiry",
+                    "p_amount":   remaining_credits,
+                    "p_metadata": {"reason": "daily_credits_expired", "date": today_utc},
+                }).execute()
+            except Exception as expire_err:
+                logger.warning("grant_daily_credits: could not expire old credits: %s", expire_err)
+                # Non-fatal — continue with grant
+
+        # ── 7. Grant 50 credits ────────────────────────────────────────────
         await supabase.rpc("grant_credits", {
             "p_user_id": user_id,
             "p_amount":  DAILY_CREDIT_GRANT,
