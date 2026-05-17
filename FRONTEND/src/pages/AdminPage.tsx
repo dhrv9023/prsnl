@@ -10,7 +10,7 @@ import {
     Users, FileText, BarChart3, Mail, Mic2,
     ShieldCheck, Gauge, Lock, Loader2,
     TrendingUp, Activity, RefreshCw, Clock,
-    Zap, Infinity, CreditCard, ChevronDown, ChevronUp,
+    Zap, Infinity as InfinityIcon, CreditCard, ChevronDown, ChevronUp,
     Gift, ToggleLeft, ToggleRight, AlertTriangle,
 } from "lucide-react";
 
@@ -138,7 +138,7 @@ function UserRow({ user, onGrant, onToggleUnlimited }: {
                         )}
                         {localUser.is_unlimited && (
                             <span className="text-[10px] font-semibold uppercase tracking-wider text-violet-400 bg-violet-400/10 px-1.5 py-0.5 rounded border border-violet-400/20 flex items-center gap-1">
-                                <Infinity className="w-2.5 h-2.5" />Unlimited
+                                <InfinityIcon className="w-2.5 h-2.5" />Unlimited
                             </span>
                         )}
                     </div>
@@ -149,7 +149,7 @@ function UserRow({ user, onGrant, onToggleUnlimited }: {
                 <div className="hidden md:flex flex-col items-end gap-1 min-w-[120px]">
                     {localUser.is_unlimited ? (
                         <span className="text-xs font-semibold text-violet-400 flex items-center gap-1">
-                            <Infinity className="w-3 h-3" /> Unlimited
+                            <InfinityIcon className="w-3 h-3" /> Unlimited
                         </span>
                     ) : (
                         <>

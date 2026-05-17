@@ -13,7 +13,7 @@ import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import {
     Zap, ArrowLeft, Loader2, Clock, TrendingDown, TrendingUp,
-    Gift, ShoppingCart, Infinity, AlertTriangle, RefreshCw,
+    Gift, ShoppingCart, Infinity as InfinityIcon, AlertTriangle, RefreshCw,
     Sparkles, CheckCircle2,
 } from "lucide-react";
 
@@ -183,7 +183,7 @@ export default function CreditsPage() {
                         ) : balance?.is_unlimited ? (
                             <div className="flex items-center gap-4">
                                 <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center">
-                                    <Infinity className="w-7 h-7 text-primary" />
+                                    <InfinityIcon className="w-7 h-7 text-primary" />
                                 </div>
                                 <div>
                                     <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground/50 mb-1">Balance</p>

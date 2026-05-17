@@ -117,6 +117,7 @@ supabase/.temp/
 *.xlsx
 *.xls
 kareerist_sofar/
+code_explained/
 docs/
 documentation/
 codes.txt

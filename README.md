@@ -19,7 +19,7 @@ Kareerist is a full-stack AI-powered career toolkit built for job seekers who wa
 | **Cover Letter Generator** | Role-targeted cover letter from your resume + JD | 10 |
 | **AI Humanizer** | Strips AI tone from cover letters, makes them sound like you | 15 |
 | **Interview History** | All past interview reports saved and reviewable | Free |
-| **Dashboard** | Resume history, analysis history, credit balance | Free |
+| **Dashboard** | Resume history, analysis history, credit balance, interview history | Free |
 
 New users get **100 free credits** on signup. No payment required to try everything.
 
@@ -77,13 +77,18 @@ FastAPI (Uvicorn)
 
 ```
 Auth          POST /api/v1/auth/signup | /login | /logout | GET /me
+              POST /api/v1/auth/oauth/session (PKCE code exchange)
+              POST /api/v1/auth/refresh
 Resumes       POST /api/v1/resumes/upload | GET /list | /{id}
-ATS Score     POST /api/v1/ats-score
-AI Analysis   POST /api/v1/ai-analysis/deep | /hiring-intel
+ATS Score     POST /api/ats/score
+AI Analysis   POST /api/v1/analysis/deep | /hiring-intel
 Interview     POST /api/v1/interview/start | GET /session | POST /end
-Cover Letter  POST /api/v1/cover-letter/generate | /humanize
+              GET  /api/v1/interview/history
+Cover Letter  POST /api/v1/cover_letter/generate | /humanize
 Credits       GET  /api/v1/credits/balance | /history
-Admin         POST /api/v1/admin/grant-credits | /toggle-unlimited
+Admin         GET  /api/v1/admin/stats | /users
+              POST /api/v1/admin/users/{id}/grant-credits | /set-unlimited
+System        GET  /health | /ping
 ```
 
 ---
@@ -156,7 +161,7 @@ Run these SQL migrations in your Supabase SQL editor before deploying:
 |---|---|
 | `profiles` | User credits, admin flag, unlimited flag |
 | `resumes` | Uploaded resume metadata + extracted text |
-| `ai_analyses` | All AI analysis results |
+| `ai_analyses` | All AI analysis results — with `user_id` column + RLS |
 | `job_applications` | Cover letter drafts and PDFs |
 | `credit_transactions` | Full audit log of every credit change |
 | `ip_credit_claims` | Anti-farming: one IP = one initial credit grant |
@@ -198,9 +203,13 @@ pytest tests/ -v
 | Hiring Intelligence | ✅ Complete |
 | AI Mock Interview | ✅ Complete |
 | Cover Letter + Humanizer | ✅ Complete |
+| Cover Letter PDF (client-side, jsPDF) | ✅ Complete |
+| Hinglish Toggle (Deep Analysis + Interview) | ✅ Complete |
 | Credit System | ✅ Complete |
 | Admin Panel | ✅ Complete |
 | Error Monitoring (Sentry) | ✅ Complete |
+| Request Signing (Admin ops) | ✅ Complete |
+| RLS on ai_analyses | ✅ Complete |
 | Test Suite | ✅ Complete |
 | Payment Integration | ⏳ Post-MVP |
 

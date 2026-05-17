@@ -4,7 +4,7 @@
  * Turns amber when low, red when critically low.
  */
 
-import { Zap, Infinity } from "lucide-react";
+import { Zap, Infinity as InfinityIcon } from "lucide-react";
 import { useCreditContext } from "@/contexts/CreditContext";
 import { Link } from "react-router-dom";
 
@@ -27,7 +27,7 @@ export function CreditBadge() {
                 className="hidden md:flex items-center gap-1.5 h-7 px-2.5 rounded-full border border-primary/30 bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/15 transition-colors"
                 title="Unlimited credits (admin)"
             >
-                <Infinity className="w-3.5 h-3.5" />
+                <InfinityIcon className="w-3.5 h-3.5" />
                 <span>Unlimited</span>
             </Link>
         );

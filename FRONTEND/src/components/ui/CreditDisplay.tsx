@@ -7,7 +7,7 @@
  *  - "inline"  : just the number + label (for button tooltips)
  */
 
-import { Zap, AlertTriangle, Infinity, TrendingDown } from "lucide-react";
+import { Zap, AlertTriangle, Infinity as InfinityIcon, TrendingDown } from "lucide-react";
 import { useCreditContext, type FeatureKey } from "@/contexts/CreditContext";
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
@@ -41,7 +41,7 @@ export function CreditCard() {
                 <div className="flex items-center justify-between mb-3">
                     <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground/60">Credits</p>
                     <div className="w-8 h-8 rounded-lg bg-primary/15 flex items-center justify-center">
-                        <Infinity className="w-4 h-4 text-primary" />
+                        <InfinityIcon className="w-4 h-4 text-primary" />
                     </div>
                 </div>
                 <p className="text-3xl font-bold text-primary tracking-tight">Unlimited</p>
@@ -107,7 +107,7 @@ export function CreditCompact() {
     if (balance.is_unlimited) {
         return (
             <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary">
-                <Infinity className="w-3.5 h-3.5" />
+                <InfinityIcon className="w-3.5 h-3.5" />
                 Unlimited
             </span>
         );

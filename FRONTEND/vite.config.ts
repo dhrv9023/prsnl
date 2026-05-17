@@ -28,5 +28,37 @@ export default defineConfig(({ mode }) => {
         "@": path.resolve(__dirname, "./src"),
       },
     },
+    build: {
+      // Raise the warning threshold slightly — jsPDF alone is ~390KB gzipped
+      // and is only loaded on the Cover Letter page (lazy chunk).
+      chunkSizeWarningLimit: 600,
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            // React core — loaded on every page
+            "vendor-react": ["react", "react-dom", "react-router-dom"],
+            // Radix UI + Shadcn primitives — shared across all pages
+            "vendor-radix": [
+              "@radix-ui/react-dialog",
+              "@radix-ui/react-label",
+              "@radix-ui/react-separator",
+              "@radix-ui/react-slot",
+              "@radix-ui/react-toast",
+              "@radix-ui/react-toggle",
+              "@radix-ui/react-toggle-group",
+              "@radix-ui/react-tooltip",
+            ],
+            // Animation + icons — shared across all pages
+            "vendor-ui": ["framer-motion", "lucide-react"],
+            // Supabase client — only needed for OAuth initiation
+            "vendor-supabase": ["@supabase/supabase-js"],
+            // React Query — data fetching layer
+            "vendor-query": ["@tanstack/react-query"],
+            // PDF generation — only loaded on Cover Letter page (already lazy)
+            "vendor-pdf": ["jspdf"],
+          },
+        },
+      },
+    },
   };
 });
