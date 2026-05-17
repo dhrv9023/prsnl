@@ -152,12 +152,12 @@ WSL_IP=$(hostname -I | awk '{print $1}')
 
 # Write .env.local — preserves any existing VITE_SUPABASE_* vars already in the file,
 # only updates VITE_WSL_IP and VITE_API_BASE.
-# We use a temp file approach so we don't clobber manually added keys.
 ENV_FILE=".env.local"
 
 # Start fresh with the dynamic values
 {
   echo "VITE_WSL_IP=$WSL_IP"
+  # Leave VITE_API_BASE empty — Vite proxy handles /api → http://$WSL_IP:8000
   echo "VITE_API_BASE="
   # Carry over VITE_SUPABASE_* from the existing file if present
   if [ -f "$ENV_FILE" ]; then
@@ -172,6 +172,9 @@ if ! grep -q "VITE_SUPABASE_URL" "$ENV_FILE"; then
   echo -e "   ${YELLOW}       VITE_SUPABASE_URL=https://<your-project>.supabase.co${NC}"
   echo -e "   ${YELLOW}       VITE_SUPABASE_ANON_KEY=<your-anon-key>${NC}"
 fi
+
+echo "   [info] Backend proxy target: http://$WSL_IP:8000"
+echo "   [info] All /api requests will be proxied to the local backend"
 
 echo "   [ok] Starting Vite dev server..."
 npm run dev &
