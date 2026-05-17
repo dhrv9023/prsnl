@@ -10,6 +10,16 @@
 #
 # ⚠️  This script uses WSL-specific commands (hostname -I, setsid) and will
 #     not work in standard Docker containers or macOS.
+#
+# ⚠️  CSRF TESTING (May 2026):
+#     In development, SameSite=Lax is used (CSRF middleware is disabled).
+#     To test CSRF protection locally:
+#       1. Set ENVIRONMENT=production in backend/app/.env
+#       2. Set COOKIE_SECURE=true in backend/app/.env
+#       3. Set COOKIE_SAMESITE=none in backend/app/.env
+#       4. Restart the backend (Ctrl+C and run this script again)
+#       5. The CSRF middleware will now enforce double-submit validation
+#     See TESTING_WORKFLOW.md for more details.
 
 # Colors for better output
 GREEN='\033[0;32m'
@@ -89,7 +99,14 @@ else
     fi
 fi
 
+# Check CSRF testing mode
+CSRF_MODE="disabled (development mode)"
+if grep -q "ENVIRONMENT=production" app/.env 2>/dev/null; then
+    CSRF_MODE="enabled (production mode)"
+fi
+
 echo "   [ok] Starting FastAPI server..."
+echo "   [info] CSRF protection: $CSRF_MODE"
 # setsid creates a new process group so the backend survives shell transitions on WSL.
 # --no-reload is already the default (no flag needed); output to backend.log for post-mortem.
 setsid .venv/bin/python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000 > backend.log 2>&1 &
@@ -143,8 +160,17 @@ echo -e "  Redis:    redis://localhost:6379"
 echo -e "  Backend:  http://localhost:8000"
 echo -e "  Frontend: http://localhost:8080"
 echo -e "${BLUE}================================================${NC}"
+echo -e "\n${YELLOW}CSRF Testing:${NC}"
+echo -e "  Current mode: $CSRF_MODE"
+echo -e "  To test CSRF protection locally:"
+echo -e "    1. Edit backend/app/.env and set:"
+echo -e "       ENVIRONMENT=production"
+echo -e "       COOKIE_SECURE=true"
+echo -e "       COOKIE_SAMESITE=none"
+echo -e "    2. Restart this script (Ctrl+C and run again)"
+echo -e "    3. CSRF middleware will now enforce double-submit validation"
+echo -e "\n${BLUE}================================================${NC}"
 echo -e "Press ${RED}Ctrl+C${NC} to stop all services.\n"
 
 # Keep the script running
 wait
-
