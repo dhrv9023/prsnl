@@ -17,8 +17,16 @@ export default defineConfig(({ mode }) => {
       proxy: {
         "/api": {
           target: backendTarget,
-          // Do NOT use changeOrigin:true — it rewrites the Origin header from
-          // "localhost:8080" to the backend host, which then fails CSRF origin checks.
+          changeOrigin: true,
+          // Rewrite cookie domain so the browser on :8080 accepts cookies set by :8000.
+          // Without this, Set-Cookie headers from the backend are silently dropped.
+          cookieDomainRewrite: {
+            "*": "",   // strip domain → browser uses the current page's domain (localhost)
+          },
+          // Also strip the Secure flag locally so cookies work over plain HTTP
+          cookiePathRewrite: {
+            "*": "/",
+          },
         },
       },
     },
