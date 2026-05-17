@@ -22,6 +22,8 @@ const ERROR_MAP: Array<[RegExp | string, string]> = [
     ["Email not confirmed",                     "Please verify your email address before signing in."],
     ["User already registered",                 "An account with this email already exists. Try signing in instead."],
     ["Registration failed",                     "Couldn't create your account. The email may already be in use."],
+    ["is invalid",                              "Please use a real email address (e.g. yourname@gmail.com)."],
+    ["email rate limit exceeded",               "Too many attempts. Please wait a minute and try again."],
     ["OAuth verifier missing",                  "Google sign-in failed. Please try again."],
     ["Invalid or expired OAuth code",           "Google sign-in link has expired. Please try again."],
     ["No refresh token",                        "Your session has expired. Please sign in again."],
