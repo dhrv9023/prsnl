@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuthContext } from "@/contexts/AuthContext";
-import { apiGetDashboard, apiGetInterviewHistory, type DashboardSummary, type AnalysisHistoryItem, type HiringIntelResponse, type DeepAnalysisResult, type InterviewHistoryItem } from "@/lib/api";
+import { apiGetDashboard, apiGetInterviewHistory, apiListResumes, type DashboardSummary, type AnalysisHistoryItem, type HiringIntelResponse, type DeepAnalysisResult, type InterviewHistoryItem, type ResumeListItem } from "@/lib/api";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { CreditCard } from "@/components/ui/CreditDisplay";
@@ -9,7 +9,7 @@ import { HinglishToggle } from "@/components/ui/HinglishToggle";
 import {
     BarChart3, FileText, Loader2, ArrowRight, Zap,
     TrendingUp, CheckCircle2, Clock, AlertTriangle,
-    Sparkles, Target, Upload, ChevronDown, Brain, Layers, Mic2, MessageSquare, PenTool
+    Sparkles, Target, Upload, ChevronDown, Brain, Layers, Mic2, MessageSquare, PenTool, Eye
 } from "lucide-react";
 
 // ── Skeleton loader ──────────────────────────────────────────────────────────
@@ -87,6 +87,81 @@ function MetricCard({
 }
 
 // No language helper needed anymore
+
+// ── Resume Dropdown ──────────────────────────────────────────────────────────
+
+function ResumeDropdown({
+    resumes,
+    selectedId,
+    onSelect,
+}: {
+    resumes: ResumeListItem[];
+    selectedId: string;
+    onSelect: (id: string) => void;
+}) {
+    const [open, setOpen] = useState(false);
+    const ref = useRef<HTMLDivElement>(null);
+    const selected = resumes.find((r) => r.id === selectedId);
+
+    useEffect(() => {
+        function handleClick(e: MouseEvent) {
+            if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+        }
+        document.addEventListener("mousedown", handleClick);
+        return () => document.removeEventListener("mousedown", handleClick);
+    }, []);
+
+    if (resumes.length === 0) return null;
+
+    return (
+        <div ref={ref} className="relative">
+            <button
+                type="button"
+                onClick={() => setOpen((o) => !o)}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border/30 bg-secondary/30 hover:bg-secondary/50 transition-colors text-xs text-foreground/70 hover:text-foreground max-w-[220px]"
+            >
+                <FileText className="w-3 h-3 flex-shrink-0 text-muted-foreground/50" />
+                <span className="truncate">{selected?.original_filename ?? "Select resume"}</span>
+                <ChevronDown className={`w-3 h-3 flex-shrink-0 text-muted-foreground/50 transition-transform ${open ? "rotate-180" : ""}`} />
+            </button>
+            {open && (
+                <div className="absolute right-0 top-full mt-1 z-50 w-64 rounded-xl border border-border/40 bg-popover shadow-xl overflow-hidden">
+                    <div className="px-3 py-2 border-b border-border/20">
+                        <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground/50">Select Resume</p>
+                    </div>
+                    <div className="max-h-48 overflow-y-auto">
+                        {resumes.map((r) => (
+                            <button
+                                key={r.id}
+                                type="button"
+                                onClick={() => { onSelect(r.id); setOpen(false); }}
+                                className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-left text-xs transition-colors hover:bg-secondary/60 ${
+                                    r.id === selectedId ? "bg-primary/10 text-primary font-semibold" : "text-foreground/80"
+                                }`}
+                            >
+                                <FileText className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground/40" />
+                                <span className="truncate">{r.original_filename}</span>
+                                {r.id === selectedId && (
+                                    <span className="ml-auto text-[9px] text-primary/60 uppercase tracking-wider flex-shrink-0">Active</span>
+                                )}
+                            </button>
+                        ))}
+                    </div>
+                    <div className="px-3 py-2 border-t border-border/20">
+                        <Link
+                            to="/resume-analysis"
+                            onClick={() => setOpen(false)}
+                            className="flex items-center gap-1.5 text-[10px] text-primary/70 hover:text-primary transition-colors"
+                        >
+                            <Upload className="w-3 h-3" />
+                            Upload new resume
+                        </Link>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
 
 // ── InsightWithHinglish ──────────────────────────────────────────────────────
 
@@ -320,6 +395,8 @@ const DashboardPage = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [interviews, setInterviews] = useState<InterviewHistoryItem[]>([]);
+    const [resumes, setResumes] = useState<ResumeListItem[]>([]);
+    const [selectedResumeId, setSelectedResumeId] = useState<string>("");
 
     // Auth gate: redirect if not logged in
     useEffect(() => {
@@ -329,15 +406,30 @@ const DashboardPage = () => {
         }
     }, [auth.isLoading, auth.isAuthenticated, navigate]);
 
-    // Fetch dashboard data + interview history
+    // Fetch dashboard data + interview history + resume list
     useEffect(() => {
         if (!auth.isAuthenticated) return;
         setLoading(true);
         Promise.all([
             apiGetDashboard(),
             apiGetInterviewHistory().catch(() => [] as InterviewHistoryItem[]),
+            apiListResumes().catch(() => [] as ResumeListItem[]),
         ])
-            .then(([d, hist]) => { setData(d); setInterviews(hist); setError(""); })
+            .then(([d, hist, resumeList]) => {
+                setData(d);
+                setInterviews(hist);
+                setResumes(resumeList);
+                // Auto-select the resume from the latest insight
+                if (resumeList.length > 0) {
+                    // Find the resume that matches the latest insight
+                    const latestInsightResumeName = d.latest_insight_resume_name;
+                    const matchedResume = latestInsightResumeName
+                        ? resumeList.find((r) => r.original_filename === latestInsightResumeName)
+                        : null;
+                    setSelectedResumeId(matchedResume?.id ?? resumeList[0].id);
+                }
+                setError("");
+            })
             .catch((e) => setError(e.message || "Failed to load dashboard"))
             .finally(() => setLoading(false));
     }, [auth.isAuthenticated]);
@@ -345,11 +437,25 @@ const DashboardPage = () => {
     const hasAnalyzed = data && data.total_analyses > 0;
     const atsScore = data?.latest_ats_score;
     const atsMode = data?.latest_ats_mode;
-    const intelData = data?.latest_intel;
-    const deepData = data?.latest_deep_analysis;
-    // Show intel if available, else fall back to deep analysis summary
+
+    // Filter analysis history by selected resume
+    const selectedResumeHistory = selectedResumeId && data
+        ? data.analysis_history.filter((a) => a.resume_id === selectedResumeId)
+        : data?.analysis_history ?? [];
+
+    // Derive insight from selected resume's analyses
+    const selectedIntelData = selectedResumeHistory
+        .find((a) => a.type === "hiring_intel")?.output_data as HiringIntelResponse | null ?? null;
+    const selectedDeepData = selectedResumeHistory
+        .find((a) => a.type === "deep_analysis")?.output_data as DeepAnalysisResult | null ?? null;
+
+    // Fall back to global latest if no analysis for selected resume
+    const intelData = selectedIntelData ?? data?.latest_intel ?? null;
+    const deepData = selectedDeepData ?? data?.latest_deep_analysis ?? null;
+
     const insightSummary = intelData?.report?.final_verdict?.summary ?? deepData?.summary ?? null;
     const insightTitle = intelData ? "Your latest hiring verdict:" : deepData ? "Deep resume analysis:" : null;
+    const selectedResumeName = resumes.find((r) => r.id === selectedResumeId)?.original_filename;
 
     // Don't render until auth check completes
     if (auth.isLoading) {
@@ -425,6 +531,14 @@ const DashboardPage = () => {
                                         <Sparkles className="w-4 h-4 text-primary" />
                                         <p className="text-xs font-mono uppercase tracking-widest text-primary/80">Career Intelligence</p>
                                     </div>
+                                    {/* Resume selector dropdown */}
+                                    {resumes.length > 0 && (
+                                        <ResumeDropdown
+                                            resumes={resumes}
+                                            selectedId={selectedResumeId}
+                                            onSelect={setSelectedResumeId}
+                                        />
+                                    )}
                                 </div>
                                 <div className="px-6 pb-6 pt-4">
                                     {hasAnalyzed && insightSummary ? (
@@ -433,8 +547,27 @@ const DashboardPage = () => {
                                             insightSummary={insightSummary}
                                             intelData={intelData ?? null}
                                             deepData={deepData ?? null}
-                                            resumeName={data.latest_insight_resume_name}
+                                            resumeName={selectedResumeName}
                                         />
+                                    ) : hasAnalyzed && !insightSummary && selectedResumeId ? (
+                                        <div className="py-4">
+                                            <div className="flex items-center gap-3 mb-3">
+                                                <div className="w-10 h-10 rounded-xl bg-secondary/40 flex items-center justify-center">
+                                                    <FileText className="w-5 h-5 text-muted-foreground/40" />
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm font-medium text-foreground/70">No analysis for this resume yet</p>
+                                                    <p className="text-xs text-muted-foreground/50">Run Deep Analysis or Hiring Intel on this resume</p>
+                                                </div>
+                                            </div>
+                                            <Link
+                                                to="/resume-analysis"
+                                                className="inline-flex items-center gap-2 h-9 px-4 bg-primary text-primary-foreground rounded-lg text-sm font-semibold hover:opacity-90 transition-opacity"
+                                            >
+                                                <Brain className="w-3.5 h-3.5" />
+                                                Analyze This Resume
+                                            </Link>
+                                        </div>
                                     ) : (
                                         <div className="py-4">
                                             <div className="flex items-center gap-3 mb-3">
