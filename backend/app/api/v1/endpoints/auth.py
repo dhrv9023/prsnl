@@ -96,16 +96,16 @@ async def login(request: Request, user_data: UserAuth, response: Response):
         sess = supa_response.session
         if not sess:
             raise HTTPException(status_code=401, detail="Invalid credentials")
-        set_session_cookies(response, sess.access_token, getattr(sess, "refresh_token", None))
+        csrf_token = set_session_cookies(response, sess.access_token, getattr(sess, "refresh_token", None))
 
         return {
             "msg": "Login successful",
+            "csrf_token": csrf_token,
             "user": {
                 "id": supa_response.user.id,
                 "email": supa_response.user.email
             }
         }
-
     except HTTPException:
         raise
     except Exception as e:
@@ -160,7 +160,7 @@ async def oauth_exchange_session(request: Request, body: OAuthSessionExchange, r
         raise HTTPException(status_code=401, detail="OAuth exchange returned no session")
 
     logger.info("[OAuth] Setting session cookies for user: %s", user.email)
-    set_session_cookies(response, sess.access_token, getattr(sess, "refresh_token", None))
+    csrf_token = set_session_cookies(response, sess.access_token, getattr(sess, "refresh_token", None))
 
     # ── IP-gated initial credit grant for new OAuth users ─────────────────
     # grant_initial_credits is idempotent — safe to call on every OAuth login.
@@ -179,6 +179,7 @@ async def oauth_exchange_session(request: Request, body: OAuthSessionExchange, r
 
     return {
         "msg": "Session established",
+        "csrf_token": csrf_token,
         "user": {"id": user.id, "email": user.email},
     }
 
@@ -208,7 +209,6 @@ async def refresh_session(request: Request, response: Response):
 
     set_session_cookies(response, sess.access_token, getattr(sess, "refresh_token", None))
     return {"msg": "Session refreshed"}
-
 
 @router.post("/logout")
 async def logout(response: Response):

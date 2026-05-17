@@ -9,17 +9,41 @@
 const API_BASE = import.meta.env.VITE_API_BASE ?? "";
 const BASE = `${API_BASE}/api/v1`;
 
+// ── CSRF Token ───────────────────────────────────────────────────────────────
+// The backend sets a JS-readable `csrf_token` cookie on login.
+// We read it here and attach it as X-CSRF-Token on every state-changing request.
+// This defeats CSRF attacks even when SameSite=None (cross-site cookies).
+
+function getCsrfToken(): string {
+    const match = document.cookie
+        .split("; ")
+        .find((row) => row.startsWith("csrf_token="));
+    return match ? match.split("=")[1] : "";
+}
+
 // ── Generic fetch wrapper ────────────────────────────────────────────────────
+
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 async function request<T>(
     path: string,
     options: RequestInit = {}
 ): Promise<T> {
+    const method = (options.method ?? "GET").toUpperCase();
+
+    // Attach CSRF token on all state-changing requests
+    const csrfHeaders: Record<string, string> = {};
+    if (!SAFE_METHODS.has(method)) {
+        const token = getCsrfToken();
+        if (token) csrfHeaders["X-CSRF-Token"] = token;
+    }
+
     const res = await fetch(`${BASE}${path}`, {
         ...options,
         credentials: "include", // always send the HttpOnly cookie
         headers: {
             "Content-Type": "application/json",
+            ...csrfHeaders,
             ...options.headers,
         },
     });
@@ -107,11 +131,16 @@ export async function apiUploadResume(
     const form = new FormData();
     form.append("file", file);
 
+    const csrfToken = getCsrfToken();
+
     const res = await fetch(`${BASE}/resumes/upload`, {
         method: "POST",
         credentials: "include",
         body: form,
-        // ⚠️ Do NOT set Content-Type here — browser sets it with correct boundary
+        headers: {
+            // ⚠️ Do NOT set Content-Type here — browser sets it with correct boundary
+            ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
+        },
     });
 
     if (!res.ok) {
@@ -415,11 +444,20 @@ async function interviewRequest<T>(
     path: string,
     options: RequestInit = {}
 ): Promise<T> {
+    const method = (options.method ?? "GET").toUpperCase();
+
+    const csrfHeaders: Record<string, string> = {};
+    if (!SAFE_METHODS.has(method)) {
+        const token = getCsrfToken();
+        if (token) csrfHeaders["X-CSRF-Token"] = token;
+    }
+
     const res = await fetch(`${INTERVIEW_BASE}${path}`, {
         ...options,
         credentials: "include",
         headers: {
             "Content-Type": "application/json",
+            ...csrfHeaders,
             ...options.headers,
         },
     });

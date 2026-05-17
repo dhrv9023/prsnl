@@ -13,6 +13,7 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from app.core.config import settings
 from app.core.rate_limit import limiter
 from app.core.request_logger import RequestLoggerMiddleware
+from app.core.auth_cookies import CSRF_COOKIE_NAME
 from app.api.v1.endpoints import ai_analysis, ats_score, auth, resumes, cover_letter, interview, dashboard, admin, credits, utils
 
 # ── Logging Setup ─────────────────────────────────────────────────────────────
@@ -108,6 +109,76 @@ class BodySizeLimitMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
+# ── CSRF Double-Submit Middleware ─────────────────────────────────────────────
+
+# Paths that are exempt from CSRF validation:
+# - GET/HEAD/OPTIONS are safe methods (no state change)
+# - /auth/* login/signup/oauth endpoints set the cookie in the first place
+# - /health and /ping are public read-only endpoints
+_CSRF_EXEMPT_PREFIXES = (
+    "/auth/",
+    "/api/v1/auth/",
+    "/health",
+    "/ping",
+    "/",
+)
+_CSRF_SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
+
+
+class CSRFMiddleware(BaseHTTPMiddleware):
+    """
+    Double-submit CSRF protection for cross-site cookie setups (SameSite=None).
+
+    How it works:
+    1. On login, the backend sets a JS-readable `csrf_token` cookie alongside
+       the HttpOnly auth cookies.
+    2. The frontend reads `csrf_token` from document.cookie and sends it as
+       the `X-CSRF-Token` request header on every POST/PUT/DELETE.
+    3. This middleware checks that the header value matches the cookie value.
+    4. An attacker's cross-site page cannot read the cookie (same-origin policy),
+       so they cannot forge the header — CSRF is defeated.
+
+    Only enforced in production (SameSite=None is only set in production).
+    In development SameSite=Lax is sufficient and CSRF checks are skipped.
+    """
+
+    async def dispatch(self, request: StarletteRequest, call_next) -> Response:
+        # Only enforce in production where SameSite=None is active
+        if settings.ENVIRONMENT != "production":
+            return await call_next(request)
+
+        # Safe HTTP methods don't change state — no CSRF risk
+        if request.method in _CSRF_SAFE_METHODS:
+            return await call_next(request)
+
+        # Exempt auth endpoints (they create the session, not consume it)
+        path = request.url.path
+        if any(path.startswith(p) for p in _CSRF_EXEMPT_PREFIXES):
+            return await call_next(request)
+
+        # Validate double-submit: header must match cookie
+        cookie_token = request.cookies.get(CSRF_COOKIE_NAME, "")
+        header_token = request.headers.get("X-CSRF-Token", "")
+
+        if not cookie_token or not header_token:
+            return Response(
+                content='{"detail":"CSRF token missing. Refresh the page and try again."}',
+                status_code=403,
+                media_type="application/json",
+            )
+
+        # Constant-time comparison to prevent timing attacks
+        import hmac
+        if not hmac.compare_digest(cookie_token, header_token):
+            return Response(
+                content='{"detail":"CSRF token mismatch. Refresh the page and try again."}',
+                status_code=403,
+                media_type="application/json",
+            )
+
+        return await call_next(request)
+
+
 # ── FastAPI App ───────────────────────────────────────────────────────────────
 
 app = FastAPI(
@@ -146,12 +217,13 @@ app.add_middleware(
     allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With", "X-CSRF-Token"],
 )
 
 # Security headers — added AFTER CORSMiddleware so it wraps all responses
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(BodySizeLimitMiddleware)
+app.add_middleware(CSRFMiddleware)
 # Request logger — outermost so it captures all requests including errors
 app.add_middleware(RequestLoggerMiddleware)
 
