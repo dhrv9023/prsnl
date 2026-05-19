@@ -245,6 +245,16 @@ export default function ResumeAnalysis() {
     }, []);
 
     function acceptFile(f: File) {
+        // Warn immediately if a resume with the same filename already exists
+        const duplicate = savedResumes.find(
+            (r) => r.original_filename.toLowerCase() === f.name.toLowerCase()
+        );
+        if (duplicate) {
+            setError(
+                `A resume named "${f.name}" already exists. Please rename your file before uploading, or select the existing one from the list.`
+            );
+            return;
+        }
         setFile(f); setMatch(null); setIntel(null); setDeepResult(null);
         setError(""); setResumeId(null); setSelectedSavedId(""); setEditText("");
     }

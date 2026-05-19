@@ -52,6 +52,7 @@ function lazyWithRetry(importFn: () => Promise<{ default: React.ComponentType }>
 // Lazy-loaded pages (with retry on chunk failure)
 const Index = lazyWithRetry(() => import("./pages/Index"));
 const NotFound = lazyWithRetry(() => import("./pages/NotFound"));
+const PricingPage = lazyWithRetry(() => import("./pages/Pricing"));
 const ResumeAnalysis = lazyWithRetry(() => import("./pages/ResumeAnalysis"));
 const DashboardPage = lazyWithRetry(() => import("./pages/DashboardPage"));
 const AIInterview = lazyWithRetry(() => import("./pages/AIInterview"));
@@ -80,7 +81,7 @@ const App = () => (
             <Suspense fallback={<PageLoader />}>
               <Routes>
                 <Route path="/" element={<Index />} />
-                <Route path="/pricing" element={<NotFound />} />
+                <Route path="/pricing" element={<PricingPage />} />
                 <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/admin" element={<AdminPage />} />
                 <Route path="/resume-analysis" element={<ResumeAnalysis />} />

@@ -103,6 +103,16 @@ function SetupStep({
     }, []);
 
     async function handleUpload(f: File) {
+        // Warn immediately if a resume with the same filename already exists
+        const duplicate = resumes.find(
+            (r) => r.original_filename.toLowerCase() === f.name.toLowerCase()
+        );
+        if (duplicate) {
+            setError(
+                `A resume named "${f.name}" already exists. Please rename your file before uploading, or select the existing one from the list.`
+            );
+            return;
+        }
         setUploading(true);
         setError("");
         try {

@@ -130,9 +130,9 @@ class CSRFMiddleware(BaseHTTPMiddleware):
     Double-submit CSRF protection for cross-site cookie setups (SameSite=None).
 
     How it works:
-    1. On login, the backend sets a JS-readable `csrf_token` cookie alongside
+    1. On login, the backend sets a JS-readable `__krs_xsrf` cookie alongside
        the HttpOnly auth cookies.
-    2. The frontend reads `csrf_token` from document.cookie and sends it as
+    2. The frontend reads `__krs_xsrf` from document.cookie and sends it as
        the `X-CSRF-Token` request header on every POST/PUT/DELETE.
     3. This middleware checks that the header value matches the cookie value.
     4. An attacker's cross-site page cannot read the cookie (same-origin policy),
@@ -143,8 +143,10 @@ class CSRFMiddleware(BaseHTTPMiddleware):
     """
 
     async def dispatch(self, request: StarletteRequest, call_next) -> Response:
-        # Only enforce in production where SameSite=None is active
+        # In development, SameSite=Lax is sufficient protection.
+        # Log a warning so CSRF skipping is always visible in dev logs.
         if settings.ENVIRONMENT != "production":
+            logger.debug("CSRFMiddleware: skipping check (ENVIRONMENT=%s)", settings.ENVIRONMENT)
             return await call_next(request)
 
         # Safe HTTP methods don't change state — no CSRF risk

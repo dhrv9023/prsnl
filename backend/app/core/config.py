@@ -23,8 +23,8 @@ class Settings(BaseSettings):
     COOKIE_SAMESITE: Literal["lax", "strict", "none"] = "lax"
     AUTH_COOKIE_PATH: str = "/"
     AUTH_COOKIE_DOMAIN: str | None = None
-    AUTH_ACCESS_COOKIE_NAME: str = "access_token"
-    AUTH_REFRESH_COOKIE_NAME: str = "refresh_token"
+    AUTH_ACCESS_COOKIE_NAME: str = "__krs_sid"
+    AUTH_REFRESH_COOKIE_NAME: str = "__krs_rid"
     AUTH_ACCESS_MAX_AGE_SECONDS: int = 60 * 60 * 24 * 4   # 4 days — stays logged in if active daily
     AUTH_REFRESH_MAX_AGE_SECONDS: int = 60 * 60 * 24 * 30  # 30 days
     MIN_PASSWORD_LENGTH: int = 8

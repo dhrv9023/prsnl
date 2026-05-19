@@ -86,6 +86,16 @@ export default function CoverLetter() {
     }, [selectedResume, companyName, jobTitle, jobDescription]);
 
     async function handleUpload(file: File) {
+        // Warn immediately if a resume with the same filename already exists
+        const duplicate = resumes.find(
+            (r) => r.original_filename.toLowerCase() === file.name.toLowerCase()
+        );
+        if (duplicate) {
+            setError(
+                `A resume named "${file.name}" already exists. Please rename your file before uploading, or select the existing one from the list.`
+            );
+            return;
+        }
         setUploading(true);
         setError("");
         setNotice("");

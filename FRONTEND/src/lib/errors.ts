@@ -57,6 +57,8 @@ const ERROR_MAP: Array<[RegExp | string, string]> = [
     ["AI embedding service unavailable",        "The scoring service is temporarily unavailable. Showing a general score instead."],
 
     // Interview
+    ["You have an active interview in progress", "You already have an interview in progress. Finish it or use 'Start Fresh' to discard it."],
+    [/active interview.*answered/i,             "You already have an interview in progress. Finish it or use 'Start Fresh' to discard it."],
     ["No active interview session found",       "No active interview session found. Please start a new interview."],
     ["Session service is temporarily unavailable", "The interview service is temporarily unavailable. Please try again."],
     ["Question not found",                      "That question wasn't found. Please refresh and try again."],

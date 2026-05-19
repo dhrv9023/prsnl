@@ -10,14 +10,14 @@ const API_BASE = import.meta.env.VITE_API_BASE ?? "";
 const BASE = `${API_BASE}/api/v1`;
 
 // ── CSRF Token ───────────────────────────────────────────────────────────────
-// The backend sets a JS-readable `csrf_token` cookie on login.
+// The backend sets a JS-readable `__krs_xsrf` cookie on login.
 // We read it here and attach it as X-CSRF-Token on every state-changing request.
 // This defeats CSRF attacks even when SameSite=None (cross-site cookies).
 
 function getCsrfToken(): string {
     const match = document.cookie
         .split("; ")
-        .find((row) => row.startsWith("csrf_token="));
+        .find((row) => row.startsWith("__krs_xsrf="));
     return match ? match.split("=")[1] : "";
 }
 

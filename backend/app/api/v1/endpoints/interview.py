@@ -183,6 +183,7 @@ async def start_interview_route(
 
 
 @router.post("/submit")
+@limiter.limit("15/minute", key_func=ats_rate_key)
 async def submit_answer_route(
     request: Request,
     data: AnswerSubmission,

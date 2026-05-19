@@ -308,29 +308,7 @@ async def grant_daily_credits(supabase, user_id: str) -> dict:
                 .eq("id", user_id).execute()
             return {"granted": False, "amount": 0, "already_granted_today": True, "not_eligible": False}
 
-        # ── 6. Expire yesterday's unused daily credits (non-cumulative) ───
-        # If the user still has credits left from a previous daily grant,
-        # zero them out before granting today's 50. This ensures daily credits
-        # never accumulate — each day starts fresh at 50.
-        if remaining_credits > 0 and last_grant and str(last_grant)[:10] < today_utc:
-            # They have leftover daily credits from a previous day — expire them
-            logger.info(
-                "grant_daily_credits: expiring %d leftover daily credits for user %s (from %s)",
-                remaining_credits, user_id, last_grant
-            )
-            # Deduct the leftover amount to zero out the balance
-            try:
-                await supabase.rpc("deduct_credits", {
-                    "p_user_id":  user_id,
-                    "p_feature":  "daily_grant_expiry",
-                    "p_amount":   remaining_credits,
-                    "p_metadata": {"reason": "daily_credits_expired", "date": today_utc},
-                }).execute()
-            except Exception as expire_err:
-                logger.warning("grant_daily_credits: could not expire old credits: %s", expire_err)
-                # Non-fatal — continue with grant
-
-        # ── 7. Grant 50 credits ────────────────────────────────────────────
+        # ── 6. Grant 50 credits ────────────────────────────────────────────
         await supabase.rpc("grant_credits", {
             "p_user_id": user_id,
             "p_amount":  DAILY_CREDIT_GRANT,
@@ -338,7 +316,7 @@ async def grant_daily_credits(supabase, user_id: str) -> dict:
             "p_metadata": {"source": "daily_login", "date": today_utc},
         }).execute()
 
-        # ── 7. Record the grant ────────────────────────────────────────────
+        # ── 7. Record the grant ──────────────────────────────────────────────
         await supabase.table("daily_credit_grants").insert({
             "user_id":    user_id,
             "grant_date": today_utc,

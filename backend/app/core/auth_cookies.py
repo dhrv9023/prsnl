@@ -2,22 +2,14 @@
 HttpOnly session cookies: raw access JWT + refresh token.
 
 Security model:
-- access_token / refresh_token: HttpOnly=True, Secure=True, SameSite from config
-- csrf_token: HttpOnly=False (JS-readable), Secure=True, SameSite from config
+- __krs_sid / __krs_rid: HttpOnly=True, Secure=True, SameSite from config
+- __krs_xsrf: HttpOnly=False (JS-readable), Secure=True, SameSite from config
   → Frontend reads this and sends it back as X-CSRF-Token header on every
     state-changing request (POST/PUT/DELETE). Backend validates it matches
-    the value in the HttpOnly access_token cookie's sub claim.
-    This defeats CSRF even when SameSite=None (cross-site cookies).
+    the cookie value. This defeats CSRF even when SameSite=None.
 
-Why SameSite=None is needed:
-  Frontend (Vercel: kareerist.vercel.app) and backend (Render: kareerist-backend.onrender.com)
-  are on different domains. Browsers block cross-site cookies unless SameSite=None; Secure.
-  We compensate with the CSRF double-submit pattern.
-
-Why no Bearer prefix in the cookie:
-  The Bearer prefix belongs in the Authorization header, not a cookie value.
-  Storing it in the cookie was a legacy mistake — it required stripping in 3 places.
-  Now the cookie stores the raw JWT only.
+Cookie names are intentionally opaque (__krs_*) to avoid advertising
+what they contain to potential attackers.
 """
 
 from __future__ import annotations
@@ -30,7 +22,7 @@ from starlette.responses import Response
 from app.core.config import settings
 
 # CSRF token cookie name — JS-readable (not HttpOnly)
-CSRF_COOKIE_NAME = "csrf_token"
+CSRF_COOKIE_NAME = "__krs_xsrf"
 
 
 def _base_cookie_args(httponly: bool = True) -> dict[str, Any]:
