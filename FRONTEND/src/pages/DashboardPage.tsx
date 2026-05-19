@@ -61,20 +61,45 @@ function MetricCard({
     subtext,
     icon: Icon,
     color = "text-foreground",
+    tooltip,
 }: {
     label: string;
     value: string | number;
     subtext?: string;
     icon: React.ElementType;
     color?: string;
+    tooltip?: React.ReactNode;
 }) {
+    const [showTip, setShowTip] = useState(false);
+    const tipRef = useRef<HTMLDivElement>(null);
+
     return (
-        <div className="rounded-xl border border-border/20 bg-card/60 backdrop-blur-sm p-5 hover:border-border/40 transition-all duration-300 group">
+        <div className="relative rounded-xl border border-border/20 bg-card/60 backdrop-blur-sm p-5 hover:border-border/40 transition-all duration-300 group">
             <div className="flex items-center justify-between mb-3">
                 <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground">{label}</p>
-                <div className="w-8 h-8 rounded-lg bg-secondary/40 flex items-center justify-center group-hover:bg-secondary/60 transition-colors">
-                    <Icon className={`w-4 h-4 ${color}`} />
-                </div>
+                {tooltip ? (
+                    <div
+                        className="relative"
+                        onMouseEnter={() => setShowTip(true)}
+                        onMouseLeave={() => setShowTip(false)}
+                    >
+                        <div className="w-8 h-8 rounded-lg bg-secondary/40 flex items-center justify-center cursor-pointer hover:bg-secondary/70 transition-colors">
+                            <Icon className={`w-4 h-4 ${color}`} />
+                        </div>
+                        {showTip && (
+                            <div
+                                ref={tipRef}
+                                className="absolute right-0 top-full mt-2 z-50 w-64 rounded-xl border border-border/40 bg-popover shadow-xl p-3 text-xs text-foreground/80 leading-relaxed"
+                            >
+                                {tooltip}
+                            </div>
+                        )}
+                    </div>
+                ) : (
+                    <div className="w-8 h-8 rounded-lg bg-secondary/40 flex items-center justify-center group-hover:bg-secondary/60 transition-colors">
+                        <Icon className={`w-4 h-4 ${color}`} />
+                    </div>
+                )}
             </div>
             <p className={`text-3xl font-bold tracking-tight ${value === "--" ? "text-muted-foreground/50" : color}`}>
                 {value}
@@ -619,6 +644,18 @@ const DashboardPage = () => {
                                     subtext={data.total_resumes > 0 ? `${data.total_resumes} uploaded` : "Upload a resume"}
                                     icon={FileText}
                                     color={data.total_resumes > 0 ? "text-foreground" : "text-muted-foreground"}
+                                    tooltip={resumes.length > 0 ? (
+                                        <div className="space-y-2">
+                                            <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground/50 mb-2">Your Resumes</p>
+                                            {resumes.map((r, i) => (
+                                                <div key={r.id} className="flex items-center gap-2">
+                                                    <span className="text-[10px] text-muted-foreground/30 w-4 flex-shrink-0">{i + 1}.</span>
+                                                    <FileText className="w-3 h-3 text-muted-foreground/40 flex-shrink-0" />
+                                                    <span className="truncate text-foreground/70">{r.original_filename}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : undefined}
                                 />
                                 <MetricCard
                                     label="Analyses"
@@ -626,6 +663,42 @@ const DashboardPage = () => {
                                     subtext={data.total_analyses > 0 ? `${data.total_analyses} completed` : "No analyses yet"}
                                     icon={TrendingUp}
                                     color={data.total_analyses > 0 ? "text-foreground" : "text-muted-foreground"}
+                                    tooltip={data.analysis_history.length > 0 ? (
+                                        <div className="space-y-2">
+                                            <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground/50 mb-2">Recent Analyses</p>
+                                            {data.analysis_history.slice(0, 6).map((a, i) => {
+                                                const typeLabel =
+                                                    a.type === "job_match_score" ? "ATS Score" :
+                                                    a.type === "hiring_intel" ? "Hiring Intel" :
+                                                    a.type === "deep_analysis" ? "Deep Analysis" :
+                                                    a.type === "cover_letter" ? "Cover Letter" :
+                                                    a.type === "interview" ? "Interview" :
+                                                    a.type.replace(/_/g, " ");
+                                                const scoreLabel =
+                                                    a.score != null
+                                                        ? typeof a.score === "number"
+                                                            ? `${a.score}/100`
+                                                            : String(a.score)
+                                                        : null;
+                                                return (
+                                                    <div key={i} className="flex items-center justify-between gap-2">
+                                                        <div className="flex items-center gap-1.5 min-w-0">
+                                                            <span className="text-[10px] text-muted-foreground/30 w-4 flex-shrink-0">{i + 1}.</span>
+                                                            <span className="truncate text-foreground/70">{typeLabel}</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                                                            {scoreLabel && (
+                                                                <span className="text-[10px] font-semibold text-primary/70">{scoreLabel}</span>
+                                                            )}
+                                                            {a.resume_name && (
+                                                                <span className="text-[10px] text-muted-foreground/40 truncate max-w-[80px]">{a.resume_name}</span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    ) : undefined}
                                 />
                             </div>
 
@@ -718,35 +791,64 @@ const DashboardPage = () => {
                             {/* SECTION 4: Improvement Tracker (intel or deep) */}
                             {hasAnalyzed && (intelData || deepData) && (
                                 <div className="rounded-xl border border-border/20 bg-card/60 backdrop-blur-sm overflow-hidden">
-                                    <div className="px-6 py-4 border-b border-border/15">
+                                    <div className="px-6 py-4 border-b border-border/15 flex items-center justify-between">
                                         <div className="flex items-center gap-2">
                                             <CheckCircle2 className="w-4 h-4 text-emerald-400/60" />
                                             <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground/60">Improvement Tracker</p>
                                         </div>
+                                        <span className="text-[10px] font-mono text-muted-foreground/30 uppercase tracking-widest">
+                                            {intelData ? "Hiring Intel" : "Deep Analysis"} · {selectedResumeName ?? ""}
+                                        </span>
                                     </div>
-                                    <div className="px-6 py-4 space-y-4">
-                                        <div>
-                                            <p className="text-xs text-muted-foreground/50 mb-3">Top Improvement Areas</p>
-                                            <ol className="space-y-2.5">
-                                                {intelData ? (
-                                                    intelData.report.highest_impact_improvements.slice(0, 5).map((item, i) => (
-                                                        <li key={i} className="flex gap-3 text-sm text-muted-foreground/70 leading-relaxed">
-                                                            <span className="font-mono text-xs text-foreground/20 flex-shrink-0 mt-0.5 w-5 text-right">
-                                                                {String(i + 1).padStart(2, "0")}
-                                                            </span>
-                                                            <span><strong className="text-foreground/80">{item.improvement}:</strong> {item.why}</span>
-                                                        </li>
-                                                    ))
-                                                ) : deepData?.action_items?.slice(0, 5).map((item, i) => (
-                                                    <li key={i} className="flex gap-3 text-sm text-muted-foreground/70 leading-relaxed">
-                                                        <span className="font-mono text-xs text-foreground/20 flex-shrink-0 mt-0.5 w-5 text-right">
-                                                            {String(i + 1).padStart(2, "0")}
-                                                        </span>
-                                                        <span>{item}</span>
-                                                    </li>
-                                                ))}
-                                            </ol>
-                                        </div>
+                                    <div className="divide-y divide-border/10">
+                                        {intelData ? (
+                                            intelData.report.highest_impact_improvements.slice(0, 5).map((item, i) => (
+                                                <div key={i} className="flex gap-4 px-6 py-4 group hover:bg-secondary/10 transition-colors">
+                                                    <div className="flex-shrink-0 w-6 h-6 rounded-md bg-primary/8 border border-primary/15 flex items-center justify-center mt-0.5">
+                                                        <span className="text-[10px] font-bold text-primary/50">{i + 1}</span>
+                                                    </div>
+                                                    <div className="flex-1 min-w-0 space-y-1">
+                                                        <p className="text-sm font-medium text-foreground/85 leading-snug">{item.improvement}</p>
+                                                        <p className="text-xs text-muted-foreground/55 leading-relaxed">{item.why}</p>
+                                                        {item.hiring_impact && (
+                                                            <div className="flex items-center gap-1.5 pt-0.5">
+                                                                <Zap className="w-3 h-3 text-amber-400/70 flex-shrink-0" />
+                                                                <span className="text-[11px] text-amber-400/70 font-medium">{item.hiring_impact}</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ))
+                                        ) : deepData?.action_items?.slice(0, 5).map((item, i) => {
+                                            // Parse the "PRIORITY N — [problem] → [why] → [fix]" format
+                                            const parts = item.split(" → ");
+                                            const problem = parts[0]?.replace(/^PRIORITY \d+ — /, "").trim();
+                                            const why = parts[1]?.trim();
+                                            const fix = parts[2]?.trim();
+                                            return (
+                                                <div key={i} className="flex gap-4 px-6 py-4 group hover:bg-secondary/10 transition-colors">
+                                                    <div className="flex-shrink-0 w-6 h-6 rounded-md bg-primary/8 border border-primary/15 flex items-center justify-center mt-0.5">
+                                                        <span className="text-[10px] font-bold text-primary/50">{i + 1}</span>
+                                                    </div>
+                                                    <div className="flex-1 min-w-0 space-y-1.5">
+                                                        {/* If structured format, show parts separately */}
+                                                        {why && fix ? (
+                                                            <>
+                                                                <p className="text-sm font-medium text-foreground/85 leading-snug">{problem}</p>
+                                                                <p className="text-xs text-muted-foreground/55 leading-relaxed">{why}</p>
+                                                                <div className="flex items-start gap-1.5 pt-0.5 p-2.5 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
+                                                                    <ArrowRight className="w-3 h-3 text-emerald-400/60 flex-shrink-0 mt-0.5" />
+                                                                    <span className="text-[11px] text-emerald-400/80 leading-relaxed font-medium">{fix}</span>
+                                                                </div>
+                                                            </>
+                                                        ) : (
+                                                            // Fallback: show as plain text
+                                                            <p className="text-sm text-muted-foreground/70 leading-relaxed">{item}</p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             )}
