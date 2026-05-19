@@ -95,3 +95,27 @@ def clear_session_cookies(response: Response) -> None:
     csrf_args = _base_cookie_args(httponly=False)
     csrf_args.pop("path", None)
     response.delete_cookie(key=CSRF_COOKIE_NAME, path=path, **csrf_args)
+    # Clear legacy cookie names from before the rename (one-time cleanup)
+    _clear_legacy_cookies(response, path)
+
+
+def _clear_legacy_cookies(response: Response, path: str = "/") -> None:
+    """Remove old cookie names (access_token, refresh_token, csrf_token) left from before the rename."""
+    args = _base_cookie_args(httponly=True)
+    args.pop("path", None)
+    for key in ("access_token", "refresh_token"):
+        response.delete_cookie(key=key, path=path, **args)
+    csrf_args = _base_cookie_args(httponly=False)
+    csrf_args.pop("path", None)
+    response.delete_cookie(key="csrf_token", path=path, **csrf_args)
+
+
+def set_session_cookies_and_cleanup(response: Response, access_token: str, refresh_token: str | None) -> str:
+    """
+    Set new session cookies AND clear any legacy cookie names.
+    Call this instead of set_session_cookies on login/refresh to ensure
+    old cookies from before the rename are cleaned up.
+    """
+    csrf_token = set_session_cookies(response, access_token, refresh_token)
+    _clear_legacy_cookies(response)
+    return csrf_token

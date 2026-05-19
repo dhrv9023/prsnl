@@ -7,7 +7,7 @@ from pydantic import BaseModel, EmailStr, Field, field_validator
 from app.db.supabase import get_db, get_supabase_anon
 from app.api.dependencies import CurrentUser
 from app.core.config import settings
-from app.core.auth_cookies import clear_session_cookies, set_session_cookies
+from app.core.auth_cookies import clear_session_cookies, set_session_cookies, set_session_cookies_and_cleanup
 from app.core.rate_limit import limiter
 
 logger = logging.getLogger(__name__)
@@ -96,7 +96,7 @@ async def login(request: Request, user_data: UserAuth, response: Response):
         sess = supa_response.session
         if not sess:
             raise HTTPException(status_code=401, detail="Invalid credentials")
-        csrf_token = set_session_cookies(response, sess.access_token, getattr(sess, "refresh_token", None))
+        csrf_token = set_session_cookies_and_cleanup(response, sess.access_token, getattr(sess, "refresh_token", None))
 
         return {
             "msg": "Login successful",
@@ -160,7 +160,7 @@ async def oauth_exchange_session(request: Request, body: OAuthSessionExchange, r
         raise HTTPException(status_code=401, detail="OAuth exchange returned no session")
 
     logger.info("[OAuth] Setting session cookies for user: %s", user.email)
-    csrf_token = set_session_cookies(response, sess.access_token, getattr(sess, "refresh_token", None))
+    csrf_token = set_session_cookies_and_cleanup(response, sess.access_token, getattr(sess, "refresh_token", None))
 
     # ── IP-gated initial credit grant for new OAuth users ─────────────────
     # grant_initial_credits is idempotent — safe to call on every OAuth login.

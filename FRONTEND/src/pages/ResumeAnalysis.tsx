@@ -813,10 +813,12 @@ export default function ResumeAnalysis() {
 
             {/* ── Desktop layout ───────────────────────────────────────────── */}
             <div className="hidden md:flex flex-1 overflow-hidden">
-                <aside className="w-56 flex-shrink-0 border-r border-border/40 flex flex-col bg-background/60">
-                    {sidebarContent}
+                <aside className="w-56 flex-shrink-0 border-r border-border/40 flex flex-col bg-background/60 overflow-hidden">
+                    <div className="flex-1 overflow-y-auto">
+                        {sidebarContent}
+                    </div>
                     {auth.user && (
-                        <div className="border-t border-border/30 p-3">
+                        <div className="border-t border-border/30 p-3 flex-shrink-0">
                             <p className="text-xs text-muted-foreground/40 truncate">{auth.user.email}</p>
                         </div>
                     )}

@@ -106,8 +106,11 @@ export default function CreditsPage() {
 
     if (!auth.isAuthenticated) return null;
 
-    const pct = balance && balance.total_granted > 0
-        ? Math.round((balance.remaining / balance.total_granted) * 100)
+    // After initial 100 credits are used, show daily cap (50) as denominator
+    const isInDailyMode = balance ? balance.total_granted > 100 : false;
+    const displayCap = balance ? (isInDailyMode ? 50 : balance.total_granted) : 0;
+    const pct = displayCap > 0 && balance
+        ? Math.min(100, Math.round((balance.remaining / displayCap) * 100))
         : 0;
 
     const barColor = pct <= 10 ? "bg-red-500" : pct <= 25 ? "bg-amber-500" : "bg-emerald-500";
@@ -162,12 +165,14 @@ export default function CreditsPage() {
                             <div className="space-y-4">
                                 <div className="flex items-end justify-between">
                                     <div>
-                                        <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground/50 mb-1">Remaining Credits</p>
+                                        <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground/50 mb-1">
+                                            {isInDailyMode ? "Daily Credits" : "Remaining Credits"}
+                                        </p>
                                         <div className="flex items-baseline gap-2">
                                             <p className={`text-5xl font-bold font-mono tracking-tight ${textColor}`}>
                                                 {balance.remaining}
                                             </p>
-                                            <p className="text-lg text-muted-foreground/40 font-mono">/ {balance.total_granted}</p>
+                                            <p className="text-lg text-muted-foreground/40 font-mono">/ {displayCap}</p>
                                         </div>
                                     </div>
                                     <button
@@ -188,9 +193,19 @@ export default function CreditsPage() {
                                         />
                                     </div>
                                     <div className="flex justify-between text-[10px] font-mono text-muted-foreground/30">
-                                        <span>{balance.used} used</span>
+                                        <span>{isInDailyMode ? "Resets daily" : `${balance.used} used`}</span>
                                         <span>{pct}% remaining</span>
                                     </div>
+                                </div>
+
+                                {/* Credit system explanation */}
+                                <div className="p-3 rounded-xl bg-secondary/20 border border-border/15">
+                                    <p className="text-xs text-muted-foreground/60 leading-relaxed">
+                                        {isInDailyMode
+                                            ? "You receive 50 credits every day. Unused daily credits don't carry over to the next day."
+                                            : "You received 100 credits on signup. Once used, you'll get 50 free credits daily."
+                                        }
+                                    </p>
                                 </div>
 
                                 {balance.low_credits && (
@@ -199,7 +214,7 @@ export default function CreditsPage() {
                                         <div>
                                             <p className="text-sm font-semibold text-amber-400">Running low on credits</p>
                                             <p className="text-xs text-amber-400/70 mt-0.5">
-                                                You have {balance.remaining} credits left. Paid top-ups coming soon.
+                                                You have {balance.remaining} credits left. {isInDailyMode ? "Credits reset tomorrow." : "Paid top-ups coming soon."}
                                             </p>
                                         </div>
                                     </div>

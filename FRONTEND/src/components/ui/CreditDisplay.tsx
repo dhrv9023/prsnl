@@ -50,8 +50,12 @@ export function CreditCard() {
         );
     }
 
-    const pct = balance.total_granted > 0
-        ? Math.round((balance.remaining / balance.total_granted) * 100)
+    // After initial 100 credits are used, show daily cap (50) as denominator
+    const isInDailyMode = balance.total_granted > 100;
+    const displayCap = isInDailyMode ? 50 : balance.total_granted;
+    const displayRemaining = balance.remaining;
+    const pct = displayCap > 0
+        ? Math.min(100, Math.round((displayRemaining / displayCap) * 100))
         : 0;
     const colors = pctColor(pct);
 
@@ -66,15 +70,18 @@ export function CreditCard() {
 
             <div className="flex items-baseline gap-1.5 mb-1">
                 <p className={`text-3xl font-bold tracking-tight ${colors.text}`}>
-                    {balance.remaining}
+                    {displayRemaining}
                 </p>
                 <p className="text-sm text-muted-foreground/40 font-normal">
-                    / {balance.total_granted}
+                    / {displayCap}
                 </p>
             </div>
 
             <p className="text-xs text-muted-foreground/50 mb-3">
-                {balance.used} used · {balance.remaining} remaining
+                {isInDailyMode
+                    ? "Daily credits · resets every day"
+                    : `${balance.used} used · ${balance.remaining} remaining`
+                }
             </p>
 
             {/* Progress bar */}
@@ -84,6 +91,13 @@ export function CreditCard() {
                     style={{ width: `${pct}%` }}
                 />
             </div>
+
+            {/* Info message */}
+            {isInDailyMode && (
+                <p className="mt-2.5 text-[10px] text-muted-foreground/40 leading-relaxed">
+                    You receive 50 credits daily. Unused credits don't carry over.
+                </p>
+            )}
 
             {/* Low credit warning */}
             {balance.low_credits && (
