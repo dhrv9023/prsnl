@@ -133,8 +133,13 @@ async def get_admin_stats(user: CurrentUser):
         credit_stats["total_credits_used"] = max(0, total_granted - total_remaining)
 
         # Per-feature credit usage from credit_transactions
+        # Limit to last 10,000 rows to avoid unbounded scans at scale.
+        # At scale this should be replaced with a DB-side aggregate RPC.
         txn_resp = await supabase.table("credit_transactions") \
-            .select("feature, credits_used").execute()
+            .select("feature, credits_used") \
+            .order("created_at", desc=True) \
+            .limit(10000) \
+            .execute()
 
         per_feature: dict[str, int] = {}
         for txn in (txn_resp.data or []):

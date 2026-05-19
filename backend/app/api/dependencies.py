@@ -23,9 +23,9 @@ async def get_current_user(request: Request):
             detail="Not authenticated",
         )
 
-    # The token is stored as "Bearer <jwt>", strip the prefix
-    if token.startswith("Bearer "):
-        token = token.split(" ")[1]
+    # Cookie now stores raw JWT (no Bearer prefix). Strip it defensively
+    # in case an old cookie from before this fix is still in the browser.
+    token = token.removeprefix("Bearer ").strip()
 
     try:
         user_response = await supabase.auth.get_user(token)

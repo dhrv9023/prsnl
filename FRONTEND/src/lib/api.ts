@@ -9,17 +9,41 @@
 const API_BASE = import.meta.env.VITE_API_BASE ?? "";
 const BASE = `${API_BASE}/api/v1`;
 
+// ── CSRF Token ───────────────────────────────────────────────────────────────
+// The backend sets a JS-readable `__krs_xsrf` cookie on login.
+// We read it here and attach it as X-CSRF-Token on every state-changing request.
+// This defeats CSRF attacks even when SameSite=None (cross-site cookies).
+
+function getCsrfToken(): string {
+    const match = document.cookie
+        .split("; ")
+        .find((row) => row.startsWith("__krs_xsrf="));
+    return match ? match.split("=")[1] : "";
+}
+
 // ── Generic fetch wrapper ────────────────────────────────────────────────────
+
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 async function request<T>(
     path: string,
     options: RequestInit = {}
 ): Promise<T> {
+    const method = (options.method ?? "GET").toUpperCase();
+
+    // Attach CSRF token on all state-changing requests
+    const csrfHeaders: Record<string, string> = {};
+    if (!SAFE_METHODS.has(method)) {
+        const token = getCsrfToken();
+        if (token) csrfHeaders["X-CSRF-Token"] = token;
+    }
+
     const res = await fetch(`${BASE}${path}`, {
         ...options,
         credentials: "include", // always send the HttpOnly cookie
         headers: {
             "Content-Type": "application/json",
+            ...csrfHeaders,
             ...options.headers,
         },
     });
@@ -28,7 +52,12 @@ async function request<T>(
         let detail = `HTTP ${res.status}`;
         try {
             const body = await res.json();
-            detail = body?.detail ?? detail;
+            // FastAPI validation errors (422) return { detail: [ { msg: "..." } ] }
+            if (Array.isArray(body?.detail)) {
+                detail = body.detail.map((d: { msg?: string }) => d.msg ?? String(d)).join(". ");
+            } else {
+                detail = body?.detail ?? detail;
+            }
         } catch {
             // ignore parse failure
         }
@@ -48,6 +77,12 @@ export interface AuthUser {
 export interface AuthMeResponse extends AuthUser {
     msg: string;
     is_admin?: boolean;
+    daily_grant?: {
+        granted: boolean;
+        amount: number;
+        already_granted_today: boolean;
+        not_eligible: boolean;
+    };
 }
 
 // ── Auth endpoints ───────────────────────────────────────────────────────────
@@ -107,18 +142,27 @@ export async function apiUploadResume(
     const form = new FormData();
     form.append("file", file);
 
+    const csrfToken = getCsrfToken();
+
     const res = await fetch(`${BASE}/resumes/upload`, {
         method: "POST",
         credentials: "include",
         body: form,
-        // ⚠️ Do NOT set Content-Type here — browser sets it with correct boundary
+        headers: {
+            // ⚠️ Do NOT set Content-Type here — browser sets it with correct boundary
+            ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
+        },
     });
 
     if (!res.ok) {
         let detail = `Upload failed (HTTP ${res.status})`;
         try {
             const body = await res.json();
-            detail = body?.detail ?? detail;
+            if (Array.isArray(body?.detail)) {
+                detail = body.detail.map((d: { msg?: string }) => d.msg ?? String(d)).join(". ");
+            } else {
+                detail = body?.detail ?? detail;
+            }
         } catch {
             //
         }
@@ -348,6 +392,7 @@ export interface DashboardSummary {
     latest_intel: HiringIntelResponse | null;
     latest_deep_analysis: DeepAnalysisResult | null;
     analysis_history: AnalysisHistoryItem[];
+    latest_insight_resume_name?: string;
 }
 
 // ── Dashboard endpoints ──────────────────────────────────────────────────────
@@ -361,12 +406,35 @@ export async function apiGetDashboard(): Promise<DashboardSummary> {
 export interface ResumeListItem {
     id: string;
     file_url: string;
+    original_filename: string;   // human-readable name, stripped of timestamp prefix
     resume_quality_feedback: number;
     created_at: string;
 }
 
 export async function apiListResumes(): Promise<ResumeListItem[]> {
-    return request("/resumes/");
+    const items = await request<Omit<ResumeListItem, "original_filename">[]>("/resumes/");
+    // Derive a human-readable name from file_url on the client side
+    return items.map((r) => ({
+        ...r,
+        original_filename: r.file_url
+            .split("/")
+            .pop()!
+            .replace(/^\d+_/, ""),   // strip leading timestamp
+    }));
+}
+
+// ── Daily credit grant ────────────────────────────────────────────────────────
+
+export interface DailyGrantResult {
+    granted: boolean;
+    amount: number;
+    already_granted_today: boolean;
+    not_eligible: boolean;
+    remaining: number;
+}
+
+export async function apiClaimDailyCredits(): Promise<DailyGrantResult> {
+    return request("/credits/daily-grant", { method: "POST" });
 }
 
 // ── Interview types ──────────────────────────────────────────────────────────
@@ -415,11 +483,20 @@ async function interviewRequest<T>(
     path: string,
     options: RequestInit = {}
 ): Promise<T> {
+    const method = (options.method ?? "GET").toUpperCase();
+
+    const csrfHeaders: Record<string, string> = {};
+    if (!SAFE_METHODS.has(method)) {
+        const token = getCsrfToken();
+        if (token) csrfHeaders["X-CSRF-Token"] = token;
+    }
+
     const res = await fetch(`${INTERVIEW_BASE}${path}`, {
         ...options,
         credentials: "include",
         headers: {
             "Content-Type": "application/json",
+            ...csrfHeaders,
             ...options.headers,
         },
     });
@@ -428,7 +505,11 @@ async function interviewRequest<T>(
         let detail = `HTTP ${res.status}`;
         try {
             const body = await res.json();
-            detail = body?.detail ?? detail;
+            if (Array.isArray(body?.detail)) {
+                detail = body.detail.map((d: { msg?: string }) => d.msg ?? String(d)).join(". ");
+            } else {
+                detail = body?.detail ?? detail;
+            }
         } catch { /* ignore */ }
         throw new Error(detail);
     }

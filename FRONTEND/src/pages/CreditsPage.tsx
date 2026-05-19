@@ -1,5 +1,5 @@
 /**
- * CreditsPage — shows credit balance, transaction history, and buy credits options.
+ * CreditsPage — shows credit balance and transaction history.
  * Accessible by clicking the credit badge in the navbar.
  */
 
@@ -12,9 +12,9 @@ import { friendlyError } from "@/lib/errors";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import {
-    Zap, ArrowLeft, Loader2, Clock, TrendingDown, TrendingUp,
-    Gift, ShoppingCart, Infinity as InfinityIcon, AlertTriangle, RefreshCw,
-    Sparkles, CheckCircle2,
+    Zap, ArrowLeft, Loader2, Clock,
+    ShoppingCart, Infinity as InfinityIcon, AlertTriangle, RefreshCw,
+    Sparkles,
 } from "lucide-react";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -41,38 +41,6 @@ const FEATURE_ICONS: Record<string, string> = {
     initial_grant: "🎁",
     admin_grant:   "🛡️",
 };
-
-// ── Buy Credits Plans ─────────────────────────────────────────────────────────
-
-const CREDIT_PLANS = [
-    {
-        credits: 100,
-        price: "₹49",
-        priceUSD: "$0.59",
-        label: "Starter",
-        popular: false,
-        features: ["100 credits", "~20 ATS scans", "~6 Deep analyses", "~4 Hiring Intel reports"],
-        color: "border-border/30",
-    },
-    {
-        credits: 300,
-        price: "₹99",
-        priceUSD: "$1.19",
-        label: "Popular",
-        popular: true,
-        features: ["300 credits", "~60 ATS scans", "~20 Deep analyses", "~12 Hiring Intel reports", "~12 Mock Interviews"],
-        color: "border-primary/40",
-    },
-    {
-        credits: 1000,
-        price: "₹249",
-        priceUSD: "$2.99",
-        label: "Power User",
-        popular: false,
-        features: ["1000 credits", "~200 ATS scans", "~66 Deep analyses", "~40 Hiring Intel reports", "~40 Mock Interviews"],
-        color: "border-border/30",
-    },
-];
 
 // ── Transaction Row ───────────────────────────────────────────────────────────
 
@@ -112,7 +80,6 @@ export default function CreditsPage() {
     const [history, setHistory] = useState<CreditTransaction[]>([]);
     const [historyLoading, setHistoryLoading] = useState(true);
     const [historyError, setHistoryError] = useState("");
-    const [activeTab, setActiveTab] = useState<"history" | "buy">("history");
 
     useEffect(() => {
         if (!auth.isLoading && !auth.isAuthenticated) {
@@ -167,7 +134,7 @@ export default function CreditsPage() {
                             </div>
                             <div>
                                 <h1 className="text-2xl font-bold tracking-tight">Credits</h1>
-                                <p className="text-sm text-muted-foreground/60">Your balance, usage history, and top-up options</p>
+                                <p className="text-sm text-muted-foreground/60">Your balance and usage history</p>
                             </div>
                         </div>
                     </div>
@@ -232,7 +199,7 @@ export default function CreditsPage() {
                                         <div>
                                             <p className="text-sm font-semibold text-amber-400">Running low on credits</p>
                                             <p className="text-xs text-amber-400/70 mt-0.5">
-                                                You have {balance.remaining} credits left. Top up to keep using all features.
+                                                You have {balance.remaining} credits left. Paid top-ups coming soon.
                                             </p>
                                         </div>
                                     </div>
@@ -264,146 +231,67 @@ export default function CreditsPage() {
 
                     {/* Tabs */}
                     <div className="flex gap-1 mb-6 bg-secondary/20 rounded-xl p-1 border border-border/20">
-                        <button
-                            onClick={() => setActiveTab("history")}
-                            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                                activeTab === "history"
-                                    ? "bg-background text-foreground shadow-sm"
-                                    : "text-muted-foreground/60 hover:text-muted-foreground"
-                            }`}
-                        >
+                        <div className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium bg-background text-foreground shadow-sm">
                             <Clock className="w-4 h-4" /> Transaction History
-                        </button>
-                        <button
-                            onClick={() => setActiveTab("buy")}
-                            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                                activeTab === "buy"
-                                    ? "bg-background text-foreground shadow-sm"
-                                    : "text-muted-foreground/60 hover:text-muted-foreground"
-                            }`}
+                        </div>
+                        <div
+                            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium text-muted-foreground/30 cursor-not-allowed select-none"
+                            title="Payments coming soon"
                         >
                             <ShoppingCart className="w-4 h-4" /> Buy Credits
-                        </button>
+                            <span className="text-[10px] font-bold uppercase tracking-wider bg-secondary/60 text-muted-foreground/40 px-1.5 py-0.5 rounded-full ml-1">Soon</span>
+                        </div>
                     </div>
 
-                    {/* History Tab */}
-                    {activeTab === "history" && (
-                        <div className="rounded-xl border border-border/20 bg-card/60 overflow-hidden">
-                            <div className="px-5 py-4 border-b border-border/15 flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                    <Clock className="w-4 h-4 text-muted-foreground/40" />
-                                    <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground/60">
-                                        Recent Transactions
-                                    </p>
-                                </div>
-                                {history.length > 0 && (
-                                    <span className="text-xs text-muted-foreground/30 font-mono">{history.length} records</span>
-                                )}
+                    {/* Transaction History */}
+                    <div className="rounded-xl border border-border/20 bg-card/60 overflow-hidden">
+                        <div className="px-5 py-4 border-b border-border/15 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <Clock className="w-4 h-4 text-muted-foreground/40" />
+                                <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground/60">
+                                    Recent Transactions
+                                </p>
                             </div>
-
-                            <div className="px-5">
-                                {historyLoading ? (
-                                    <div className="py-8 flex items-center justify-center gap-2 text-muted-foreground/40">
-                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                        <span className="text-sm">Loading history…</span>
-                                    </div>
-                                ) : historyError ? (
-                                    <div className="py-8 flex items-center justify-center gap-2 text-destructive/60">
-                                        <AlertTriangle className="w-4 h-4" />
-                                        <span className="text-sm">{historyError}</span>
-                                    </div>
-                                ) : history.length === 0 ? (
-                                    <div className="py-12 text-center space-y-2">
-                                        <div className="w-12 h-12 rounded-2xl bg-secondary/40 flex items-center justify-center mx-auto mb-3">
-                                            <Zap className="w-6 h-6 text-muted-foreground/30" />
-                                        </div>
-                                        <p className="text-sm text-muted-foreground/50">No transactions yet</p>
-                                        <p className="text-xs text-muted-foreground/30">Use a feature to see your credit history here</p>
-                                        <Link
-                                            to="/resume-analysis"
-                                            className="inline-flex items-center gap-2 mt-3 h-9 px-4 bg-primary text-primary-foreground rounded-lg text-sm font-semibold hover:opacity-90 transition-opacity"
-                                        >
-                                            <Sparkles className="w-3.5 h-3.5" /> Try Resume Analysis
-                                        </Link>
-                                    </div>
-                                ) : (
-                                    <div>
-                                        {history.map((tx) => (
-                                            <TransactionRow key={tx.id} tx={tx} />
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
+                            {history.length > 0 && (
+                                <span className="text-xs text-muted-foreground/30 font-mono">{history.length} records</span>
+                            )}
                         </div>
-                    )}
 
-                    {/* Buy Credits Tab */}
-                    {activeTab === "buy" && (
-                        <div className="space-y-4">
-                            {/* Coming soon notice */}
-                            <div className="flex items-start gap-3 p-4 rounded-xl bg-primary/5 border border-primary/15">
-                                <Gift className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
-                                <div>
-                                    <p className="text-sm font-semibold text-foreground">Payments coming soon</p>
-                                    <p className="text-xs text-muted-foreground/60 mt-0.5 leading-relaxed">
-                                        We're setting up secure payment processing. For now, new users get 100 free credits on signup.
-                                        Contact us if you need more credits for testing.
-                                    </p>
+                        <div className="px-5">
+                            {historyLoading ? (
+                                <div className="py-8 flex items-center justify-center gap-2 text-muted-foreground/40">
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    <span className="text-sm">Loading history…</span>
                                 </div>
-                            </div>
-
-                            {/* Plans */}
-                            <div className="grid gap-4 sm:grid-cols-3">
-                                {CREDIT_PLANS.map((plan) => (
-                                    <div
-                                        key={plan.credits}
-                                        className={`relative rounded-2xl border bg-card/60 p-5 flex flex-col gap-4 ${plan.popular ? "border-primary/40 shadow-[0_0_20px_-5px_hsl(var(--primary)/0.15)]" : "border-border/25"}`}
+                            ) : historyError ? (
+                                <div className="py-8 flex items-center justify-center gap-2 text-destructive/60">
+                                    <AlertTriangle className="w-4 h-4" />
+                                    <span className="text-sm">{historyError}</span>
+                                </div>
+                            ) : history.length === 0 ? (
+                                <div className="py-12 text-center space-y-2">
+                                    <div className="w-12 h-12 rounded-2xl bg-secondary/40 flex items-center justify-center mx-auto mb-3">
+                                        <Zap className="w-6 h-6 text-muted-foreground/30" />
+                                    </div>
+                                    <p className="text-sm text-muted-foreground/50">No transactions yet</p>
+                                    <p className="text-xs text-muted-foreground/30">Use a feature to see your credit history here</p>
+                                    <Link
+                                        to="/resume-analysis"
+                                        className="inline-flex items-center gap-2 mt-3 h-9 px-4 bg-primary text-primary-foreground rounded-lg text-sm font-semibold hover:opacity-90 transition-opacity"
                                     >
-                                        {plan.popular && (
-                                            <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                                                <span className="text-[10px] font-bold uppercase tracking-wider bg-primary text-primary-foreground px-3 py-1 rounded-full">
-                                                    Most Popular
-                                                </span>
-                                            </div>
-                                        )}
-
-                                        <div>
-                                            <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground/50 mb-1">{plan.label}</p>
-                                            <div className="flex items-baseline gap-1.5">
-                                                <p className="text-3xl font-bold tracking-tight">{plan.price}</p>
-                                                <p className="text-xs text-muted-foreground/40">{plan.priceUSD}</p>
-                                            </div>
-                                            <div className="flex items-center gap-1.5 mt-2">
-                                                <Zap className="w-3.5 h-3.5 text-primary/70" />
-                                                <p className="text-sm font-semibold text-primary/80">{plan.credits} credits</p>
-                                            </div>
-                                        </div>
-
-                                        <ul className="space-y-1.5 flex-1">
-                                            {plan.features.map((f) => (
-                                                <li key={f} className="flex items-center gap-2 text-xs text-muted-foreground/60">
-                                                    <CheckCircle2 className="w-3 h-3 text-emerald-400/60 flex-shrink-0" />
-                                                    {f}
-                                                </li>
-                                            ))}
-                                        </ul>
-
-                                        <button
-                                            disabled
-                                            className="w-full h-10 flex items-center justify-center gap-2 rounded-xl border border-border/30 text-sm font-semibold text-muted-foreground/40 cursor-not-allowed bg-secondary/20"
-                                        >
-                                            <ShoppingCart className="w-4 h-4" />
-                                            Coming Soon
-                                        </button>
-                                    </div>
-                                ))}
-                            </div>
-
-                            <p className="text-center text-xs text-muted-foreground/30 pt-2">
-                                Credits never expire · Secure payments via Razorpay · GST included
-                            </p>
+                                        <Sparkles className="w-3.5 h-3.5" /> Try Resume Analysis
+                                    </Link>
+                                </div>
+                            ) : (
+                                <div>
+                                    {history.map((tx) => (
+                                        <TransactionRow key={tx.id} tx={tx} />
+                                    ))}
+                                </div>
+                            )}
                         </div>
-                    )}
+                    </div>
+
                 </div>
             </main>
 

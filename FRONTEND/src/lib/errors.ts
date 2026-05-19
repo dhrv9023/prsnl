@@ -22,6 +22,8 @@ const ERROR_MAP: Array<[RegExp | string, string]> = [
     ["Email not confirmed",                     "Please verify your email address before signing in."],
     ["User already registered",                 "An account with this email already exists. Try signing in instead."],
     ["Registration failed",                     "Couldn't create your account. The email may already be in use."],
+    ["is invalid",                              "Please use a real email address (e.g. yourname@gmail.com)."],
+    ["email rate limit exceeded",               "Too many attempts. Please wait a minute and try again."],
     ["OAuth verifier missing",                  "Google sign-in failed. Please try again."],
     ["Invalid or expired OAuth code",           "Google sign-in link has expired. Please try again."],
     ["No refresh token",                        "Your session has expired. Please sign in again."],
@@ -55,6 +57,8 @@ const ERROR_MAP: Array<[RegExp | string, string]> = [
     ["AI embedding service unavailable",        "The scoring service is temporarily unavailable. Showing a general score instead."],
 
     // Interview
+    ["You have an active interview in progress", "You already have an interview in progress. Finish it or use 'Start Fresh' to discard it."],
+    [/active interview.*answered/i,             "You already have an interview in progress. Finish it or use 'Start Fresh' to discard it."],
     ["No active interview session found",       "No active interview session found. Please start a new interview."],
     ["Session service is temporarily unavailable", "The interview service is temporarily unavailable. Please try again."],
     ["Question not found",                      "That question wasn't found. Please refresh and try again."],

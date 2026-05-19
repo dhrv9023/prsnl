@@ -91,9 +91,8 @@ def _cookie_access_token(request: Request) -> str | None:
     raw = request.cookies.get(settings.AUTH_ACCESS_COOKIE_NAME)
     if not raw:
         return None
-    if raw.startswith("Bearer "):
-        return raw.split(" ", 1)[1].strip() or None
-    return raw.strip() or None
+    # Strip legacy Bearer prefix defensively (cookie now stores raw JWT)
+    return raw.removeprefix("Bearer ").strip() or None
 
 
 def _verified_sub(token: str) -> str | None:

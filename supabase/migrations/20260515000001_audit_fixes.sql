@@ -80,12 +80,11 @@ CREATE POLICY "Service role can delete analyses"
 -- if the user is deleted — allowing re-farming from the same IP.
 -- Change to SET NULL so the IP record persists even if the user is deleted.
 -- Note: This requires dropping and recreating the FK constraint.
--- Only run this if your ip_credit_claims table was created with CASCADE.
--- ALTER TABLE public.ip_credit_claims
---   DROP CONSTRAINT IF EXISTS ip_credit_claims_user_id_fkey;
--- ALTER TABLE public.ip_credit_claims
---   ADD CONSTRAINT ip_credit_claims_user_id_fkey
---   FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
+ALTER TABLE public.ip_credit_claims
+  DROP CONSTRAINT IF EXISTS ip_credit_claims_user_id_fkey;
+ALTER TABLE public.ip_credit_claims
+  ADD CONSTRAINT ip_credit_claims_user_id_fkey
+  FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
 
 -- ── Done ──────────────────────────────────────────────────────────────────────
 -- Verify with:

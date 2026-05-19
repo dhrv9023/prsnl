@@ -9,6 +9,7 @@ import {
 } from "@/lib/api";
 import { friendlyError } from "@/lib/errors";
 import { SUPABASE_CODE_VERIFIER_KEY, SUPABASE_STORAGE_KEY, isSupabaseOAuthConfigured, supabase } from "@/lib/supabase";
+import { toast } from "sonner";
 
 interface AuthState {
     user: AuthUser | null;
@@ -50,7 +51,16 @@ export function useAuth() {
         }
 
         apiGetMe()
-            .then((me) => setState({ user: { id: me.id, email: me.email }, isAdmin: me.is_admin ?? false, isLoading: false, isSubmitting: false, error: "" }))
+            .then((me) => {
+                setState({ user: { id: me.id, email: me.email }, isAdmin: me.is_admin ?? false, isLoading: false, isSubmitting: false, error: "" });
+                // Show daily credit toast if credits were just granted
+                if (me.daily_grant?.granted && me.daily_grant.amount > 0) {
+                    toast.success(`🎉 ${me.daily_grant.amount} daily credits added!`, {
+                        description: "Your free daily credits have been credited. Come back tomorrow for more.",
+                        duration: 6000,
+                    });
+                }
+            })
             .catch(() => setState({ user: null, isAdmin: false, isLoading: false, isSubmitting: false, error: "" }));
     }, []);
 

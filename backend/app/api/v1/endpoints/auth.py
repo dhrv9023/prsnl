@@ -96,16 +96,16 @@ async def login(request: Request, user_data: UserAuth, response: Response):
         sess = supa_response.session
         if not sess:
             raise HTTPException(status_code=401, detail="Invalid credentials")
-        set_session_cookies(response, sess.access_token, getattr(sess, "refresh_token", None))
+        csrf_token = set_session_cookies(response, sess.access_token, getattr(sess, "refresh_token", None))
 
         return {
             "msg": "Login successful",
+            "csrf_token": csrf_token,
             "user": {
                 "id": supa_response.user.id,
                 "email": supa_response.user.email
             }
         }
-
     except HTTPException:
         raise
     except Exception as e:
@@ -160,7 +160,7 @@ async def oauth_exchange_session(request: Request, body: OAuthSessionExchange, r
         raise HTTPException(status_code=401, detail="OAuth exchange returned no session")
 
     logger.info("[OAuth] Setting session cookies for user: %s", user.email)
-    set_session_cookies(response, sess.access_token, getattr(sess, "refresh_token", None))
+    csrf_token = set_session_cookies(response, sess.access_token, getattr(sess, "refresh_token", None))
 
     # ── IP-gated initial credit grant for new OAuth users ─────────────────
     # grant_initial_credits is idempotent — safe to call on every OAuth login.
@@ -179,6 +179,7 @@ async def oauth_exchange_session(request: Request, body: OAuthSessionExchange, r
 
     return {
         "msg": "Session established",
+        "csrf_token": csrf_token,
         "user": {"id": user.id, "email": user.email},
     }
 
@@ -209,7 +210,6 @@ async def refresh_session(request: Request, response: Response):
     set_session_cookies(response, sess.access_token, getattr(sess, "refresh_token", None))
     return {"msg": "Session refreshed"}
 
-
 @router.post("/logout")
 async def logout(response: Response):
     """Invalidates the server-side session and clears HttpOnly cookies."""
@@ -229,10 +229,12 @@ async def get_current_user_profile(user: CurrentUser):
     Protected route: valid HttpOnly session cookie.
     Includes `profile` from public.profiles when the Phase 4 migration has been applied.
     Returns `is_admin: bool` so the frontend can enforce role-based access.
+    Also triggers daily credit grant check — safe to call on every page load.
     """
     supabase = await get_db()
     profile = None
     is_admin = False
+    daily_grant = None
     try:
         uid = getattr(user, "id", None)
         if uid is not None:
@@ -240,6 +242,12 @@ async def get_current_user_profile(user: CurrentUser):
             if res.data:
                 profile = res.data[0]
                 is_admin = bool(profile.get("is_admin", False))
+
+            # ── Daily credit grant check ───────────────────────────────────
+            # Idempotent — only grants once per UTC day after initial 100 used.
+            from app.services.credits import grant_daily_credits
+            daily_grant = await grant_daily_credits(supabase=supabase, user_id=str(uid))
+
     except Exception as e:
         logger.warning("Could not load public.profiles for /me: %s", e)
 
@@ -248,5 +256,6 @@ async def get_current_user_profile(user: CurrentUser):
         "email": getattr(user, "email", None),
         "profile": profile,
         "is_admin": is_admin,
+        "daily_grant": daily_grant,   # { granted, amount, already_granted_today, not_eligible }
         "msg": "You are fully authenticated!",
     }

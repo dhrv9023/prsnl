@@ -1,32 +1,32 @@
 # app/schemas/interview.py
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional, Dict, Any, Literal
 
 class MatchRequest(BaseModel):
     resume_id: str
-    job_description: str | None = None  # optional — if omitted, uses rule-based general scoring
+    job_description: str | None = Field(default=None, max_length=15000)  # optional — if omitted, uses rule-based general scoring
 
 class DeepAnalysisRequest(BaseModel):
     resume_id: str
-    job_description: str | None = None  # optional — enables JD-aware mode
+    job_description: str | None = Field(default=None, max_length=15000)  # optional — enables JD-aware mode
 
 class HiringIntelRequest(BaseModel):
     resume_id: str
-    job_description: str
-    target_role: str
+    job_description: str = Field(..., max_length=15000)
+    target_role: str = Field(..., max_length=200)
     experience_level: str  # fresher | junior | mid | senior
 
 class CoverLetterRequest(BaseModel):
     resume_id: str
-    job_description: str
-    company_name: str
-    job_title: str
+    job_description: str = Field(..., max_length=15000)
+    company_name: str = Field(..., max_length=200)
+    job_title: str = Field(..., max_length=200)
 
 class CoverLetterRoastRequest(BaseModel):
     resume_id: str
-    job_description: str
-    company_name: str
-    job_title: str
+    job_description: str = Field(..., max_length=15000)
+    company_name: str = Field(..., max_length=200)
+    job_title: str = Field(..., max_length=200)
     language: str = "english"  # any language accepted in roast mode
 
 class HumanizeRequest(BaseModel):

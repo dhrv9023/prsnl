@@ -23,16 +23,30 @@ async def upload_resume(request: Request, user: CurrentUser, file: UploadFile = 
 
     # 0. Enforce per-user resume cap (prevents unbounded storage + slow dashboard queries)
     MAX_RESUMES_PER_USER = 20
-    count_res = await supabase.table("resumes") \
-        .select("id", count="exact") \
+    existing_res = await supabase.table("resumes") \
+        .select("id, file_url") \
         .eq("user_id", user.id).execute()
-    current_count = count_res.count or 0
+    existing_resumes = existing_res.data or []
+    current_count = len(existing_resumes)
     if current_count >= MAX_RESUMES_PER_USER:
         raise HTTPException(
             status_code=400,
             detail=f"You have reached the maximum of {MAX_RESUMES_PER_USER} resumes. "
                    f"Please delete old resumes before uploading a new one."
         )
+
+    # 0b. Duplicate name check — compare original filename (strip timestamp prefix)
+    incoming_name = Path(file.filename or "resume.pdf").name.replace("/", "_").replace("\\", "_")
+    for existing in existing_resumes:
+        existing_name = Path(existing.get("file_url", "")).name
+        # Strip the leading timestamp prefix (e.g. "1716000000_resume.pdf" → "resume.pdf")
+        existing_original = existing_name.split("_", 1)[1] if "_" in existing_name else existing_name
+        if existing_original.lower() == incoming_name.lower():
+            raise HTTPException(
+                status_code=409,
+                detail=f'A resume named "{incoming_name}" already exists. '
+                       f"Please rename your file before uploading, or delete the existing one first."
+            )
 
     # 1. Validate file type
     if file.content_type != "application/pdf":
@@ -171,14 +185,13 @@ async def delete_resume(resume_id: str, user: CurrentUser):
             logger.warning("Storage cleanup warning: %s", e)
 
     # 4. Delete database records
-    # NOTE: resume ownership is already verified above (line 111-116).
-    # The ai_analyses table does not have a user_id column, but the
-    # resume_id is guaranteed to belong to this user by the ownership check.
+    # NOTE: resume ownership is already verified above.
+    # ai_analyses is filtered by both resume_id AND user_id for defense-in-depth.
     try:
         await supabase.table("job_applications").delete() \
             .eq("resume_id", resume_id).eq("user_id", user.id).execute()
         await supabase.table("ai_analyses").delete() \
-            .eq("resume_id", resume_id).execute()
+            .eq("resume_id", resume_id).eq("user_id", str(user.id)).execute()
         await supabase.table("resumes").delete() \
             .eq("id", resume_id).eq("user_id", user.id).execute()
     except Exception as e:
