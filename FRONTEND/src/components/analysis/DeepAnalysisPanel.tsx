@@ -53,28 +53,36 @@ function SectionCard({ name, sec }: { name: string; sec: DeepAnalysisSection }) 
     const [open, setOpen] = useState(false);
     const cfg = SCORE_CFG[sec.score] ?? SCORE_CFG["Fair"];
     const hasDetails = (sec.issues?.length ?? 0) > 0 || (sec.missing_keywords?.length ?? 0) > 0;
+    const isExpandable = hasDetails || (sec.feedback?.length ?? 0) > 120;
 
     return (
         <div className={`rounded-xl border ${cfg.border} bg-card shadow-sm overflow-hidden`}>
-            <button onClick={() => setOpen(o => !o)}
-                className="w-full flex items-start gap-3 px-4 py-3.5 hover:bg-secondary/10 transition-colors text-left">
+            <button
+                onClick={() => isExpandable && setOpen(o => !o)}
+                className={`w-full flex items-start gap-3 px-4 py-3.5 text-left transition-colors ${isExpandable ? "hover:bg-secondary/10 cursor-pointer" : "cursor-default"}`}
+            >
                 <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                         <p className="text-sm font-semibold text-foreground capitalize">{name}</p>
                         <ScorePill score={sec.score} />
                     </div>
-                    <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">{sec.feedback}</p>
+                    {/* Collapsed: show truncated feedback as preview */}
+                    {!open && (
+                        <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">{sec.feedback}</p>
+                    )}
                 </div>
-                {hasDetails && (
+                {isExpandable && (
                     <div className="flex-shrink-0 mt-0.5">
-                        {open ? <ChevronUp className="w-4 h-4 text-muted-foreground/40" /> : <ChevronDown className="w-4 h-4 text-muted-foreground/40" />}
+                        {open
+                            ? <ChevronUp className="w-4 h-4 text-muted-foreground/40" />
+                            : <ChevronDown className="w-4 h-4 text-muted-foreground/40" />}
                     </div>
                 )}
             </button>
 
             {open && (
                 <div className="border-t border-border/20 px-4 pb-4 pt-3 space-y-3">
-                    {/* Full feedback */}
+                    {/* Full feedback — only shown when expanded, not duplicated */}
                     <p className="text-xs text-muted-foreground leading-relaxed">{sec.feedback}</p>
 
                     {/* Issues */}
