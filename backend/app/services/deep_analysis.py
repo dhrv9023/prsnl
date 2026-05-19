@@ -90,7 +90,7 @@ action_items RULES:
 
 OUTPUT: Return ONLY valid JSON matching this exact schema:
 {
-  "summary": "2-3 sentences. Career stage + role type detected. The single strongest signal on this resume. The single most damaging element. No generic praise. Reference actual content.",
+  "summary": "Write this as if you're talking directly to the candidate. Start with their name if it appears on the resume, otherwise start with 'Your resume'. Be brutally honest in 2-3 sentences. Lead with the single most damaging thing holding this resume back, then acknowledge the one genuine strength. No career-stage labels, no market-tier labels, no template language. Example tone: 'Your resume has real project depth — the Kareerist platform is a legitimate signal. But every experience bullet reads like a task list. A recruiter scanning this in 8 seconds sees what you did, not what you achieved, and that is costing you shortlists.'",
   "overall_feedback": "Excellent | Good | Fair | Poor",
   "sections": {
     "contact": {
@@ -169,11 +169,15 @@ async def generate_deep_analysis(
         "</RESUME_TEXT>"
         f"{jd_block}\n\n"
         "STRICT RULES:\n"
-        "1. Quote actual lines from the resume in every issue and action_item. No generic observations.\n"
-        "2. NEVER repeat the same point across sections or action_items. Each insight must be net-new.\n"
-        "3. action_items must NOT repeat anything already said in section issues — they are the top 5 cross-cutting priorities only.\n"
-        "4. Apply the IPMR test to every experience bullet (Impact, Problem, Method, Role ownership).\n"
-        "5. Assess project legitimacy: tutorial clone vs independently designed system — name each project and give your verdict."
+        "1. Summary: speak directly to the candidate. If their name is on the resume, use it. "
+        "Lead with the most damaging weakness, then the one real strength. "
+        "NEVER start with 'This resume belongs to...' or any career-stage label. "
+        "Sound like a senior recruiter giving honest feedback to a friend, not a report header.\n"
+        "2. Quote actual lines from the resume in every issue and action_item. No generic observations.\n"
+        "3. NEVER repeat the same point across sections or action_items. Each insight must be net-new.\n"
+        "4. action_items must NOT repeat anything already said in section issues — they are the top 5 cross-cutting priorities only.\n"
+        "5. Apply the IPMR test to every experience bullet (Impact, Problem, Method, Role ownership).\n"
+        "6. Assess project legitimacy: tutorial clone vs independently designed system — name each project and give your verdict."
     )
 
     try:

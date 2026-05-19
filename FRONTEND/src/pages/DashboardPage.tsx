@@ -448,15 +448,15 @@ const DashboardPage = () => {
         ? data.analysis_history.filter((a) => a.resume_id === selectedResumeId)
         : data?.analysis_history ?? [];
 
-    // Derive insight from selected resume's analyses
+    // Derive insight from selected resume's analyses only — no cross-resume fallback
     const selectedIntelData = selectedResumeHistory
         .find((a) => a.type === "hiring_intel")?.output_data as HiringIntelResponse | null ?? null;
     const selectedDeepData = selectedResumeHistory
         .find((a) => a.type === "deep_analysis")?.output_data as DeepAnalysisResult | null ?? null;
 
-    // Fall back to global latest if no analysis for selected resume
-    const intelData = selectedIntelData ?? data?.latest_intel ?? null;
-    const deepData = selectedDeepData ?? data?.latest_deep_analysis ?? null;
+    // Never fall back to another resume's data — show "no analysis" state instead
+    const intelData = selectedIntelData;
+    const deepData = selectedDeepData;
 
     const insightSummary = intelData?.report?.final_verdict?.summary ?? deepData?.summary ?? null;
     const insightTitle = intelData ? "Your latest hiring verdict:" : deepData ? "Deep resume analysis:" : null;
