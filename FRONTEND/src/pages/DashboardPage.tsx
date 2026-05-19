@@ -180,6 +180,11 @@ function InsightWithHinglish({
 }) {
     const [displayText, setDisplayText] = useState(insightSummary);
 
+    // Reset display text whenever the underlying summary changes (resume switch)
+    useEffect(() => {
+        setDisplayText(insightSummary);
+    }, [insightSummary]);
+
     return (
         <div>
             <div className="flex items-start justify-between gap-3 mb-2">
@@ -543,6 +548,7 @@ const DashboardPage = () => {
                                 <div className="px-6 pb-6 pt-4">
                                     {hasAnalyzed && insightSummary ? (
                                         <InsightWithHinglish
+                                            key={selectedResumeId}
                                             insightTitle={insightTitle}
                                             insightSummary={insightSummary}
                                             intelData={intelData ?? null}
