@@ -2,14 +2,13 @@
 import logging
 
 from fastapi import APIRouter, HTTPException, Request
-from app.api.dependencies import CurrentUser, require_credits
+from app.api.dependencies import CurrentUser
 from app.core.config import settings
 from app.core.rate_limit import ats_rate_key, limiter
 from app.db.supabase import get_db
 from app.services.math_engine import ats_score
-from app.services.hiring_intel import generate_hiring_intel
 from app.services.deep_analysis import generate_deep_analysis
-from app.services.credits import refund_feature_credits
+from app.services.hiring_intel import generate_hiring_intel
 from app.schemas.models import MatchRequest, HiringIntelRequest, DeepAnalysisRequest
 
 logger = logging.getLogger(__name__)
@@ -22,7 +21,6 @@ async def ats_score_calculator(
     request: Request,
     body: MatchRequest,
     user: CurrentUser,
-    _credits=require_credits("ats_score", 5),
 ):
     """
     Calculates ATS score for a resume.
@@ -48,7 +46,6 @@ async def ats_score_calculator(
         match_result = await ats_score(resume_text, body.job_description or None)
     except Exception as e:
         logger.error("ATS scoring failed: %s", e)
-        await refund_feature_credits(supabase, str(user.id), "ats_score", 5)
         raise HTTPException(status_code=500, detail="Error calculating ATS score")
 
     analysis_record = {
@@ -77,7 +74,6 @@ async def deep_analysis(
     request: Request,
     body: DeepAnalysisRequest,
     user: CurrentUser,
-    _credits=require_credits("deep_analysis", 15),
 ):
     """
     Section-by-section LLM resume critique.
@@ -105,7 +101,6 @@ async def deep_analysis(
     )
 
     if not result:
-        await refund_feature_credits(supabase, str(user.id), "deep_analysis", 15)
         raise HTTPException(status_code=502, detail="Deep analysis failed — please try again")
 
     analysis_record = {
@@ -132,12 +127,10 @@ async def hiring_intelligence(
     request: Request,
     body: HiringIntelRequest,
     user: CurrentUser,
-    _credits=require_credits("hiring_intel", 25),
 ):
     """
     AI Career Intelligence Engine.
     Generates a deep, JD-aware, recruiter-realistic 9-section hiring report.
-    Costs 25 credits.
     """
     supabase = await get_db()
 
@@ -171,7 +164,6 @@ async def hiring_intelligence(
     )
 
     if not intel_report:
-        await refund_feature_credits(supabase, str(user.id), "hiring_intel", 25)
         raise HTTPException(status_code=502, detail="Hiring intelligence analysis failed — please try again")
 
     # 3. Save to DB

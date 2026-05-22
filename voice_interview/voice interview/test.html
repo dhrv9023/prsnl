@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice AI Interviewer MVP</title>
+    <style>
+        :root { --bg: #0f172a; --card: #1e293b; --primary: #3b82f6; --text: #f1f5f9; --border: #334155; }
+        body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); padding: 40px; display: flex; justify-content: center; }
+        .card { background: var(--card); padding: 40px; border-radius: 12px; border: 1px solid var(--border); width: 100%; max-width: 800px; }
+        input, select, textarea { width: 100%; padding: 12px; margin-bottom: 20px; background: #0f172a; border: 1px solid var(--border); color: white; border-radius: 8px; box-sizing: border-box;}
+        button { background: var(--primary); color: white; border: none; padding: 14px; border-radius: 8px; cursor: pointer; font-weight: bold; width: 100%; margin-bottom: 10px;}
+        button:disabled, textarea:disabled { background: #475569; cursor: not-allowed; opacity: 0.6; }
+        .submit-btn { background: #22c55e; }
+        .report-item { background: #0f172a; padding: 20px; margin-top: 15px; border-radius: 8px; border: 1px solid var(--border); }
+        .hidden { display: none; }
+        .status-text { text-align: center; font-weight: bold; margin-bottom: 15px; font-size: 1.2rem; }
+        .timer { font-size: 2rem; font-weight: bold; color: #ef4444; text-align: center; margin-bottom: 15px; font-family: monospace; }
+        
+        /* Mic Test Visualizer */
+        #mic-visualizer { width: 100%; height: 20px; background: #0f172a; border-radius: 10px; overflow: hidden; margin-bottom: 20px; }
+        #mic-level { height: 100%; width: 0%; background: #22c55e; transition: width 0.1s; }
+        .warning-text { color: #fbbf24; font-size: 0.9rem; text-align: center; margin-bottom: 20px;}
+    </style>
+</head>
+<body>
+
+<div class="card" id="setup-screen">
+    <h2>Step 1: Configure Interview</h2>
+    <input type="text" id="resume_id" placeholder="Enter Resume ID from DB">
+    <input type="text" id="role" placeholder="Role (e.g., Software Engineer)" value="Software Engineer">
+    <input type="text" id="experience_level" placeholder="Experience (e.g., Fresher)" value="Fresher">
+    <button onclick="goToMicCheck()" id="next-btn">Next: Hardware Setup</button>
+</div>
+
+<div class="card hidden" id="mic-check-screen">
+    <h2>Step 2: Microphone Check</h2>
+    <p class="warning-text">You must authorize and test your microphone before the interview can begin.</p>
+    
+    <button onclick="testMicrophone()" id="test-mic-btn" style="background:#8b5cf6;">1. Click to Authorize Microphone</button>
+    
+    <div id="mic-visualizer" class="hidden">
+        <div id="mic-level"></div>
+    </div>
+    <p id="mic-status" class="status-text hidden">Speak into your mic to test...</p>
+    
+    <button onclick="startInterview()" id="start-btn" class="submit-btn hidden">2. Generate Questions & Start Interview</button>
+    <p id="setup-status" style="color: #94a3b8; text-align:center;"></p>
+</div>
+
+<div class="card hidden" id="interview-screen">
+    <h2 id="q-counter">Question 1/6</h2>
+    <p id="q-text" style="font-size: 1.2rem; line-height: 1.5;"></p>
+    
+    <div id="audio-controls">
+        <p id="record-status" class="status-text"></p>
+    </div>
+
+    <div id="code-controls" class="hidden">
+        <div id="code-timer" class="timer hidden">10:00</div>
+        <textarea id="code-input" rows="8" placeholder="Wait for the AI to finish speaking..." disabled></textarea>
+        <button class="submit-btn" id="code-submit-btn" onclick="submitCodeAnswer()" disabled>Move Ahead</button>
+    </div>
+
+    <p id="submit-status" style="color: #3b82f6; text-align: center;"></p>
+</div>
+
+<div class="card hidden" id="report-screen">
+    <h2>Interview Complete</h2>
+    <div id="report-content"></div>
+</div>
+
+<script>
+    const API_URL = "http://localhost:8000/api/v1/interview"; 
+    const TEST_TOKEN = "YOUR_TEST_JWT_TOKEN_HERE"; 
+    
+    let questions = [];
+    let currentQIndex = 0;
+    
+    let mediaRecorder;
+    let audioChunks = [];
+    let globalStream = null; 
+    let audioContext;
+    let analyser;
+    
+    let isProcessing = false;
+    let codeTimerInterval;
+    let silenceAnimationFrame;
+    let testMicFrame;
+
+    async function authFetch(endpoint, options = {}) {
+        options.headers = { ...options.headers, "Authorization": `Bearer ${TEST_TOKEN}` };
+        return fetch(`${API_URL}${endpoint}`, options);
+    }
+
+    // --- STEP 1 -> STEP 2 ---
+    function goToMicCheck() {
+        document.getElementById('setup-screen').classList.add('hidden');
+        document.getElementById('mic-check-screen').classList.remove('hidden');
+    }
+
+    // --- STEP 2: EXPLICIT MIC TEST ---
+    async function testMicrophone() {
+        try {
+            document.getElementById('test-mic-btn').innerText = "Requesting Access...";
+            
+            // This forces the browser dropdown prompt if not already granted
+            globalStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            
+            document.getElementById('test-mic-btn').classList.add('hidden');
+            document.getElementById('mic-visualizer').classList.remove('hidden');
+            document.getElementById('mic-status').classList.remove('hidden');
+            
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            analyser = audioContext.createAnalyser();
+            analyser.minDecibels = -55;
+            analyser.smoothingTimeConstant = 0.85;
+            const source = audioContext.createMediaStreamSource(globalStream);
+            source.connect(analyser);
+            
+            const dataArray = new Uint8Array(analyser.frequencyBinCount);
+            let hasSeenVolume = false;
+
+            function visualize() {
+                analyser.getByteFrequencyData(dataArray);
+                let maxVolume = 0;
+                for(let i = 0; i < dataArray.length; i++) {
+                    if (dataArray[i] > maxVolume) maxVolume = dataArray[i];
+                }
+                
+                // Map volume to percentage for the bar
+                const pct = Math.min((maxVolume / 200) * 100, 100);
+                document.getElementById('mic-level').style.width = pct + "%";
+                
+                if (maxVolume > 35 && !hasSeenVolume) {
+                    hasSeenVolume = true;
+                    document.getElementById('mic-status').innerText = "✅ Microphone working perfectly!";
+                    document.getElementById('mic-status').style.color = "#22c55e";
+                    document.getElementById('start-btn').classList.remove('hidden'); // Unlock start button
+                }
+                testMicFrame = requestAnimationFrame(visualize);
+            }
+            visualize();
+
+        } catch (err) {
+            alert("Microphone Access Denied! Please check your browser settings and try again.");
+            document.getElementById('test-mic-btn').innerText = "Access Denied - Try Again";
+        }
+    }
+
+    // --- STEP 3: START ENGINE ---
+    async function startInterview() {
+        cancelAnimationFrame(testMicFrame); // Stop visualizer
+        document.getElementById('start-btn').disabled = true;
+        document.getElementById('setup-status').innerText = "Generating 6 custom questions from your resume...";
+        
+        try {
+            const res = await authFetch("/start", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    resume_id: document.getElementById('resume_id').value,
+                    role: document.getElementById('role').value,
+                    experience_level: document.getElementById('experience_level').value
+                })
+            });
+            
+            if (!res.ok) throw new Error("Failed to start interview");
+            
+            questions = await res.json();
+            document.getElementById('mic-check-screen').classList.add('hidden');
+            document.getElementById('interview-screen').classList.remove('hidden');
+            loadQuestion();
+        } catch (err) {
+            document.getElementById('setup-status').innerText = "Error: " + err.message;
+            document.getElementById('start-btn').disabled = false;
+        }
+    }
+
+    function loadQuestion() {
+        if (currentQIndex >= questions.length) {
+            endInterview();
+            return;
+        }
+
+        isProcessing = false;
+        const q = questions[currentQIndex];
+        document.getElementById('q-counter').innerText = `Question ${currentQIndex + 1} / ${questions.length} [${q.type.toUpperCase()}]`;
+        
+        let qText = q.text;
+        if (q.type === 'mcq' && q.options) qText += "\nOptions: " + q.options.join(", ");
+        
+        document.getElementById('q-text').innerText = qText;
+        document.getElementById('submit-status').innerText = "";
+
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(qText);
+
+        if (q.type === 'code') {
+            // STRICT PRIVACY: Hard kill the mic stream if it's a code question
+            if (globalStream) {
+                globalStream.getTracks().forEach(track => track.stop());
+                globalStream = null;
+            }
+
+            document.getElementById('audio-controls').classList.add('hidden');
+            document.getElementById('code-controls').classList.remove('hidden');
+            
+            const codeInput = document.getElementById('code-input');
+            const codeBtn = document.getElementById('code-submit-btn');
+            const timerDisplay = document.getElementById('code-timer');
+            
+            codeInput.disabled = true;
+            codeBtn.disabled = true;
+            codeInput.value = "";
+            codeInput.placeholder = "Wait for the AI to finish dictating the question...";
+            timerDisplay.classList.add('hidden');
+            
+            utterance.onend = () => {
+                codeInput.disabled = false;
+                codeBtn.disabled = false;
+                codeInput.placeholder = "Write your code here...";
+                codeInput.focus();
+                startCodeTimer(600); // 10 mins
+            };
+            window.speechSynthesis.speak(utterance);
+            
+        } else {
+            // THEORY/MCQ: Ensure mic is running
+            ensureMicAccess().then(() => {
+                document.getElementById('code-controls').classList.add('hidden');
+                document.getElementById('audio-controls').classList.remove('hidden');
+                
+                const statusEl = document.getElementById('record-status');
+                statusEl.className = "status-text";
+                statusEl.innerText = "🔊 AI is speaking... Please wait.";
+                statusEl.style.color = "#fbbf24"; 
+
+                utterance.onend = () => startRecording();
+                window.speechSynthesis.speak(utterance);
+            });
+        }
+    }
+
+    // Helper to wake mic back up if it was killed by a previous Code question
+    async function ensureMicAccess() {
+        if (!globalStream) {
+            globalStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const source = audioContext.createMediaStreamSource(globalStream);
+            source.connect(analyser);
+        }
+    }
+
+    // --- CODE TIMER LOGIC (10 MINS) ---
+    function startCodeTimer(seconds) {
+        clearInterval(codeTimerInterval);
+        const timerDisplay = document.getElementById('code-timer');
+        timerDisplay.classList.remove('hidden');
+        
+        let timeLeft = seconds;
+        
+        function updateDisplay() {
+            const m = Math.floor(timeLeft / 60).toString().padStart(2, '0');
+            const s = (timeLeft % 60).toString().padStart(2, '0');
+            timerDisplay.innerText = `${m}:${s}`;
+        }
+        updateDisplay();
+
+        codeTimerInterval = setInterval(() => {
+            timeLeft--;
+            updateDisplay();
+            if (timeLeft <= 0) {
+                clearInterval(codeTimerInterval);
+                submitCodeAnswer(); 
+            }
+        }, 1000);
+    }
+
+    async function submitCodeAnswer() {
+        if (isProcessing) return;
+        isProcessing = true;
+        clearInterval(codeTimerInterval);
+
+        const code = document.getElementById('code-input').value;
+        window.speechSynthesis.cancel();
+        
+        document.getElementById('submit-status').innerText = "Evaluating logic...";
+        document.getElementById('code-submit-btn').disabled = true;
+        document.getElementById('code-input').disabled = true;
+        
+        try {
+            await authFetch("/submit_answer", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ question_id: questions[currentQIndex].id, user_answer: code })
+            });
+            currentQIndex++;
+            loadQuestion();
+        } catch (err) {
+            document.getElementById('submit-status').innerText = "Error moving ahead.";
+            isProcessing = false;
+        }
+    }
+
+    // --- AUDIO LOGIC (SMART SILENCE ENGINE) ---
+    function startRecording() {
+        if (isProcessing) return;
+        mediaRecorder = new MediaRecorder(globalStream);
+        audioChunks = [];
+
+        mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
+        mediaRecorder.start();
+        
+        const statusEl = document.getElementById('record-status');
+        statusEl.className = "status-text listening-indicator";
+        statusEl.innerText = "🎤 Listening... Speak your answer now.";
+
+        monitorSilence();
+    }
+
+    function monitorSilence() {
+        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+        let lastSpokenTime = Date.now();
+        let hasSpokenAnything = false;
+
+        function checkVolume() {
+            if (isProcessing || !mediaRecorder || mediaRecorder.state === "inactive") return;
+            
+            analyser.getByteFrequencyData(dataArray);
+            let maxVolume = 0;
+            for(let i = 0; i < dataArray.length; i++) {
+                if (dataArray[i] > maxVolume) maxVolume = dataArray[i];
+            }
+
+            const currentTime = Date.now();
+
+            if (maxVolume > 35) { 
+                lastSpokenTime = currentTime;
+                hasSpokenAnything = true;
+                document.getElementById('record-status').innerText = "🎤 Listening... (Receiving Audio)";
+            } else {
+                document.getElementById('record-status').innerText = "🎤 Listening... (Waiting for you to finish)";
+                
+                if (hasSpokenAnything && (currentTime - lastSpokenTime > 4000)) {
+                    stopRecordingAndSubmit();
+                    return;
+                }
+                
+                if (!hasSpokenAnything && (currentTime - lastSpokenTime > 15000)) {
+                    stopRecordingAndSubmit();
+                    return;
+                }
+            }
+            silenceAnimationFrame = requestAnimationFrame(checkVolume);
+        }
+        checkVolume();
+    }
+
+    function stopRecordingAndSubmit() {
+        if (isProcessing || !mediaRecorder || mediaRecorder.state === "inactive") return;
+        isProcessing = true;
+        cancelAnimationFrame(silenceAnimationFrame);
+        
+        const statusEl = document.getElementById('record-status');
+        statusEl.className = "status-text";
+        statusEl.style.color = "#3b82f6";
+        statusEl.innerText = "Processing response...";
+
+        mediaRecorder.onstop = async () => {
+            const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+            const formData = new FormData();
+            formData.append("question_id", questions[currentQIndex].id);
+            formData.append("audio", audioBlob, "answer.webm");
+
+            try {
+                await fetch(`${API_URL}/submit_audio_answer`, {
+                    method: "POST",
+                    headers: { "Authorization": `Bearer ${TEST_TOKEN}` }, 
+                    body: formData
+                });
+                
+                currentQIndex++;
+                loadQuestion(); 
+            } catch (err) {
+                document.getElementById('submit-status').innerText = "Error evaluating audio.";
+                isProcessing = false;
+            }
+        };
+        mediaRecorder.stop();
+    }
+
+    // --- FINAL REPORT (HARD KILL MIC) ---
+    async function endInterview() {
+        // STRICT PRIVACY: Hard kill the mic stream as soon as the interview is over
+        if (globalStream) {
+            globalStream.getTracks().forEach(track => track.stop());
+            globalStream = null;
+        }
+
+        document.getElementById('interview-screen').classList.add('hidden');
+        document.getElementById('report-screen').classList.remove('hidden');
+        document.getElementById('report-content').innerText = "Loading final report...";
+
+        try {
+            const res = await authFetch("/end", { method: "POST" });
+            if (!res.ok) throw new Error("Backend returned " + res.status);
+            const data = await res.json();
+            
+            let html = `<h3 style="color:var(--primary)">Overall Score: ${data.overall_score}/10 (${data.qualitative_score})</h3>`;
+            data.breakdown.forEach((r, i) => {
+                html += `
+                    <div class="report-item">
+                        <h4>Q${i+1}: ${r.question}</h4>
+                        <p style="color:#94a3b8">Your Answer: ${r.user_answer}</p>
+                        <p><strong>Score:</strong> ${r.score}/10</p>
+                        <p><strong>Feedback:</strong> ${r.feedback}</p>
+                        <p style="color:#22c55e"><strong>Ideal:</strong> ${r.ideal_answer}</p>
+                    </div>
+                `;
+            });
+            document.getElementById('report-content').innerHTML = html;
+        } catch (err) {
+            document.getElementById('report-content').innerText = "Failed to load report: " + err.message;
+        }
+    }
+</script>
+</body>
+</html>

@@ -17,14 +17,12 @@ Generates a deep, JD-aware, recruiter-realistic hiring report covering:
 import json
 import logging
 
-from groq import AsyncGroq
-from app.core.config import settings
+from app.services.llm_client import chat_complete
 from app.services.resume_analyzer import clean_llm_answer
 from app.services.prompt_sanitizer import sanitize_user_text
 from app.services.ai_retry import with_ai_retry
 
 logger = logging.getLogger(__name__)
-client = AsyncGroq(api_key=settings.GROQ_API_KEY)
 
 
 SYSTEM_PROMPT = """You are a combined intelligence system simulating the reasoning of:
@@ -153,20 +151,18 @@ async def generate_hiring_intel(
 
     try:
         completion = await with_ai_retry(
-            lambda: client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
+            lambda: chat_complete(
                 messages=[
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": user_message},
                 ],
                 temperature=0.3,
                 response_format={"type": "json_object"},
-                stream=False,
                 timeout=60,
             ),
             label="hiring_intel",
         )
-        raw = completion.choices[0].message.content
+        raw = completion
         cleaned = clean_llm_answer(raw)
         if not cleaned:
             raise RuntimeError("AI returned empty response")

@@ -9,6 +9,15 @@
 const API_BASE = import.meta.env.VITE_API_BASE ?? "";
 const BASE = `${API_BASE}/api/v1`;
 
+// ── Dev bypass ────────────────────────────────────────────────────────────────
+// In development (VITE_API_BASE is empty = Vite proxy), attach X-Dev-Bypass: 1
+// so the backend skips Supabase auth and uses DEV_BYPASS_USER_ID instead.
+// This header is never sent in production (VITE_API_BASE is set to the real URL).
+const IS_DEV = import.meta.env.DEV; // true when running `vite` locally
+const DEV_BYPASS_HEADERS: Record<string, string> = IS_DEV
+    ? { "X-Dev-Bypass": "1" }
+    : {};
+
 // ── CSRF Token ───────────────────────────────────────────────────────────────
 // The backend sets a JS-readable `__krs_xsrf` cookie on login.
 // We read it here and attach it as X-CSRF-Token on every state-changing request.
@@ -43,6 +52,7 @@ async function request<T>(
         credentials: "include", // always send the HttpOnly cookie
         headers: {
             "Content-Type": "application/json",
+            ...DEV_BYPASS_HEADERS,
             ...csrfHeaders,
             ...options.headers,
         },
@@ -150,6 +160,7 @@ export async function apiUploadResume(
         body: form,
         headers: {
             // ⚠️ Do NOT set Content-Type here — browser sets it with correct boundary
+            ...DEV_BYPASS_HEADERS,
             ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
         },
     });
@@ -454,6 +465,7 @@ export interface AnswerEvaluation {
     time_complexity?: string;
     space_complexity?: string;
     code_quality?: string;
+    transcribed_answer?: string; // populated for voice submissions — what Whisper heard
 }
 
 export interface InterviewBreakdownItem {
@@ -496,6 +508,7 @@ async function interviewRequest<T>(
         credentials: "include",
         headers: {
             "Content-Type": "application/json",
+            ...DEV_BYPASS_HEADERS,
             ...csrfHeaders,
             ...options.headers,
         },
@@ -538,6 +551,42 @@ export async function apiSubmitAnswer(
         method: "POST",
         body: JSON.stringify({ question_id, user_answer }),
     });
+}
+
+export async function apiSubmitVoiceAnswer(
+    question_id: number,
+    audioBlob: Blob,
+): Promise<AnswerEvaluation> {
+    // Voice answers use multipart/form-data — cannot use the JSON wrapper
+    const csrfToken = getCsrfToken();
+    const form = new FormData();
+    form.append("question_id", String(question_id));
+    form.append("audio", audioBlob, "answer.webm");
+
+    const res = await fetch(`${INTERVIEW_BASE}/submit_voice`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+            // Do NOT set Content-Type — browser sets it with the correct multipart boundary
+            ...DEV_BYPASS_HEADERS,
+            ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
+        },
+        body: form,
+    });
+
+    if (!res.ok) {
+        let detail = `HTTP ${res.status}`;
+        try {
+            const body = await res.json();
+            if (Array.isArray(body?.detail)) {
+                detail = body.detail.map((d: { msg?: string }) => d.msg ?? String(d)).join(". ");
+            } else {
+                detail = body?.detail ?? detail;
+            }
+        } catch { /* ignore */ }
+        throw new Error(detail);
+    }
+    return res.json() as Promise<AnswerEvaluation>;
 }
 
 export async function apiEndInterview(): Promise<InterviewReport> {

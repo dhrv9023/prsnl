@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { useCreditContext } from "@/contexts/CreditContext";
@@ -7,6 +7,7 @@ import {
     apiUploadResume,
     apiStartInterview,
     apiSubmitAnswer,
+    apiSubmitVoiceAnswer,
     apiEndInterview,
     apiGetActiveInterviewSession,
     apiAbandonInterview,
@@ -21,7 +22,7 @@ import { HinglishToggle } from "@/components/ui/HinglishToggle";
 import {
     ArrowLeft, Loader2, Upload, ChevronRight, Code2, BookOpen, ListChecks,
     Trophy, RotateCcw, FileText, Zap, AlertTriangle,
-    Bot, User, ChevronDown, Lightbulb,
+    Bot, User, ChevronDown, Lightbulb, Mic, MicOff, Volume2,
 } from "lucide-react";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -329,6 +330,251 @@ function FeedbackWithHinglish({ feedback, idealAnswer }: { feedback: string; ide
     );
 }
 
+// ── Voice Answer Input ────────────────────────────────────────────────────────
+
+type VoiceState = "idle" | "requesting" | "recording" | "processing" | "done" | "denied";
+
+// Pick the best supported MIME type for this browser
+function getSupportedMimeType(): string {
+    const types = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/mp4"];
+    for (const t of types) {
+        if (MediaRecorder.isTypeSupported(t)) return t;
+    }
+    return ""; // let browser pick
+}
+
+function VoiceAnswerInput({
+    onAudioReady,
+    disabled,
+}: {
+    onAudioReady: (blob: Blob) => void;
+    disabled: boolean;
+}) {
+    const [voiceState, setVoiceState] = useState<VoiceState>("idle");
+    const [volumePct, setVolumePct] = useState(0); // 0–100 for the visual bar
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const chunksRef = useRef<Blob[]>([]);
+    const streamRef = useRef<MediaStream | null>(null);
+    const analyserRef = useRef<AnalyserNode | null>(null);
+    const audioCtxRef = useRef<AudioContext | null>(null);
+    const rafRef = useRef<number | null>(null);
+    const mimeTypeRef = useRef<string>("");
+
+    useEffect(() => {
+        return () => {
+            if (rafRef.current) cancelAnimationFrame(rafRef.current);
+            stopStream();
+        };
+    }, []);
+
+    function stopStream() {
+        streamRef.current?.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
+        audioCtxRef.current?.close().catch(() => {});
+        audioCtxRef.current = null;
+        analyserRef.current = null;
+    }
+
+    async function startRecording() {
+        if (disabled) return;
+        setVoiceState("requesting");
+        chunksRef.current = [];
+        setVolumePct(0);
+
+        let stream: MediaStream;
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        } catch {
+            setVoiceState("denied");
+            return;
+        }
+        streamRef.current = stream;
+
+        // Audio analyser — use a small fftSize so frequencyBinCount = 128
+        // This keeps the frequency array small and focused on voice range
+        const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+        audioCtxRef.current = ctx;
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 256;           // frequencyBinCount = 128
+        analyser.minDecibels = -70;
+        analyser.maxDecibels = -10;
+        analyser.smoothingTimeConstant = 0.85;
+        analyserRef.current = analyser;
+        ctx.createMediaStreamSource(stream).connect(analyser);
+
+        const mimeType = getSupportedMimeType();
+        mimeTypeRef.current = mimeType;
+        const recorderOpts = mimeType ? { mimeType } : {};
+        const recorder = new MediaRecorder(stream, recorderOpts);
+        mediaRecorderRef.current = recorder;
+
+        recorder.ondataavailable = (e) => {
+            if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
+        };
+
+        recorder.onstop = () => {
+            stopStream();
+            setVolumePct(0);
+            const blob = new Blob(chunksRef.current, {
+                type: mimeTypeRef.current || "audio/webm",
+            });
+            if (blob.size < 1000) {
+                // Too small — likely silence only, treat as no answer
+                setVoiceState("idle");
+                return;
+            }
+            setVoiceState("done");
+            onAudioReady(blob);
+        };
+
+        // timeslice=250ms — ondataavailable fires every 250ms so chunks accumulate
+        recorder.start(250);
+        setVoiceState("recording");
+        monitorVolume();
+    }
+
+    function monitorVolume() {
+        const analyser = analyserRef.current;
+        if (!analyser) return;
+
+        const data = new Uint8Array(analyser.frequencyBinCount); // 128 bins
+        let lastSpokenAt = Date.now();
+        let hasSpoken = false;
+
+        function tick() {
+            const recorder = mediaRecorderRef.current;
+            if (!recorder || recorder.state !== "recording") return;
+
+            analyser.getByteFrequencyData(data);
+
+            // Average the lower 40% of bins — that's where voice lives (80–3400 Hz)
+            const voiceBins = Math.floor(data.length * 0.4);
+            let sum = 0;
+            for (let i = 0; i < voiceBins; i++) sum += data[i];
+            const avg = sum / voiceBins; // 0–255
+
+            const pct = Math.min(100, Math.round((avg / 255) * 100 * 3)); // amplify for display
+            setVolumePct(pct);
+
+            const now = Date.now();
+            if (avg > 15) { // threshold: speaking
+                lastSpokenAt = now;
+                hasSpoken = true;
+            }
+
+            const silenceMs = now - lastSpokenAt;
+            // Stop after 3s silence post-speech, or 25s if never spoke
+            if ((hasSpoken && silenceMs > 3000) || (!hasSpoken && silenceMs > 25000)) {
+                stopRecording();
+                return;
+            }
+
+            rafRef.current = requestAnimationFrame(tick);
+        }
+
+        rafRef.current = requestAnimationFrame(tick);
+    }
+
+    function stopRecording() {
+        if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
+        const recorder = mediaRecorderRef.current;
+        if (recorder && recorder.state === "recording") {
+            setVoiceState("processing");
+            recorder.stop(); // triggers onstop after final ondataavailable
+        }
+    }
+
+    function cancelRecording() {
+        if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
+        const recorder = mediaRecorderRef.current;
+        if (recorder && recorder.state === "recording") {
+            recorder.ondataavailable = null; // discard chunks
+            recorder.onstop = null;
+            recorder.stop();
+        }
+        stopStream();
+        chunksRef.current = [];
+        setVolumePct(0);
+        setVoiceState("idle");
+    }
+
+    const isRecording = voiceState === "recording";
+    const isBusy = voiceState === "requesting" || voiceState === "processing" || voiceState === "done";
+
+    return (
+        <div className="space-y-3">
+            <div className="flex items-center gap-2">
+                <Mic className="w-4 h-4 text-muted-foreground/50" />
+                <span className="text-xs font-mono uppercase tracking-widest text-muted-foreground/50">Voice Answer</span>
+            </div>
+
+            <div className="flex flex-col items-center gap-4 py-6 rounded-xl border border-border/30 bg-card/40">
+
+                {/* Volume bar — visible while recording */}
+                {isRecording && (
+                    <div className="w-48 h-2 bg-border/20 rounded-full overflow-hidden">
+                        <div
+                            className="h-full bg-emerald-400 rounded-full transition-all duration-75"
+                            style={{ width: `${volumePct}%` }}
+                        />
+                    </div>
+                )}
+
+                {/* Mic button */}
+                <button
+                    onClick={isRecording ? stopRecording : startRecording}
+                    disabled={disabled || isBusy}
+                    className={`relative w-20 h-20 rounded-full flex items-center justify-center transition-all
+                        disabled:opacity-40 disabled:cursor-not-allowed
+                        ${isRecording
+                            ? "bg-red-500/20 border-2 border-red-500/60 hover:bg-red-500/30"
+                            : voiceState === "done"
+                                ? "bg-emerald-500/20 border-2 border-emerald-500/60"
+                                : voiceState === "denied"
+                                    ? "bg-destructive/10 border-2 border-destructive/30"
+                                    : "bg-primary/10 border-2 border-primary/30 hover:bg-primary/20 hover:border-primary/50"
+                        }`}
+                >
+                    {isRecording && (
+                        <span className="absolute inset-0 rounded-full bg-red-500/20 animate-ping" />
+                    )}
+                    {isBusy && !isRecording
+                        ? <Loader2 className="w-8 h-8 text-primary/60 animate-spin relative z-10" />
+                        : isRecording
+                            ? <MicOff className="w-8 h-8 text-red-400 relative z-10" />
+                            : <Mic className={`w-8 h-8 relative z-10 ${voiceState === "denied" ? "text-destructive/60" : "text-primary/70"}`} />
+                    }
+                </button>
+
+                {/* Status label */}
+                <p className={`text-sm font-medium ${
+                    isRecording ? "text-emerald-400" :
+                    voiceState === "processing" ? "text-blue-400" :
+                    voiceState === "done" ? "text-emerald-400" :
+                    voiceState === "denied" ? "text-destructive" :
+                    "text-muted-foreground/60"
+                }`}>
+                    {isRecording ? "Recording… tap to stop" :
+                     voiceState === "requesting" ? "Requesting microphone…" :
+                     voiceState === "processing" ? "Transcribing your answer…" :
+                     voiceState === "done" ? "Answer captured — evaluating…" :
+                     voiceState === "denied" ? "Mic denied — type your answer instead" :
+                     "Tap the mic to speak your answer"}
+                </p>
+
+                {isRecording && (
+                    <button
+                        onClick={cancelRecording}
+                        className="text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors underline-offset-2 hover:underline"
+                    >
+                        Cancel
+                    </button>
+                )}
+            </div>
+        </div>
+    );
+}
+
 // ── Step 2: Interview ─────────────────────────────────────────────────────────
 
 function InterviewStep({
@@ -346,16 +592,21 @@ function InterviewStep({
     const [showEval, setShowEval] = useState(false);
     const [ending, setEnding] = useState(false);
     const [error, setError] = useState("");
+    // Voice mode: only available for theory/mcq — code always uses text
+    const [voiceMode, setVoiceMode] = useState(false);
 
     const q = questions[currentIdx];
     const isLast = currentIdx === questions.length - 1;
     const progress = ((currentIdx + 1) / questions.length) * 100;
     const [displayQuestion, setDisplayQuestion] = useState(q?.text ?? "");
+    const isCodeQuestion = q?.type === "code";
 
-    // Reset display text when question changes
+    // Reset display text and voice mode when question changes
     useEffect(() => {
         setDisplayQuestion(q?.text ?? "");
-    }, [currentIdx, q?.text]);
+        // Always switch back to text mode for code questions
+        if (q?.type === "code") setVoiceMode(false);
+    }, [currentIdx, q?.text, q?.type]);
 
     if (!q) return null;
 
@@ -369,6 +620,20 @@ function InterviewStep({
             setShowEval(true);
         } catch (e: unknown) {
             setError(friendlyError(e, "Couldn't submit your answer. Please try again."));
+        } finally {
+            setSubmitting(false);
+        }
+    }
+
+    async function handleVoiceReady(blob: Blob) {
+        setError("");
+        setSubmitting(true);
+        try {
+            const ev = await apiSubmitVoiceAnswer(q.id, blob);
+            setEvaluation(ev);
+            setShowEval(true);
+        } catch (e: unknown) {
+            setError(friendlyError(e, "Voice submission failed. Please try again or switch to text."));
         } finally {
             setSubmitting(false);
         }
@@ -391,6 +656,7 @@ function InterviewStep({
             setEvaluation(null);
             setShowEval(false);
             setError("");
+            // voiceMode resets via useEffect when question type changes
         }
     }
 
@@ -451,12 +717,37 @@ function InterviewStep({
                     {/* Answer area */}
                     {!showEval && (
                         <div className="space-y-4">
-                            <div className="flex items-center gap-2">
-                                <User className="w-4 h-4 text-muted-foreground/50" />
-                                <span className="text-xs font-mono uppercase tracking-widest text-muted-foreground/50">Your Answer</span>
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <User className="w-4 h-4 text-muted-foreground/50" />
+                                    <span className="text-xs font-mono uppercase tracking-widest text-muted-foreground/50">Your Answer</span>
+                                </div>
+                                {/* Voice / Text toggle — only for theory and mcq */}
+                                {!isCodeQuestion && (
+                                    <div className="flex items-center gap-1 p-0.5 rounded-lg bg-secondary/30 border border-border/20">
+                                        <button
+                                            onClick={() => setVoiceMode(false)}
+                                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all ${!voiceMode ? "bg-background text-foreground shadow-sm" : "text-muted-foreground/50 hover:text-muted-foreground"}`}
+                                        >
+                                            <Volume2 className="w-3 h-3" /> Text
+                                        </button>
+                                        <button
+                                            onClick={() => setVoiceMode(true)}
+                                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all ${voiceMode ? "bg-background text-foreground shadow-sm" : "text-muted-foreground/50 hover:text-muted-foreground"}`}
+                                        >
+                                            <Mic className="w-3 h-3" /> Voice
+                                        </button>
+                                    </div>
+                                )}
                             </div>
 
-                            {q.type === "mcq" && q.options ? (
+                            {/* Voice input */}
+                            {voiceMode && !isCodeQuestion ? (
+                                <VoiceAnswerInput
+                                    onAudioReady={handleVoiceReady}
+                                    disabled={submitting}
+                                />
+                            ) : q.type === "mcq" && q.options ? (
                                 <div className="space-y-2">
                                     {q.options.map((opt, i) => (
                                         <button
@@ -508,25 +799,39 @@ function InterviewStep({
                                 </div>
                             )}
 
-                            <div className="flex items-center gap-3">
-                                <button
-                                    onClick={() => handleSubmit(false)}
-                                    disabled={submitting || (q.type === "mcq" && !selectedOption) || (q.type !== "mcq" && !answer.trim())}
-                                    className="flex-1 h-11 flex items-center justify-center gap-2 bg-primary text-primary-foreground rounded-xl text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
-                                >
-                                    {submitting
-                                        ? <><Loader2 className="w-4 h-4 animate-spin" /> Evaluating…</>
-                                        : <><ChevronRight className="w-4 h-4" /> Submit Answer</>
-                                    }
-                                </button>
+                            {/* Submit / Skip buttons — hidden in voice mode (voice auto-submits) */}
+                            {!voiceMode && (
+                                <div className="flex items-center gap-3">
+                                    <button
+                                        onClick={() => handleSubmit(false)}
+                                        disabled={submitting || (q.type === "mcq" && !selectedOption) || (q.type !== "mcq" && !answer.trim())}
+                                        className="flex-1 h-11 flex items-center justify-center gap-2 bg-primary text-primary-foreground rounded-xl text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+                                    >
+                                        {submitting
+                                            ? <><Loader2 className="w-4 h-4 animate-spin" /> Evaluating…</>
+                                            : <><ChevronRight className="w-4 h-4" /> Submit Answer</>
+                                        }
+                                    </button>
+                                    <button
+                                        onClick={() => handleSubmit(true)}
+                                        disabled={submitting}
+                                        className="h-11 px-4 rounded-xl border border-border/30 text-sm text-muted-foreground/60 hover:text-muted-foreground hover:border-border/50 transition-colors disabled:opacity-40"
+                                    >
+                                        Skip
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* Skip button in voice mode */}
+                            {voiceMode && (
                                 <button
                                     onClick={() => handleSubmit(true)}
                                     disabled={submitting}
-                                    className="h-11 px-4 rounded-xl border border-border/30 text-sm text-muted-foreground/60 hover:text-muted-foreground hover:border-border/50 transition-colors disabled:opacity-40"
+                                    className="w-full h-10 rounded-xl border border-border/30 text-sm text-muted-foreground/50 hover:text-muted-foreground hover:border-border/50 transition-colors disabled:opacity-40"
                                 >
-                                    Skip
+                                    Skip this question
                                 </button>
-                            </div>
+                            )}
                         </div>
                     )}
 
@@ -549,6 +854,18 @@ function InterviewStep({
                             </div>
 
                             {/* Feedback */}
+                            {/* Transcribed answer — only shown for voice submissions */}
+                            {evaluation.transcribed_answer && (
+                                <div className="rounded-xl border border-border/25 bg-secondary/20 p-4 space-y-1.5">
+                                    <div className="flex items-center gap-1.5">
+                                        <Mic className="w-3.5 h-3.5 text-muted-foreground/40" />
+                                        <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground/40">What we heard</p>
+                                    </div>
+                                    <p className="text-sm text-foreground/70 leading-relaxed italic">
+                                        "{evaluation.transcribed_answer}"
+                                    </p>
+                                </div>
+                            )}
                             <FeedbackWithHinglish feedback={evaluation.feedback} idealAnswer={evaluation.ideal_answer} />
                             {q.type === "code" && evaluation.time_complexity && (
                                 <div className="flex gap-3 pt-1">

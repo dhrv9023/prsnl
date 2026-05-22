@@ -9,13 +9,12 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch
 
-from app.api.dependencies import CurrentUser, require_credits
+from app.api.dependencies import CurrentUser
 from app.core.config import settings
 from app.core.rate_limit import ats_rate_key, limiter
 from app.db.supabase import get_db
 from app.services.cover_letter_gen import cover_letter_generator, roast_cover_letter_generator
 from app.services.humanizer import humanize_text
-from app.services.credits import refund_feature_credits
 from app.schemas.models import CoverLetterRequest, CoverLetterRoastRequest, HumanizeRequest, SavePDFRequest
 
 logger = logging.getLogger(__name__)
@@ -54,7 +53,6 @@ async def create_cover_letter(
     request: Request,
     body: CoverLetterRequest,
     user: CurrentUser,
-    _credits=require_credits("cover_letter", 10),
 ):
     """Step 1: AI generates a cover letter text draft."""
     supabase = await get_db()
@@ -76,7 +74,6 @@ async def create_cover_letter(
         body.job_title
     )
     if not cover_letter_content:
-        await refund_feature_credits(supabase, str(user.id), "cover_letter", 10)
         raise HTTPException(502, "AI failed to generate text")
 
     app_data = {
@@ -108,7 +105,6 @@ async def create_roast_cover_letter(
     request: Request,
     body: CoverLetterRoastRequest,
     user: CurrentUser,
-    _credits=require_credits("cover_letter", 10),
 ):
     """Step 1 (Roast Mode): AI generates a savage, self-aware cover letter draft."""
     supabase = await get_db()
@@ -131,7 +127,6 @@ async def create_roast_cover_letter(
         body.job_title
     )
     if not cover_letter_content:
-        await refund_feature_credits(supabase, str(user.id), "cover_letter", 10)
         raise HTTPException(502, "AI failed to generate roast cover letter")
 
     app_data = {
@@ -226,9 +221,8 @@ async def humanize_cover_letter(
     request: Request,
     body: HumanizeRequest,
     user: CurrentUser,
-    _credits=require_credits("humanize", 15),
 ):
-    """Rewrites an AI-generated cover letter to sound more natural and human. Costs 15 credits."""
+    """Rewrites an AI-generated cover letter to sound more natural and human."""
     if not body.text or len(body.text.strip()) < 50:
         raise HTTPException(400, "Cover letter text is too short to humanize.")
     if len(body.text) > 5000:
@@ -236,8 +230,6 @@ async def humanize_cover_letter(
 
     result = await humanize_text(body.text)
     if not result:
-        supabase = await get_db()
-        await refund_feature_credits(supabase, str(user.id), "humanize", 15)
         raise HTTPException(502, "AI failed to humanize the text. Please try again.")
 
     return {"humanized_text": result}

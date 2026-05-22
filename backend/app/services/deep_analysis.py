@@ -25,14 +25,12 @@ Output schema:
 import json
 import logging
 
-from groq import AsyncGroq
-from app.core.config import settings
+from app.services.llm_client import chat_complete
 from app.services.resume_analyzer import clean_llm_answer
 from app.services.prompt_sanitizer import sanitize_user_text
 from app.services.ai_retry import with_ai_retry
 
 logger = logging.getLogger(__name__)
-client = AsyncGroq(api_key=settings.GROQ_API_KEY)
 
 # ─── Prompts ──────────────────────────────────────────────────────────────────
 
@@ -143,20 +141,18 @@ async def generate_deep_analysis(
 
     try:
         completion = await with_ai_retry(
-            lambda: client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
+            lambda: chat_complete(
                 messages=[
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": user_message},
                 ],
                 temperature=0.25,
                 response_format={"type": "json_object"},
-                stream=False,
                 timeout=45,
             ),
             label="deep_analysis",
         )
-        raw = completion.choices[0].message.content
+        raw = completion
         cleaned = clean_llm_answer(raw)
         if not cleaned:
             raise RuntimeError("AI returned empty response")

@@ -2,7 +2,7 @@ import logging
 
 from fastapi import APIRouter, Request
 
-from app.api.dependencies import CurrentUser, require_credits
+from app.api.dependencies import CurrentUser
 from app.core.config import settings
 from app.core.rate_limit import ats_rate_key, limiter
 from app.schemas.ats import ATSScoreRequest, ATSScoreResponse
@@ -23,12 +23,11 @@ async def ats_score(
     request: Request,
     body: ATSScoreRequest,
     user: CurrentUser,
-    _credits=require_credits("ats_score", 5),
 ) -> ATSScoreResponse:
     """
     Single entrypoint for ATS scoring. Routes by `mode`:
     - **general**: rule-based pipeline (Phase 2+)
     - **jd**: embedding similarity vs job description (Phase 3+)
-    Requires authentication and costs 5 credits.
+    Requires authentication.
     """
     return await score_resume(body)

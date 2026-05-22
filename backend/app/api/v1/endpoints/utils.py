@@ -9,12 +9,10 @@ from app.api.dependencies import CurrentUser
 from app.core.rate_limit import limiter, ats_rate_key
 from app.services.prompt_sanitizer import sanitize_user_text
 from app.services.ai_retry import with_ai_retry
-from groq import AsyncGroq
-from app.core.config import settings
+from app.services.llm_client import chat_complete
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-client = AsyncGroq(api_key=settings.GROQ_API_KEY)
 
 
 class HinglishRequest(BaseModel):
@@ -54,15 +52,14 @@ Output ONLY the converted Hinglish text, nothing else."""
 
     try:
         completion = await with_ai_retry(
-            lambda: client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
+            lambda: chat_complete(
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.4,
                 timeout=20,
             ),
             label="hinglish_convert",
         )
-        hinglish_text = completion.choices[0].message.content.strip()
+        hinglish_text = completion.strip()
         return {"hinglish_text": hinglish_text}
     except Exception as e:
         logger.error("Hinglish conversion failed: %s", e)
