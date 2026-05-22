@@ -177,6 +177,19 @@ Run these SQL migrations in your Supabase SQL editor before deploying:
 
 ---
 
+## Security
+
+The platform implements comprehensive security measures:
+
+- ✅ **Authorization:** RPC functions restricted to backend (service_role only)
+- ✅ **Data Integrity:** Row-level security (RLS) on all user-scoped tables
+- ✅ **Credit System:** Atomic PostgreSQL operations prevent race conditions
+- ✅ **Anti-Farming:** IP-based deduplication prevents multi-account credit abuse
+- ✅ **Audit Trail:** Complete transaction history for forensic analysis
+- ✅ **Error Handling:** No information disclosure, proper HTTP status codes
+
+---
+
 ## Tests
 
 ```bash
@@ -217,10 +230,19 @@ pytest tests/ -v
 | Credit System | ✅ Complete |
 | Admin Panel | ✅ Complete |
 | Error Monitoring (Sentry) | ✅ Complete |
-| Request Signing (Admin ops) | ❌ Removed — dead code, never used |
+| Theme Toggle (Light/Dark Mode) | ✅ Complete |
 | RLS on ai_analyses | ✅ Complete |
 | Test Suite | ✅ Complete |
 | Payment Integration | ⏳ Post-MVP |
+
+---
+
+## Recent Updates
+
+### May 22, 2026
+- ✅ **Theme Toggle Fix:** Fixed light/dark mode switching issue where theme-init.js and theme-toggle.tsx had conflicting defaults
+- ✅ **Security Hardening:** Applied database security migration (20260522000004_security_hardening.sql)
+- ✅ **Documentation:** Updated project documentation and code structure
 
 ---
 
