@@ -2,14 +2,12 @@
 import logging
 import re
 
-from groq import AsyncGroq
-from app.core.config import settings
+from app.services.llm_client import chat_complete
 from app.services.resume_analyzer import clean_llm_answer
 from app.services.prompt_sanitizer import sanitize_user_text
 from app.services.ai_retry import with_ai_retry
 
 logger = logging.getLogger(__name__)
-client = AsyncGroq(api_key=settings.GROQ_API_KEY)
 
 
 async def humanize_text(text: str) -> str | None:
@@ -51,8 +49,7 @@ RULES:
 
     try:
         completion = await with_ai_retry(
-            lambda: client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
+            lambda: chat_complete(
                 messages=[
                     {"role": "system", "content": prompt},
                     {
@@ -66,12 +63,11 @@ RULES:
                     }
                 ],
                 temperature=0.7,
-                stream=False,
                 timeout=30,
             ),
             label="humanizer",
         )
-        raw = completion.choices[0].message.content
+        raw = completion
         clean = clean_llm_answer(raw)
 
         # Strip think tags from reasoning models

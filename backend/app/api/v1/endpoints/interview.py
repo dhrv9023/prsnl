@@ -1,14 +1,15 @@
 import logging
+import os
+import tempfile
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, UploadFile, File, Form
 from typing import List, Dict, Any
 
-from app.api.dependencies import CurrentUser, require_credits
+from app.api.dependencies import CurrentUser
 from app.core.config import settings
 from app.core.rate_limit import ats_rate_key, limiter
 from app.db.supabase import get_db
 from app.db.redis_client import save_session, load_session, delete_session
-from app.services.credits import refund_feature_credits
 from app.schemas.models import (
     StartInterviewRequest,
     InterviewQuestion,
@@ -23,9 +24,13 @@ from app.services.ai_interview import (
     generate_roast_questions,
     evaluate_roast_answer,
 )
+from groq import AsyncGroq
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+# Groq client — shared with ai_interview service, used here for Whisper STT
+_groq_client = AsyncGroq(api_key=settings.GROQ_API_KEY)
 
 # ── Session state is now persisted in Redis (not in-memory) ──────────────────
 # Benefits:
@@ -41,7 +46,6 @@ async def start_interview_route(
     request: Request,
     body: StartInterviewRequest,
     user: CurrentUser,
-    _credits=require_credits("interview", 25),
 ) -> List[InterviewQuestion]:
     user_id_str = str(user.id)
 
@@ -164,8 +168,6 @@ async def start_interview_route(
                 analysis_context=analysis_context,
             )
     except ValueError as e:
-        supabase_ref = await get_db()
-        await refund_feature_credits(supabase_ref, user_id_str, "interview", 25)
         raise HTTPException(status_code=500, detail=str(e))
 
     session.questions = questions
@@ -238,6 +240,116 @@ async def submit_answer_route(
         await save_session(user_id_str, session)
     except Exception as e:
         logger.error("Redis save_session (submit) failed for user %s: %s", user_id_str, e)
+        raise HTTPException(status_code=503, detail="Session service is temporarily unavailable. Please try again.")
+
+    return evaluation
+
+
+@router.post("/submit_voice")
+@limiter.limit("15/minute", key_func=ats_rate_key)
+async def submit_voice_answer_route(
+    request: Request,
+    user: CurrentUser,
+    question_id: int = Form(...),
+    audio: UploadFile = File(...),
+) -> AnswerEvaluation:
+    """
+    Accepts a voice recording (webm/wav/mp4/ogg), transcribes it via
+    Groq Whisper, then evaluates the transcript exactly like /submit does.
+    Only valid for theory and MCQ questions — code questions must use /submit.
+    """
+    user_id_str = str(user.id)
+
+    # ── Load session ───────────────────────────────────────────────────────
+    try:
+        session = await load_session(user_id_str)
+    except Exception as e:
+        logger.error("Redis load_session (voice) failed for user %s: %s", user_id_str, e)
+        raise HTTPException(status_code=503, detail="Session service is temporarily unavailable. Please try again.")
+
+    if not session:
+        raise HTTPException(status_code=400, detail="No active interview session found. Please start a new interview.")
+
+    question = next((q for q in session.questions if q.id == question_id), None)
+    if not question:
+        raise HTTPException(status_code=404, detail="Question not found")
+
+    if question.type == "code":
+        raise HTTPException(status_code=400, detail="Code questions must be submitted as text via /submit.")
+
+    # ── Read audio bytes ───────────────────────────────────────────────────
+    audio_bytes = await audio.read()
+    if not audio_bytes:
+        raise HTTPException(status_code=400, detail="Audio file is empty.")
+
+    # ── Transcribe via Groq Whisper ────────────────────────────────────────
+    suffix = os.path.splitext(audio.filename or "answer.webm")[1] or ".webm"
+    tmp_path: str | None = None
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            tmp.write(audio_bytes)
+            tmp_path = tmp.name
+
+        with open(tmp_path, "rb") as f:
+            transcription = await _groq_client.audio.transcriptions.create(
+                file=(os.path.basename(tmp_path), f.read()),
+                model="whisper-large-v3-turbo",
+                response_format="json",
+            )
+        user_spoken_text = (transcription.text or "").strip()
+    except Exception as e:
+        logger.error("Whisper transcription failed for user %s: %s", user_id_str, e)
+        raise HTTPException(status_code=502, detail="Voice transcription failed. Please try again or type your answer.")
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
+    # ── Silence / empty response ───────────────────────────────────────────
+    if not user_spoken_text or len(user_spoken_text) < 5:
+        evaluation = AnswerEvaluation(
+            score=0,
+            feedback="No speech detected. Please speak clearly or type your answer instead.",
+            ideal_answer="A verbal explanation was expected.",
+            transcribed_answer="(no speech detected)",
+        )
+        session.answers[question_id] = "Skipped (silence)"
+        session.evaluations[question_id] = evaluation
+        try:
+            await save_session(user_id_str, session)
+        except Exception as e:
+            logger.warning("Redis save_session (voice silence) failed for user %s: %s", user_id_str, e)
+        return evaluation
+
+    # ── Evaluate transcript — same logic as /submit ────────────────────────
+    roast_mode = session.role.startswith("[ROAST]")
+    lang_tag = session.role.split("][LANG:")[-1].split("]")[0] if "[LANG:" in session.role else "english"
+    try:
+        if roast_mode:
+            evaluation = await evaluate_roast_answer(
+                role=session.role.split("]")[-1],
+                question=question,
+                user_answer=user_spoken_text,
+                language=lang_tag,
+            )
+        else:
+            evaluation = await evaluate_single_answer(
+                role=session.role,
+                question=question,
+                user_answer=user_spoken_text,
+            )
+    except ValueError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    # Attach the transcript so the frontend can show what was heard
+    evaluation.transcribed_answer = user_spoken_text
+
+    # ── Persist updated session ────────────────────────────────────────────
+    session.answers[question_id] = user_spoken_text
+    session.evaluations[question_id] = evaluation
+    try:
+        await save_session(user_id_str, session)
+    except Exception as e:
+        logger.error("Redis save_session (voice submit) failed for user %s: %s", user_id_str, e)
         raise HTTPException(status_code=503, detail="Session service is temporarily unavailable. Please try again.")
 
     return evaluation

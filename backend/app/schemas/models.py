@@ -60,6 +60,7 @@ class AnswerEvaluation(BaseModel):
     space_complexity: Optional[str] = None
     code_quality: Optional[str] = None
     audio_base64: Optional[str] = None
+    transcribed_answer: Optional[str] = None  # populated for voice submissions
 
     @field_validator("score", mode="before")
     @classmethod

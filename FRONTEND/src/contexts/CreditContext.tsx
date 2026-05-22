@@ -90,23 +90,17 @@ export function CreditProvider({ children }: { children: ReactNode }) {
     }, [auth.isAuthenticated, fetchAll]);
 
     const canUse = useCallback(
-        (feature: FeatureKey): boolean => {
-            // While loading, assume user can use (prevents false "insufficient" flash)
-            if (!balance) return isLoading;
-            if (balance.is_unlimited) return true;
-            const cost = featureCosts[feature]?.cost ?? 0;
-            return balance.remaining >= cost;
+        (_feature: FeatureKey): boolean => {
+            return true; // DEV: credits disabled for testing
         },
-        [balance, featureCosts, isLoading]
+        []
     );
 
     const shortfall = useCallback(
-        (feature: FeatureKey): number => {
-            if (!balance || balance.is_unlimited) return 0;
-            const cost = featureCosts[feature]?.cost ?? 0;
-            return Math.max(0, cost - balance.remaining);
+        (_feature: FeatureKey): number => {
+            return 0; // DEV: credits disabled for testing
         },
-        [balance, featureCosts]
+        []
     );
 
     const refresh = useCallback(async () => {
@@ -115,20 +109,10 @@ export function CreditProvider({ children }: { children: ReactNode }) {
 
     /** Optimistically subtract credits so the UI updates instantly. */
     const deductLocal = useCallback(
-        (feature: FeatureKey) => {
-            setBalance((prev) => {
-                if (!prev || prev.is_unlimited) return prev;
-                const cost = featureCosts[feature]?.cost ?? 0;
-                const newRemaining = Math.max(0, prev.remaining - cost);
-                return {
-                    ...prev,
-                    remaining: newRemaining,
-                    used: prev.used + cost,
-                    low_credits: newRemaining < 20,
-                };
-            });
+        (_feature: FeatureKey) => {
+            // DEV: no-op for testing
         },
-        [featureCosts]
+        []
     );
 
     return (

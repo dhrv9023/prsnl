@@ -12,7 +12,9 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "AI Career Toolkit" # Default value
     API_V1_STR: str = "/api/v1"
     ENVIRONMENT: Literal["development", "production"] = "development"
-    GROQ_API_KEY: str
+    GROQ_API_KEY: str                          # kept for Whisper STT only
+    OPENROUTER_API_KEY: str = ""               # used for all LLM features
+    OPENROUTER_MODEL: str = "nvidia/nemotron-3-super"
     SUPABASE_URL: str
     SUPABASE_SERVICE_ROLE: str
     SUPABASE_ANON_KEY: str | None = None  # PKCE OAuth: POST /auth/oauth/session
@@ -37,6 +39,7 @@ class Settings(BaseSettings):
     MAX_UPLOAD_BYTES: int = 5 * 1024 * 1024
     REDIS_URL: str = "redis://localhost:6379/0"  # Override in .env if Redis on another host
     SENTRY_DSN: str | None = None  # Set in production env vars for error monitoring
+    DEV_BYPASS_USER_ID: str | None = None  # Local dev only — set to your Supabase user UUID
 
     model_config = SettingsConfigDict(
         env_file=_APP_DIR / ".env",

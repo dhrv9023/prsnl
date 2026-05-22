@@ -147,25 +147,9 @@ interface FeatureCostTagProps {
     className?: string;
 }
 
-export function FeatureCostTag({ feature, className = "" }: FeatureCostTagProps) {
-    const { featureCosts, balance } = useCreditContext();
-    const info = featureCosts[feature];
-    if (!info) return null;
-
-    const canAfford = balance?.is_unlimited || (balance?.remaining ?? 0) >= info.cost;
-
-    return (
-        <span
-            className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full border ${
-                canAfford
-                    ? "text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 border-emerald-600/25 dark:border-emerald-400/20"
-                    : "text-red-600 dark:text-red-400 bg-red-500/10 border-red-600/25 dark:border-red-400/20"
-            } ${className}`}
-        >
-            <Zap className="w-3 h-3" />
-            {info.cost} credits
-        </span>
-    );
+export function FeatureCostTag({ feature: _feature, className: _className = "" }: FeatureCostTagProps) {
+    // DEV: credits disabled for testing
+    return null;
 }
 
 // ── Insufficient credits warning ──────────────────────────────────────────────
@@ -174,26 +158,9 @@ interface InsufficientCreditsProps {
     feature: FeatureKey;
 }
 
-export function InsufficientCreditsWarning({ feature }: InsufficientCreditsProps) {
-    const { balance, featureCosts, shortfall } = useCreditContext();
-    const info = featureCosts[feature];
-    const sf = shortfall(feature);
-
-    if (!info || sf === 0 || balance?.is_unlimited) return null;
-
-    return (
-        <div className="flex items-start gap-2.5 p-3 rounded-lg bg-red-500/8 border border-red-500/20">
-            <TrendingDown className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
-            <div>
-                <p className="text-sm font-semibold text-red-400">Insufficient credits</p>
-                <p className="text-xs text-red-400/70 mt-0.5 leading-snug">
-                    {info.label} costs <strong>{info.cost} credits</strong>.
-                    You need <strong>{sf} more credits</strong> to use this feature.
-                    You currently have {balance?.remaining ?? 0} credits.
-                </p>
-            </div>
-        </div>
-    );
+export function InsufficientCreditsWarning({ feature: _feature }: InsufficientCreditsProps) {
+    // DEV: credits disabled for testing
+    return null;
 }
 
 // ── Feature pricing table ─────────────────────────────────────────────────────
