@@ -12,10 +12,10 @@ function getInitialTheme(): boolean {
 export function ThemeToggle() {
   const [isDark, setIsDark] = useState(getInitialTheme);
 
-  // Sync the class on mount (in case the inline script and React somehow disagree)
+  // Sync the dark class whenever isDark changes
   useEffect(() => {
     document.documentElement.classList.toggle("dark", isDark);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isDark]);
 
   // Listen for OS-level theme changes when user has no explicit preference saved
   useEffect(() => {
