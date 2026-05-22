@@ -159,7 +159,8 @@ Run these SQL migrations in your Supabase SQL editor before deploying:
 3. `supabase/migrations/20260515000001_audit_fixes.sql` — RLS, IP farming fix
 4. `supabase/migrations/20260517000001_daily_credits.sql` — daily credit grants
 5. `supabase/migrations/20260522000001_fix_daily_grant_total.sql` — fix total_credits_granted for daily grants
-6. `backend/SUPABASE_MIGRATION_interview_reports.sql` — interview reports table
+6. `supabase/migrations/20260515000002_interview_reports.sql` — interview reports table
+7. `supabase/migrations/20260522000003_admin_credit_stats_rpc.sql` — admin credit stats RPC
 
 ### Tables
 
@@ -216,7 +217,7 @@ pytest tests/ -v
 | Credit System | ✅ Complete |
 | Admin Panel | ✅ Complete |
 | Error Monitoring (Sentry) | ✅ Complete |
-| Request Signing (Admin ops) | ✅ Complete |
+| Request Signing (Admin ops) | ❌ Removed — dead code, never used |
 | RLS on ai_analyses | ✅ Complete |
 | Test Suite | ✅ Complete |
 | Payment Integration | ⏳ Post-MVP |

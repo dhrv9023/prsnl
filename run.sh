@@ -19,7 +19,6 @@
 #       3. Set COOKIE_SAMESITE=none in backend/app/.env
 #       4. Restart the backend (Ctrl+C and run this script again)
 #       5. The CSRF middleware will now enforce double-submit validation
-#     See TESTING_WORKFLOW.md for more details.
 
 # Colors for better output
 GREEN='\033[0;32m'

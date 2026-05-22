@@ -26,7 +26,7 @@ htmlcov/
 coverage.xml
 
 # Package manager (uv)
-uv.lock
+# uv.lock is intentionally committed for reproducible builds — do NOT add it here
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Node / Frontend (Vite + React)
