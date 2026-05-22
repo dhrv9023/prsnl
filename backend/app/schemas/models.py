@@ -78,14 +78,25 @@ class InterviewReport(BaseModel):
 
 class StartInterviewRequest(BaseModel):
     resume_id: str
-    role: str
-    experience_level: str
+    # Issue #12 fix: restrict role to safe characters only — prevents prompt injection
+    # via the role field. Pattern allows letters, digits, spaces, and common job-title
+    # punctuation. Max 100 chars to limit token consumption.
+    role: str = Field(
+        ...,
+        max_length=100,
+        pattern=r"^[a-zA-Z0-9\s\-/&+.()\u00C0-\u024F]+$",
+        description="Job role / title. Alphanumeric + common punctuation only.",
+    )
+    # Issue #12 fix: Literal enforces an exact allowlist — no free-text injection possible.
+    experience_level: Literal["fresher", "junior", "mid", "senior"]
     roast_mode: bool = False
     language: str = "english"
 
 class AnswerSubmission(BaseModel):
     question_id: int
-    user_answer: Optional[str] = None
+    # Issue #11 fix: cap answer length at the API boundary so oversized payloads
+    # are rejected before they reach the LLM call (cost + memory attack prevention).
+    user_answer: Optional[str] = Field(default=None, max_length=10_000)
     roast_mode: bool = False
     language: str = "english"
 

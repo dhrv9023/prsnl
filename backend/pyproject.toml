@@ -22,6 +22,7 @@ dependencies = [
     "scikit-learn==1.8.0",
     "sentry-sdk[fastapi]==2.29.1",
     "supabase==2.27.0",
+    "tenacity==8.3.0",
     "uvicorn==0.40.0",
     "starlette==0.50.0",
     "httpx==0.28.1",
