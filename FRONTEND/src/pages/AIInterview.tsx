@@ -639,7 +639,90 @@ function VoiceAnswerInput({
     );
 }
 
-// ── Step 2: Interview ─────────────────────────────────────────────────────────
+// ── Interview Timer ───────────────────────────────────────────────────────────
+
+/** Per-question time limits in seconds by question type */
+const QUESTION_TIME_LIMITS: Record<string, number> = {
+    theory: 120,  // 2 min
+    mcq:    60,   // 1 min
+    code:   300,  // 5 min
+};
+
+function useQuestionTimer(limitSecs: number, onExpire: () => void) {
+    const [remaining, setRemaining] = useState(limitSecs);
+    const expiredRef = useRef(false);
+
+    // Reset whenever the limit changes (i.e. new question)
+    useEffect(() => {
+        setRemaining(limitSecs);
+        expiredRef.current = false;
+    }, [limitSecs]);
+
+    useEffect(() => {
+        if (remaining <= 0) {
+            if (!expiredRef.current) {
+                expiredRef.current = true;
+                onExpire();
+            }
+            return;
+        }
+        const id = setTimeout(() => setRemaining((r) => r - 1), 1000);
+        return () => clearTimeout(id);
+    }, [remaining, onExpire]);
+
+    const pct = Math.round((remaining / limitSecs) * 100);
+    const isWarning = remaining <= 20 && remaining > 0;
+    const isDanger  = remaining <= 10 && remaining > 0;
+    const isExpired = remaining <= 0;
+
+    const fmt = `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, "0")}`;
+
+    return { remaining, pct, fmt, isWarning, isDanger, isExpired };
+}
+
+function QuestionTimer({ limitSecs, onExpire }: { limitSecs: number; onExpire: () => void }) {
+    const { pct, fmt, isWarning, isDanger, isExpired } = useQuestionTimer(limitSecs, onExpire);
+
+    const colorClass = isExpired
+        ? "text-red-500"
+        : isDanger
+        ? "text-red-400"
+        : isWarning
+        ? "text-amber-400"
+        : "text-muted-foreground/60";
+
+    const barClass = isExpired
+        ? "bg-red-500"
+        : isDanger
+        ? "bg-red-400"
+        : isWarning
+        ? "bg-amber-400"
+        : "bg-primary/60";
+
+    return (
+        <div className="flex items-center gap-2 min-w-[80px]">
+            {/* Arc / bar */}
+            <div className="relative w-8 h-8 flex-shrink-0">
+                <svg className="w-8 h-8 -rotate-90" viewBox="0 0 32 32">
+                    <circle cx="16" cy="16" r="13" fill="none" stroke="currentColor"
+                        className="text-border/20" strokeWidth="3" />
+                    <circle cx="16" cy="16" r="13" fill="none"
+                        stroke="currentColor"
+                        className={barClass.replace("bg-", "text-")}
+                        strokeWidth="3"
+                        strokeDasharray={`${2 * Math.PI * 13}`}
+                        strokeDashoffset={`${2 * Math.PI * 13 * (1 - pct / 100)}`}
+                        strokeLinecap="round"
+                        style={{ transition: "stroke-dashoffset 0.9s linear" }}
+                    />
+                </svg>
+            </div>
+            <span className={`text-xs font-mono font-semibold tabular-nums ${colorClass} ${isDanger && !isExpired ? "animate-pulse" : ""}`}>
+                {isExpired ? "0:00" : fmt}
+            </span>
+        </div>
+    );
+}
 
 function InterviewStep({
     questions,
@@ -667,6 +750,9 @@ function InterviewStep({
     const [displayQuestion, setDisplayQuestion] = useState(q?.text ?? "");
     const isCodeQuestion = q?.type === "code";
 
+    // Per-question time limit
+    const timeLimitSecs = QUESTION_TIME_LIMITS[q?.type ?? "theory"] ?? 120;
+
     // Reset display text, voice mode, and stop TTS when question changes
     useEffect(() => {
         stop(); // stop reading previous question
@@ -684,6 +770,14 @@ function InterviewStep({
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [voiceMode]);
+
+    // Timer expire → auto-submit (skip) the current question
+    const handleTimerExpire = useCallback(() => {
+        if (!showEval && !submitting) {
+            handleSubmit(true); // skip = true
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [showEval, submitting]);
 
     if (!q) return null;
 
@@ -758,9 +852,19 @@ function InterviewStep({
                         />
                     ))}
                 </div>
-                <span className="text-xs font-mono text-muted-foreground/50">
-                    {currentIdx + 1} of {questions.length}
-                </span>
+                <div className="flex items-center gap-4">
+                    {/* Timer — hidden once evaluation is shown */}
+                    {!showEval && (
+                        <QuestionTimer
+                            key={currentIdx}
+                            limitSecs={timeLimitSecs}
+                            onExpire={handleTimerExpire}
+                        />
+                    )}
+                    <span className="text-xs font-mono text-muted-foreground/50">
+                        {currentIdx + 1} of {questions.length}
+                    </span>
+                </div>
             </div>
 
             {/* Main content */}

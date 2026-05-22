@@ -9,7 +9,7 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch
 
-from app.api.dependencies import CurrentUser
+from app.api.dependencies import CurrentUser, require_credits
 from app.core.config import settings
 from app.core.rate_limit import ats_rate_key, limiter
 from app.db.supabase import get_db
@@ -53,6 +53,7 @@ async def create_cover_letter(
     request: Request,
     body: CoverLetterRequest,
     user: CurrentUser,
+    _credits=require_credits("cover_letter", 10),
 ):
     """Step 1: AI generates a cover letter text draft."""
     supabase = await get_db()
@@ -105,6 +106,7 @@ async def create_roast_cover_letter(
     request: Request,
     body: CoverLetterRoastRequest,
     user: CurrentUser,
+    _credits=require_credits("cover_letter", 10),
 ):
     """Step 1 (Roast Mode): AI generates a savage, self-aware cover letter draft."""
     supabase = await get_db()
@@ -221,6 +223,7 @@ async def humanize_cover_letter(
     request: Request,
     body: HumanizeRequest,
     user: CurrentUser,
+    _credits=require_credits("humanize", 15),
 ):
     """Rewrites an AI-generated cover letter to sound more natural and human."""
     if not body.text or len(body.text.strip()) < 50:

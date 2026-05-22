@@ -147,9 +147,16 @@ interface FeatureCostTagProps {
     className?: string;
 }
 
-export function FeatureCostTag({ feature: _feature, className: _className = "" }: FeatureCostTagProps) {
-    // DEV: credits disabled for testing
-    return null;
+export function FeatureCostTag({ feature, className = "" }: FeatureCostTagProps) {
+    const { featureCosts } = useCreditContext();
+    const info = featureCosts[feature];
+    if (!info) return null;
+    return (
+        <span className={`inline-flex items-center gap-1 text-[10px] font-semibold opacity-60 ${className}`}>
+            <Zap className="w-2.5 h-2.5" />
+            {info.cost}
+        </span>
+    );
 }
 
 // ── Insufficient credits warning ──────────────────────────────────────────────
@@ -158,9 +165,20 @@ interface InsufficientCreditsProps {
     feature: FeatureKey;
 }
 
-export function InsufficientCreditsWarning({ feature: _feature }: InsufficientCreditsProps) {
-    // DEV: credits disabled for testing
-    return null;
+export function InsufficientCreditsWarning({ feature }: InsufficientCreditsProps) {
+    const { balance, featureCosts, shortfall } = useCreditContext();
+    const sf = shortfall(feature);
+    if (!sf || !balance) return null;
+    const info = featureCosts[feature];
+    return (
+        <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-500/8 border border-amber-500/20">
+            <TrendingDown className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-amber-400/90 leading-snug">
+                Not enough credits. {info?.label ?? feature} costs <strong>{info?.cost}</strong> credits but you only have <strong>{balance.remaining}</strong>.{" "}
+                <a href="/credits" className="underline underline-offset-2 hover:text-amber-300">Top up →</a>
+            </p>
+        </div>
+    );
 }
 
 // ── Feature pricing table ─────────────────────────────────────────────────────

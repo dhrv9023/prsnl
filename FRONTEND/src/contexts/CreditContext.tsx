@@ -90,17 +90,22 @@ export function CreditProvider({ children }: { children: ReactNode }) {
     }, [auth.isAuthenticated, fetchAll]);
 
     const canUse = useCallback(
-        (_feature: FeatureKey): boolean => {
-            return true; // DEV: credits disabled for testing
+        (feature: FeatureKey): boolean => {
+            if (!balance) return true; // still loading — optimistic
+            if (balance.is_unlimited) return true;
+            const cost = featureCosts[feature]?.cost ?? 0;
+            return balance.remaining >= cost;
         },
-        []
+        [balance, featureCosts]
     );
 
     const shortfall = useCallback(
-        (_feature: FeatureKey): number => {
-            return 0; // DEV: credits disabled for testing
+        (feature: FeatureKey): number => {
+            if (!balance || balance.is_unlimited) return 0;
+            const cost = featureCosts[feature]?.cost ?? 0;
+            return Math.max(0, cost - balance.remaining);
         },
-        []
+        [balance, featureCosts]
     );
 
     const refresh = useCallback(async () => {
@@ -109,10 +114,14 @@ export function CreditProvider({ children }: { children: ReactNode }) {
 
     /** Optimistically subtract credits so the UI updates instantly. */
     const deductLocal = useCallback(
-        (_feature: FeatureKey) => {
-            // DEV: no-op for testing
+        (feature: FeatureKey) => {
+            const cost = featureCosts[feature]?.cost ?? 0;
+            if (!cost || !balance || balance.is_unlimited) return;
+            setBalance((prev) =>
+                prev ? { ...prev, remaining: Math.max(0, prev.remaining - cost) } : prev
+            );
         },
-        []
+        [balance, featureCosts]
     );
 
     return (

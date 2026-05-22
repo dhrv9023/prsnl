@@ -5,7 +5,7 @@ import tempfile
 from fastapi import APIRouter, HTTPException, Request, UploadFile, File, Form
 from typing import List, Dict, Any
 
-from app.api.dependencies import CurrentUser
+from app.api.dependencies import CurrentUser, require_credits
 from app.core.config import settings
 from app.core.rate_limit import ats_rate_key, limiter
 from app.db.supabase import get_db
@@ -46,6 +46,7 @@ async def start_interview_route(
     request: Request,
     body: StartInterviewRequest,
     user: CurrentUser,
+    _credits=require_credits("interview", 25),
 ) -> List[InterviewQuestion]:
     user_id_str = str(user.id)
 

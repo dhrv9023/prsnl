@@ -2,7 +2,7 @@
 import logging
 
 from fastapi import APIRouter, HTTPException, Request
-from app.api.dependencies import CurrentUser
+from app.api.dependencies import CurrentUser, require_credits
 from app.core.config import settings
 from app.core.rate_limit import ats_rate_key, limiter
 from app.db.supabase import get_db
@@ -21,6 +21,7 @@ async def ats_score_calculator(
     request: Request,
     body: MatchRequest,
     user: CurrentUser,
+    _credits=require_credits("ats_score", 5),
 ):
     """
     Calculates ATS score for a resume.
@@ -74,6 +75,7 @@ async def deep_analysis(
     request: Request,
     body: DeepAnalysisRequest,
     user: CurrentUser,
+    _credits=require_credits("deep_analysis", 15),
 ):
     """
     Section-by-section LLM resume critique.
@@ -127,6 +129,7 @@ async def hiring_intelligence(
     request: Request,
     body: HiringIntelRequest,
     user: CurrentUser,
+    _credits=require_credits("hiring_intel", 25),
 ):
     """
     AI Career Intelligence Engine.
