@@ -12,9 +12,15 @@ function getInitialTheme(): boolean {
 export function ThemeToggle() {
   const [isDark, setIsDark] = useState(getInitialTheme);
 
-  // Sync the dark class whenever isDark changes
+  // Single source of truth: whenever isDark changes, sync the DOM class and localStorage
   useEffect(() => {
-    document.documentElement.classList.toggle("dark", isDark);
+    const root = document.documentElement;
+    if (isDark) {
+      root.classList.add("dark");
+    } else {
+      root.classList.remove("dark");
+    }
+    localStorage.setItem("theme", isDark ? "dark" : "light");
   }, [isDark]);
 
   // Listen for OS-level theme changes when user has no explicit preference saved
@@ -23,9 +29,7 @@ export function ThemeToggle() {
     const handleChange = (e: MediaQueryListEvent) => {
       const savedTheme = localStorage.getItem("theme");
       if (!savedTheme) {
-        // Only follow OS preference if user hasn't explicitly chosen
         setIsDark(e.matches);
-        document.documentElement.classList.toggle("dark", e.matches);
       }
     };
     mediaQuery.addEventListener("change", handleChange);
@@ -33,12 +37,7 @@ export function ThemeToggle() {
   }, []);
 
   const toggleTheme = useCallback(() => {
-    setIsDark((prev) => {
-      const newIsDark = !prev;
-      document.documentElement.classList.toggle("dark", newIsDark);
-      localStorage.setItem("theme", newIsDark ? "dark" : "light");
-      return newIsDark;
-    });
+    setIsDark((prev) => !prev);
   }, []);
 
   return (
