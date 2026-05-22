@@ -61,7 +61,7 @@ export function CreditProvider({ children }: { children: ReactNode }) {
 
     const [balance, setBalance] = useState<CreditBalance | null>(null);
     const [featureCosts, setFeatureCosts] = useState<Record<string, FeatureCost>>({});
-    const [isLoading, setIsLoading] = useState(false);
+    const [isLoading, setIsLoading] = useState(true); // M-4 fix: start as true to prevent false-negative flash before first fetch
 
     const fetchAll = useCallback(async () => {
         if (!auth.isAuthenticated) return;
@@ -91,12 +91,14 @@ export function CreditProvider({ children }: { children: ReactNode }) {
 
     const canUse = useCallback(
         (feature: FeatureKey): boolean => {
-            if (!balance) return true; // still loading — optimistic
+            // M-1 fix: while loading or balance not yet fetched, return true
+            // to prevent a false "insufficient credits" flash on first render.
+            if (isLoading || !balance) return true;
             if (balance.is_unlimited) return true;
             const cost = featureCosts[feature]?.cost ?? 0;
             return balance.remaining >= cost;
         },
-        [balance, featureCosts]
+        [balance, featureCosts, isLoading]
     );
 
     const shortfall = useCallback(

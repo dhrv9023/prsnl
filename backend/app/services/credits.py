@@ -271,20 +271,17 @@ async def grant_daily_credits(supabase, user_id: str) -> dict:
         if profile.get("is_unlimited"):
             return {"granted": False, "amount": 0, "already_granted_today": False, "not_eligible": True}
 
-        # ── 3. Only eligible after initial 100 credits are FULLY exhausted ──
-        # Rules:
-        # - User must have received the initial 100 grant (total_granted >= 100)
-        # - User must have 0 remaining credits (fully exhausted)
-        # - Once eligible, they get 50 credits per day on login
-        # - These 50 credits are non-cumulative (capped at 50 per day)
-        remaining_credits = profile.get("remaining_credits", 0)
+        # ── 3. M-3 fix: eligible after initial grant is received, regardless of remaining ──
+        # Old logic blocked daily grants if user had ANY remaining credits, meaning
+        # leftover daily credits from yesterday would block today's grant.
+        # New logic: only block if the user hasn't used their initial grant yet.
         total_granted = profile.get("total_credits_granted", 0)
 
-        if total_granted < INITIAL_CREDIT_GRANT or remaining_credits > 0:
+        if total_granted < INITIAL_CREDIT_GRANT:
             logger.info(
-                "grant_daily_credits: user %s not eligible "
-                "(total_granted=%d, remaining=%d — must have 0 remaining after using initial 100)",
-                user_id, total_granted, remaining_credits
+                "grant_daily_credits: user %s not eligible — initial grant not yet received "
+                "(total_granted=%d, need %d)",
+                user_id, total_granted, INITIAL_CREDIT_GRANT
             )
             return {"granted": False, "amount": 0, "already_granted_today": False, "not_eligible": True}
 

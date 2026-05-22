@@ -16,7 +16,12 @@ _redis: aioredis.Redis | None = None
 
 
 async def get_redis() -> aioredis.Redis:
-    """Return (or lazily create) the shared async Redis client."""
+    """
+    Return (or lazily create) the shared async Redis client.
+    H-4 fix: ping on every call and recreate the client if the connection
+    is broken. This ensures recovery after a Redis outage without needing
+    a process restart.
+    """
     global _redis
     if _redis is None:
         _redis = aioredis.from_url(
@@ -24,6 +29,16 @@ async def get_redis() -> aioredis.Redis:
             encoding="utf-8",
             decode_responses=True,
         )
+    else:
+        # Verify the cached client is still alive; recreate if not
+        try:
+            await _redis.ping()
+        except Exception:
+            _redis = aioredis.from_url(
+                settings.REDIS_URL,
+                encoding="utf-8",
+                decode_responses=True,
+            )
     return _redis
 
 

@@ -42,7 +42,8 @@ async def get_dashboard_summary(user: CurrentUser):
             .select("id, resume_id, analysis_type, output_data, created_at") \
             .in_("resume_id", resume_ids) \
             .order("created_at", desc=True) \
-            .execute()
+            .limit(50) \
+            .execute()  # H-5 fix: cap at 50 rows — Python slice was hiding unbounded DB fetch
 
         analyses = analyses_resp.data or []
 

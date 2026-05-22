@@ -78,11 +78,23 @@ async def get_admin_stats(user: CurrentUser):
         total_analyses = -1
         type_counts = {}
 
-    # ── Cover letters (from ai_analyses where type = cover_letter) ───────────
-    total_cover_letters = type_counts.get("cover_letter", 0)
+    # ── Cover letters (from job_applications table) ──────────────────────────
+    # L-6 fix: cover letters are stored in job_applications, not ai_analyses
+    try:
+        cl_resp = await supabase.table("job_applications").select("id", count="exact").execute()
+        total_cover_letters = cl_resp.count or 0
+    except Exception as e:
+        logger.warning("Admin stats: failed to count cover letters: %s", e)
+        total_cover_letters = 0
 
-    # ── Interviews (from ai_analyses where type = interview_report) ──────────
-    total_interviews = type_counts.get("interview_report", 0)
+    # ── Interviews (from interview_reports table) ─────────────────────────────
+    # L-6 fix: interviews are stored in interview_reports, not ai_analyses
+    try:
+        iv_resp = await supabase.table("interview_reports").select("id", count="exact").execute()
+        total_interviews = iv_resp.count or 0
+    except Exception as e:
+        logger.warning("Admin stats: failed to count interviews: %s", e)
+        total_interviews = 0
 
     # ── New users in last 7 days ─────────────────────────────────────────────
     try:
@@ -119,15 +131,15 @@ async def get_admin_stats(user: CurrentUser):
         "per_feature_usage": {},
     }
     try:
-        # Sum all credits granted across all profiles
-        profiles_credits = await supabase.table("profiles") \
-            .select("total_credits_granted, remaining_credits").execute()
+        # H-6 fix: use DB-side aggregation instead of fetching all profile rows.
+        # At scale, fetching every profile row for a SUM is a full table scan.
+        credit_agg = await supabase.rpc("admin_credit_stats").execute()
+        agg = credit_agg.data or {}
+        if isinstance(agg, list):
+            agg = agg[0] if agg else {}
 
-        total_granted = 0
-        total_remaining = 0
-        for p in (profiles_credits.data or []):
-            total_granted += p.get("total_credits_granted", 0) or 0
-            total_remaining += p.get("remaining_credits", 0) or 0
+        total_granted = agg.get("total_granted", 0) or 0
+        total_remaining = agg.get("total_remaining", 0) or 0
 
         credit_stats["total_credits_granted"] = total_granted
         credit_stats["total_credits_used"] = max(0, total_granted - total_remaining)

@@ -100,12 +100,22 @@ class BodySizeLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: StarletteRequest, call_next) -> Response:
         if request.url.path not in self._UPLOAD_PATHS:
             cl = request.headers.get("content-length")
-            if cl and int(cl) > _MAX_JSON_BODY:
-                return Response(
-                    content='{"detail":"Request body too large"}',
-                    status_code=413,
-                    media_type="application/json",
-                )
+            if cl:
+                try:
+                    cl_int = int(cl)
+                except ValueError:
+                    # M-7 fix: malformed Content-Length returns 400, not 500
+                    return Response(
+                        content='{"detail":"Invalid Content-Length header"}',
+                        status_code=400,
+                        media_type="application/json",
+                    )
+                if cl_int > _MAX_JSON_BODY:
+                    return Response(
+                        content='{"detail":"Request body too large"}',
+                        status_code=413,
+                        media_type="application/json",
+                    )
         return await call_next(request)
 
 
@@ -120,7 +130,8 @@ _CSRF_EXEMPT_PREFIXES = (
     "/api/v1/auth/",
     "/health",
     "/ping",
-    "/",
+    # NOTE: "/" was here before — it exempted ALL paths, making CSRF a no-op.
+    # Removed: C-1 fix.
 )
 _CSRF_SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 

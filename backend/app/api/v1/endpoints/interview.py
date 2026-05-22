@@ -99,7 +99,7 @@ async def start_interview_route(
         analysis_resp = await supabase.table("ai_analyses") \
             .select("output_data, analysis_type") \
             .eq("resume_id", body.resume_id) \
-            .eq("analysis_type", "general_roast") \
+            .eq("analysis_type", "deep_analysis") \
             .order("created_at", desc=True) \
             .limit(1) \
             .execute()

@@ -71,6 +71,12 @@ def _build_limiter() -> Limiter:
             "Rate limits will NOT persist across restarts. "
             "Set REDIS_URL to an Upstash URL in production."
         )
+        # H-7 fix: hard fail at startup if in-memory is used in production
+        if settings.ENVIRONMENT == "production":
+            raise ValueError(
+                "REDIS_URL must not be localhost in production. "
+                "Rate limiting requires shared Redis (set REDIS_URL to your Upstash URL)."
+            )
         return Limiter(key_func=_get_real_client_ip)
 
     return Limiter(

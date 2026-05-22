@@ -9,7 +9,8 @@ from sklearn.metrics.pairwise import cosine_similarity
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
-client = AsyncInferenceClient(api_key=settings.HUGGINGFACE_API_KEY)
+# C-2 fix: 30-second timeout prevents event loop hang on HuggingFace latency spikes
+client = AsyncInferenceClient(api_key=settings.HUGGINGFACE_API_KEY, timeout=30)
 
 
 def clean_text(text: str) -> str:
