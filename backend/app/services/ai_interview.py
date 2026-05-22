@@ -458,12 +458,20 @@ async def generate_roast_questions(
     """
 
     lang_lower = language.lower().strip()
+    # Sanitize language — only allow known safe values to prevent injection
+    _SAFE_LANGUAGES = {"english", "hinglish", "hindi", "french", "spanish", "german",
+                       "portuguese", "italian", "dutch", "japanese", "korean", "chinese"}
+    if lang_lower not in _SAFE_LANGUAGES:
+        lang_lower = "english"
+        language = "english"
+
     if lang_lower == "hinglish":
         language_instruction = (
             "\nIMPORTANT: Write ALL question text in Hinglish (Hindi + English in Roman script). "
             "Be challenging and savage in phrasing. Example: 'Agar tu really senior hai jaise resume mein likha hai, toh yeh bata...'"
         )
     elif lang_lower != "english":
+        # language is now guaranteed to be in the safe allowlist above
         language_instruction = (
             f"\nIMPORTANT: Write ALL question text in {language} (Latin script). "
             "Keep question challenging and savage."
@@ -561,6 +569,13 @@ async def evaluate_roast_answer(
         )
 
     lang_lower = language.lower().strip()
+    # Sanitize language — only allow known safe values to prevent injection
+    _SAFE_LANGUAGES = {"english", "hinglish", "hindi", "french", "spanish", "german",
+                       "portuguese", "italian", "dutch", "japanese", "korean", "chinese"}
+    if lang_lower not in _SAFE_LANGUAGES:
+        lang_lower = "english"
+        language = "english"
+
     if lang_lower == "hinglish":
         language_instruction = "\nIMPORTANT: Write feedback and ideal_answer in Hinglish (Hindi + English Roman script). Be savage."
     elif lang_lower != "english":
