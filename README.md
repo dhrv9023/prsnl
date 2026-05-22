@@ -15,7 +15,7 @@ Kareerist is a full-stack AI-powered career toolkit built for job seekers who wa
 | **ATS Match Score** | Score your resume against a job description using cosine similarity + rule-based signals | 5 |
 | **Deep Analysis** | LLM-powered critique — strengths, weaknesses, missing keywords, actionable fixes | 15 |
 | **Hiring Intelligence** | 9-section recruiter-realistic report on how your profile reads to a hiring manager | 25 |
-| **AI Mock Interview** | 6-question adaptive interview with per-answer evaluation and a final report | 25 |
+| **AI Mock Interview** | 6-question adaptive interview with per-answer evaluation, voice input, and a final report | 25 |
 | **Cover Letter Generator** | Role-targeted cover letter from your resume + JD | 10 |
 | **AI Humanizer** | Strips AI tone from cover letters, makes them sound like you | 15 |
 | **Interview History** | All past interview reports saved and reviewable | Free |
@@ -39,6 +39,7 @@ New users get **100 free credits** on signup. No payment required to try everyth
 
 ### AI / ML
 - **Groq** (`llama-3.3-70b-versatile`) — Deep Analysis, Hiring Intel, Cover Letter, Humanizer, Interview
+- **Groq Whisper** (`whisper-large-v3-turbo`) — Voice interview transcription
 - **HuggingFace API** — Embeddings for ATS cosine similarity
 
 ### Infrastructure
@@ -83,7 +84,8 @@ Resumes       POST /api/v1/resumes/upload | GET /list | /{id}
 ATS Score     POST /api/ats/score
 AI Analysis   POST /api/v1/analysis/deep | /hiring-intel
 Interview     POST /api/v1/interview/start | GET /session | POST /end
-              GET  /api/v1/interview/history
+              POST /api/v1/interview/submit | /submit_voice
+              GET  /api/v1/interview/history | POST /abandon
 Cover Letter  POST /api/v1/cover_letter/generate | /humanize
 Credits       GET  /api/v1/credits/balance | /history
 Admin         GET  /api/v1/admin/stats | /users
@@ -152,8 +154,12 @@ VITE_SUPABASE_ANON_KEY
 
 Run these SQL migrations in your Supabase SQL editor before deploying:
 
-1. `SUPABASE_MIGRATION.sql` — credit system, profiles, transactions
-2. `backend/SUPABASE_MIGRATION_interview_reports.sql` — interview reports table
+1. `supabase/migrations/20260202140000_profiles_auth_sync.sql` — profiles + auth trigger
+2. `supabase/migrations/20260513000000_credit_system.sql` — credit system, transactions, RPC functions
+3. `supabase/migrations/20260515000001_audit_fixes.sql` — RLS, IP farming fix
+4. `supabase/migrations/20260517000001_daily_credits.sql` — daily credit grants
+5. `supabase/migrations/20260522000001_fix_daily_grant_total.sql` — fix total_credits_granted for daily grants
+6. `backend/SUPABASE_MIGRATION_interview_reports.sql` — interview reports table
 
 ### Tables
 
@@ -166,6 +172,7 @@ Run these SQL migrations in your Supabase SQL editor before deploying:
 | `credit_transactions` | Full audit log of every credit change |
 | `ip_credit_claims` | Anti-farming: one IP = one initial credit grant |
 | `interview_reports` | Persisted interview reports |
+| `daily_credit_grants` | Tracks daily 50-credit grants per user per day |
 
 ---
 
@@ -202,6 +209,7 @@ pytest tests/ -v
 | Deep Analysis | ✅ Complete |
 | Hiring Intelligence | ✅ Complete |
 | AI Mock Interview | ✅ Complete |
+| Voice Interview (Whisper STT) | ✅ Complete |
 | Cover Letter + Humanizer | ✅ Complete |
 | Cover Letter PDF (client-side, jsPDF) | ✅ Complete |
 | Hinglish Toggle (Deep Analysis + Interview) | ✅ Complete |
