@@ -22,8 +22,72 @@ import { HinglishToggle } from "@/components/ui/HinglishToggle";
 import {
     ArrowLeft, Loader2, Upload, ChevronRight, Code2, BookOpen, ListChecks,
     Trophy, RotateCcw, FileText, Zap, AlertTriangle,
-    Bot, User, ChevronDown, Lightbulb, Mic, MicOff, Volume2,
+    Bot, User, ChevronDown, Lightbulb, Mic, MicOff, Volume2, VolumeX,
 } from "lucide-react";
+
+// ── Text-to-Speech helper ─────────────────────────────────────────────────────
+
+/**
+ * Builds the full text to be read aloud for a question.
+ * For MCQ: appends "Option A: ..., Option B: ..., ..." after the question text.
+ */
+function buildQuestionSpeechText(q: InterviewQuestion): string {
+    let text = q.text;
+    if (q.type === "mcq" && q.options && q.options.length > 0) {
+        const labels = ["A", "B", "C", "D", "E"];
+        const optionsText = q.options
+            .map((opt, i) => `Option ${labels[i] ?? i + 1}: ${opt}`)
+            .join(". ");
+        text = `${text}. The options are: ${optionsText}.`;
+    }
+    if (q.context) {
+        text = `${text}. Note: ${q.context}`;
+    }
+    return text;
+}
+
+type TtsState = "idle" | "speaking" | "paused";
+
+function useTts() {
+    const [ttsState, setTtsState] = useState<TtsState>("idle");
+    const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+
+    // Cancel speech when component unmounts
+    useEffect(() => {
+        return () => {
+            window.speechSynthesis?.cancel();
+        };
+    }, []);
+
+    const speak = useCallback((text: string) => {
+        if (!window.speechSynthesis) return;
+        window.speechSynthesis.cancel(); // stop any ongoing speech
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.rate = 0.92;
+        utter.pitch = 1;
+        utter.volume = 1;
+        // Prefer a natural English voice if available
+        const voices = window.speechSynthesis.getVoices();
+        const preferred = voices.find(
+            (v) => v.lang.startsWith("en") && (v.name.includes("Google") || v.name.includes("Natural") || v.name.includes("Samantha") || v.name.includes("Daniel"))
+        ) ?? voices.find((v) => v.lang.startsWith("en")) ?? null;
+        if (preferred) utter.voice = preferred;
+
+        utter.onstart = () => setTtsState("speaking");
+        utter.onend = () => setTtsState("idle");
+        utter.onerror = () => setTtsState("idle");
+        utteranceRef.current = utter;
+        window.speechSynthesis.speak(utter);
+        setTtsState("speaking");
+    }, []);
+
+    const stop = useCallback(() => {
+        window.speechSynthesis?.cancel();
+        setTtsState("idle");
+    }, []);
+
+    return { ttsState, speak, stop };
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -595,18 +659,31 @@ function InterviewStep({
     // Voice mode: only available for theory/mcq — code always uses text
     const [voiceMode, setVoiceMode] = useState(false);
 
+    const { ttsState, speak, stop } = useTts();
+
     const q = questions[currentIdx];
     const isLast = currentIdx === questions.length - 1;
     const progress = ((currentIdx + 1) / questions.length) * 100;
     const [displayQuestion, setDisplayQuestion] = useState(q?.text ?? "");
     const isCodeQuestion = q?.type === "code";
 
-    // Reset display text and voice mode when question changes
+    // Reset display text, voice mode, and stop TTS when question changes
     useEffect(() => {
+        stop(); // stop reading previous question
         setDisplayQuestion(q?.text ?? "");
         // Always switch back to text mode for code questions
         if (q?.type === "code") setVoiceMode(false);
-    }, [currentIdx, q?.text, q?.type]);
+    }, [currentIdx, q?.text, q?.type, stop]);
+
+    // Auto-read question aloud when voice mode is turned ON
+    useEffect(() => {
+        if (voiceMode && q) {
+            speak(buildQuestionSpeechText(q));
+        } else {
+            stop();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [voiceMode]);
 
     if (!q) return null;
 
@@ -640,6 +717,7 @@ function InterviewStep({
     }
 
     async function handleNext() {
+        stop(); // stop reading before moving on
         if (isLast) {
             setEnding(true);
             try {
@@ -705,11 +783,28 @@ function InterviewStep({
                                 {q.context && (
                                     <p className="text-xs text-muted-foreground/60 italic leading-relaxed border-l-2 border-border/30 pl-3">{q.context}</p>
                                 )}
-                                <HinglishToggle
-                                    originalText={q.text}
-                                    onConverted={setDisplayQuestion}
-                                    label="Hinglish mein samjho"
-                                />
+                                <div className="flex items-center gap-3 flex-wrap">
+                                    <HinglishToggle
+                                        originalText={q.text}
+                                        onConverted={setDisplayQuestion}
+                                        label="Hinglish mein samjho"
+                                    />
+                                    {/* Read aloud button — available for all question types */}
+                                    <button
+                                        onClick={() => ttsState === "speaking" ? stop() : speak(buildQuestionSpeechText(q))}
+                                        className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-lg border transition-all ${
+                                            ttsState === "speaking"
+                                                ? "border-primary/40 bg-primary/10 text-primary animate-pulse"
+                                                : "border-border/30 text-muted-foreground/50 hover:text-foreground hover:border-border/50"
+                                        }`}
+                                        title={ttsState === "speaking" ? "Stop reading" : "Read question aloud"}
+                                    >
+                                        {ttsState === "speaking"
+                                            ? <><VolumeX className="w-3 h-3" /> Stop</>
+                                            : <><Volume2 className="w-3 h-3" /> Read aloud</>
+                                        }
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
