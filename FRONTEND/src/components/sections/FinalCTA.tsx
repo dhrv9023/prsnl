@@ -1,12 +1,25 @@
-import { motion } from "framer-motion";
-import { useInView } from "framer-motion";
-import { useRef } from "react";
-import { Link } from "react-router-dom";
+import { motion, useInView } from "framer-motion";
+import { useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
+import { useAuthContext } from "@/contexts/AuthContext";
+import { AuthModal } from "@/components/ui/AuthModal";
 
 export function FinalCTA() {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: "-100px" });
+  const auth = useAuthContext();
+  const navigate = useNavigate();
+  const [showAuthModal, setShowAuthModal] = useState(false);
+
+  const handleEnterKareerist = () => {
+    if (auth.isAuthenticated) {
+      navigate("/dashboard");
+    } else {
+      sessionStorage.setItem("redirectAfterLogin", "/dashboard");
+      setShowAuthModal(true);
+    }
+  };
 
   return (
     <section className="py-24 relative overflow-hidden">
@@ -27,10 +40,13 @@ export function FinalCTA() {
           </p>
 
           <div className="flex flex-col items-center gap-6">
-            <Link to="/dashboard" className="inline-flex items-center justify-center h-14 px-8 text-base rounded-full group bg-foreground text-background hover:bg-foreground/90 font-medium">
+            <button
+              onClick={handleEnterKareerist}
+              className="inline-flex items-center justify-center h-14 px-8 text-base rounded-full group bg-foreground text-background hover:bg-foreground/90 font-medium"
+            >
               Enter Kareerist
               <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
-            </Link>
+            </button>
 
             <p className="text-[10px] uppercase tracking-widest text-muted-foreground/60 font-medium">
               Designed around real hiring standards.
@@ -38,6 +54,28 @@ export function FinalCTA() {
           </div>
         </motion.div>
       </div>
+
+      {/* Auth modal — shown when unauthenticated user clicks Enter Kareerist */}
+      {showAuthModal && !auth.isAuthenticated && (
+        <AuthModal
+          onSuccess={() => {
+            setShowAuthModal(false);
+            const redirectTo = sessionStorage.getItem("redirectAfterLogin") || "/dashboard";
+            sessionStorage.removeItem("redirectAfterLogin");
+            navigate(redirectTo);
+          }}
+          onClose={() => {
+            setShowAuthModal(false);
+            sessionStorage.removeItem("redirectAfterLogin");
+          }}
+          login={auth.login}
+          signup={auth.signup}
+          loginWithGoogle={auth.loginWithGoogle}
+          isSubmitting={auth.isSubmitting}
+          error={auth.error}
+          clearError={auth.clearError}
+        />
+      )}
     </section>
   );
 }

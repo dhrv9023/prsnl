@@ -1,8 +1,24 @@
 import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
-import { Link } from "react-router-dom";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuthContext } from "@/contexts/AuthContext";
+import { AuthModal } from "@/components/ui/AuthModal";
 
 export function Hero() {
+  const auth = useAuthContext();
+  const navigate = useNavigate();
+  const [showAuthModal, setShowAuthModal] = useState(false);
+
+  const handleEnterKareerist = () => {
+    if (auth.isAuthenticated) {
+      navigate("/dashboard");
+    } else {
+      // Store intended destination so AuthModal can redirect after login
+      sessionStorage.setItem("redirectAfterLogin", "/dashboard");
+      setShowAuthModal(true);
+    }
+  };
   return (
     <section className="relative min-h-screen flex items-center justify-center pt-20 overflow-hidden">
       {/* Subtle gradient background */}
@@ -58,13 +74,13 @@ export function Hero() {
             transition={{ duration: 0.6, delay: 0.5 }}
             className="flex flex-col sm:flex-row items-center justify-center gap-4"
           >
-            <Link
-              to="/dashboard"
+            <button
+              onClick={handleEnterKareerist}
               className="btn-premium h-14 px-8 text-base bg-primary text-primary-foreground rounded-full shadow-lg shadow-primary/10 hover:shadow-xl hover:shadow-primary/20"
             >
               Enter Kareerist
               <ArrowRight className="w-4 h-4" />
-            </Link>
+            </button>
           </motion.div>
 
           {/* Trust Signals */}
@@ -92,6 +108,28 @@ export function Hero() {
 
       {/* Bottom fade */}
       <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-background to-transparent" />
+
+      {/* Auth modal — shown when unauthenticated user clicks Enter Kareerist */}
+      {showAuthModal && !auth.isAuthenticated && (
+        <AuthModal
+          onSuccess={() => {
+            setShowAuthModal(false);
+            const redirectTo = sessionStorage.getItem("redirectAfterLogin") || "/dashboard";
+            sessionStorage.removeItem("redirectAfterLogin");
+            navigate(redirectTo);
+          }}
+          onClose={() => {
+            setShowAuthModal(false);
+            sessionStorage.removeItem("redirectAfterLogin");
+          }}
+          login={auth.login}
+          signup={auth.signup}
+          loginWithGoogle={auth.loginWithGoogle}
+          isSubmitting={auth.isSubmitting}
+          error={auth.error}
+          clearError={auth.clearError}
+        />
+      )}
     </section>
   );
 }
