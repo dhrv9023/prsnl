@@ -102,6 +102,13 @@ backend/uploads/
 supabase/.branches/
 supabase/.temp/
 
+# Ad-hoc / one-off SQL scripts — dangerous in prod, not versioned migrations.
+# Use supabase/migrations/ for all schema changes instead.
+supabase/RESET_*.sql
+supabase/FIX_*.sql
+supabase/HOTFIX_*.sql
+supabase/TEST_*.sql
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Documentation & Deployment Guides (local reference only, not pushed to GitHub)
 # ─────────────────────────────────────────────────────────────────────────────
