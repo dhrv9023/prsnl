@@ -91,7 +91,12 @@ function useTts() {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const EXPERIENCE_LEVELS = ["Fresher (0–1 yr)", "Junior (1–3 yrs)", "Mid (3–6 yrs)", "Senior (6+ yrs)"];
+const EXPERIENCE_LEVELS = [
+    { display: "Fresher (0–1 yr)", value: "fresher" },
+    { display: "Junior (1–3 yrs)", value: "junior" },
+    { display: "Mid (3–6 yrs)", value: "mid" },
+    { display: "Senior (6+ yrs)", value: "senior" },
+];
 
 const POPULAR_ROLES = [
     "Software Engineer", "Frontend Developer", "Backend Developer",
@@ -153,7 +158,7 @@ function SetupStep({
     const [uploading, setUploading] = useState(false);
     const [selectedResume, setSelectedResume] = useState<string>("");
     const [role, setRole] = useState("");
-    const [level, setLevel] = useState(EXPERIENCE_LEVELS[0]);
+    const [level, setLevel] = useState(EXPERIENCE_LEVELS[0].value);
     const [starting, setStarting] = useState(false);
     const [error, setError] = useState("");
 
@@ -307,10 +312,10 @@ function SetupStep({
                             Experience Level
                         </label>
                         <div className="grid grid-cols-2 gap-2">
-                            {EXPERIENCE_LEVELS.map((l) => (
-                                <button key={l} onClick={() => setLevel(l)}
-                                    className={`px-3 py-2.5 rounded-xl border text-sm font-medium transition-all text-left ${level === l ? "border-primary/50 bg-primary/5 text-foreground" : "border-border/30 text-muted-foreground/60 hover:border-border/50 hover:text-foreground"}`}>
-                                    {l}
+                            {EXPERIENCE_LEVELS.map((lvl) => (
+                                <button key={lvl.value} onClick={() => setLevel(lvl.value)}
+                                    className={`px-3 py-2.5 rounded-xl border text-sm font-medium transition-all text-left ${level === lvl.value ? "border-primary/50 bg-primary/5 text-foreground" : "border-border/30 text-muted-foreground/60 hover:border-border/50 hover:text-foreground"}`}>
+                                    {lvl.display}
                                 </button>
                             ))}
                         </div>

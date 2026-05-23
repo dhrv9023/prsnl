@@ -50,9 +50,14 @@ export function CreditCard() {
         );
     }
 
-    // After initial 100 credits are used, show daily cap (50) as denominator
-    const isInDailyMode = balance.total_granted > 100;
-    const displayCap = isInDailyMode ? 50 : balance.total_granted;
+    // Determine display mode:
+    // - If user has received more than initial 100 credits, they're in daily mode
+    // - Show daily cap (50) as denominator in daily mode
+    // - Show total_granted as denominator in initial mode
+    const INITIAL_GRANT = 100;
+    const DAILY_CAP = 50;
+    const isInDailyMode = balance.total_granted > INITIAL_GRANT;
+    const displayCap = isInDailyMode ? DAILY_CAP : balance.total_granted;
     const displayRemaining = balance.remaining;
     const pct = displayCap > 0
         ? Math.min(100, Math.round((displayRemaining / displayCap) * 100))
