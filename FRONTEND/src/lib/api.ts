@@ -19,15 +19,55 @@ const DEV_BYPASS_HEADERS: Record<string, string> = IS_DEV
     : {};
 
 // ── CSRF Token ───────────────────────────────────────────────────────────────
-// The backend sets a JS-readable `__krs_xsrf` cookie on login.
-// We read it here and attach it as X-CSRF-Token on every state-changing request.
-// This defeats CSRF attacks even when SameSite=None (cross-site cookies).
+// The backend sets a JS-readable `__krs_xsrf` cookie on login AND returns it
+// in the response body. In cross-origin setups (production), cookies with
+// SameSite=None cannot be read by document.cookie from a different domain.
+// So we store the token in memory when login/OAuth returns it, and fall back
+// to reading from cookie in same-origin dev setups.
+
+let csrfTokenCache: string | null = null;
+
+export function setCsrfToken(token: string): void {
+    csrfTokenCache = token;
+    // Also try to store in sessionStorage as backup (survives page refresh)
+    try {
+        sessionStorage.setItem("__krs_csrf", token);
+    } catch {
+        // ignore if sessionStorage is disabled
+    }
+}
+
+export function clearCsrfToken(): void {
+    csrfTokenCache = null;
+    try {
+        sessionStorage.removeItem("__krs_csrf");
+    } catch {
+        // ignore
+    }
+}
 
 function getCsrfToken(): string {
+    // 1. Check memory cache first
+    if (csrfTokenCache) return csrfTokenCache;
+
+    // 2. Try sessionStorage (survives page refresh)
+    try {
+        const stored = sessionStorage.getItem("__krs_csrf");
+        if (stored) {
+            csrfTokenCache = stored;
+            return stored;
+        }
+    } catch {
+        // ignore
+    }
+
+    // 3. Fall back to reading cookie (works in same-origin dev setups)
     const match = document.cookie
         .split("; ")
         .find((row) => row.startsWith("__krs_xsrf="));
-    return match ? match.split("=")[1] : "";
+    const token = match ? match.split("=")[1] : "";
+    if (token) csrfTokenCache = token;
+    return token;
 }
 
 // ── Generic fetch wrapper ────────────────────────────────────────────────────
@@ -112,14 +152,22 @@ export async function apiLogin(
     email: string,
     password: string
 ): Promise<{ msg: string; user: AuthUser }> {
-    return request("/auth/login", {
+    const result = await request<{ msg: string; user: AuthUser; csrf_token?: string }>("/auth/login", {
         method: "POST",
         body: JSON.stringify({ email, password }),
     });
+    // Store CSRF token if returned (production cross-origin setup)
+    if (result.csrf_token) {
+        setCsrfToken(result.csrf_token);
+    }
+    return result;
 }
 
 export async function apiLogout(): Promise<{ msg: string }> {
-    return request("/auth/logout", { method: "POST" });
+    const result = await request<{ msg: string }>("/auth/logout", { method: "POST" });
+    // Clear CSRF token on logout
+    clearCsrfToken();
+    return result;
 }
 
 export async function apiGetMe(): Promise<AuthMeResponse> {
@@ -130,10 +178,15 @@ export async function apiExchangeOAuthSession(
     code: string,
     code_verifier: string
 ): Promise<{ msg: string; user: AuthUser }> {
-    return request("/auth/oauth/session", {
+    const result = await request<{ msg: string; user: AuthUser; csrf_token?: string }>("/auth/oauth/session", {
         method: "POST",
         body: JSON.stringify({ code, code_verifier }),
     });
+    // Store CSRF token if returned (production cross-origin setup)
+    if (result.csrf_token) {
+        setCsrfToken(result.csrf_token);
+    }
+    return result;
 }
 
 // ── Resume types ─────────────────────────────────────────────────────────────
