@@ -135,6 +135,9 @@ _CSRF_EXEMPT_PREFIXES = (
 )
 _CSRF_SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 
+# Parse CORS origins early so CSRFMiddleware can use them
+_cors_origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
+
 
 class CSRFMiddleware(BaseHTTPMiddleware):
     """
@@ -152,6 +155,16 @@ class CSRFMiddleware(BaseHTTPMiddleware):
     Only enforced in production (SameSite=None is only set in production).
     In development SameSite=Lax is sufficient and CSRF checks are skipped.
     """
+
+    def _add_cors_headers(self, response: Response, request: StarletteRequest) -> Response:
+        """Add CORS headers to error responses so browser doesn't block them."""
+        origin = request.headers.get("origin")
+        if origin and origin in _cors_origins:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+            response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With, X-CSRF-Token"
+        return response
 
     async def dispatch(self, request: StarletteRequest, call_next) -> Response:
         # In development, SameSite=Lax is sufficient protection.
@@ -174,20 +187,22 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         header_token = request.headers.get("X-CSRF-Token", "")
 
         if not cookie_token or not header_token:
-            return Response(
+            response = Response(
                 content='{"detail":"CSRF token missing. Refresh the page and try again."}',
                 status_code=403,
                 media_type="application/json",
             )
+            return self._add_cors_headers(response, request)
 
         # Constant-time comparison to prevent timing attacks
         import hmac
         if not hmac.compare_digest(cookie_token, header_token):
-            return Response(
+            response = Response(
                 content='{"detail":"CSRF token mismatch. Refresh the page and try again."}',
                 status_code=403,
                 media_type="application/json",
             )
+            return self._add_cors_headers(response, request)
 
         return await call_next(request)
 
@@ -223,11 +238,9 @@ app.include_router(ats_score.router, prefix="/api/ats", tags=["ATS Resume Analyz
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
 
-cors_origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=cors_origins,
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization", "X-Requested-With", "X-CSRF-Token"],
