@@ -70,6 +70,15 @@ FastAPI (Uvicorn)
 
 **Auth:** HttpOnly cookie-based — no JWTs in localStorage. Full PKCE OAuth flow for Google.
 
+**CSRF Protection:** Double-submit cookie pattern with cross-origin support:
+1. Backend sets `__krs_xsrf` cookie (JS-readable, not HttpOnly) on login
+2. Frontend reads token from login response and stores in memory + sessionStorage
+3. Frontend sends token as `X-CSRF-Token` header on POST/PUT/DELETE requests
+4. Backend validates header token matches cookie token
+5. CSRFMiddleware adds CORS headers to error responses for proper browser handling
+
+This approach works in cross-origin production setups where cookies with `SameSite=None` cannot be read by JavaScript from different domains.
+
 **Credits:** Enforced server-side via atomic PostgreSQL RPC (`deduct_credits()`). Frontend does optimistic deduction for UX only.
 
 ---
@@ -161,6 +170,7 @@ Run these SQL migrations in your Supabase SQL editor before deploying:
 5. `supabase/migrations/20260522000001_fix_daily_grant_total.sql` — fix total_credits_granted for daily grants
 6. `supabase/migrations/20260515000002_interview_reports.sql` — interview reports table
 7. `supabase/migrations/20260522000003_admin_credit_stats_rpc.sql` — admin credit stats RPC
+8. `supabase/migrations/20260523000000_comprehensive_fix.sql` — comprehensive permissions fix, INSERT policies, and RLS enforcement
 
 ### Tables
 
@@ -187,6 +197,12 @@ The platform implements comprehensive security measures:
 - ✅ **Anti-Farming:** IP-based deduplication prevents multi-account credit abuse
 - ✅ **Audit Trail:** Complete transaction history for forensic analysis
 - ✅ **Error Handling:** No information disclosure, proper HTTP status codes
+- ✅ **CSRF Protection:** Double-submit cookie validation with cross-origin support
+  - Backend sets JS-readable `__krs_xsrf` cookie on login
+  - Frontend stores token in memory + sessionStorage (cross-origin compatible)
+  - Token sent as `X-CSRF-Token` header on all state-changing requests
+  - CSRFMiddleware validates token matches cookie value
+  - CORS headers added to error responses for proper browser handling
 
 ---
 
@@ -238,6 +254,12 @@ pytest tests/ -v
 ---
 
 ## Recent Updates
+
+### May 23, 2026
+- ✅ **CSRF Token Handling (Cross-Origin Fix):** Fixed production 403 errors by implementing in-memory CSRF token storage. Backend now returns `csrf_token` in login/OAuth responses, and frontend stores it in memory + sessionStorage instead of relying on cross-origin cookies (which can't be read by JavaScript). CSRFMiddleware now adds CORS headers to 403 responses.
+- ✅ **Experience Level Validation:** Fixed interview setup validation error by mapping frontend display values ("Fresher (0–1 yr)") to backend enum values ("fresher"). Updated AIInterview component to use value/display pairs.
+- ✅ **Credit Display Logic:** Clarified credit display denominator — shows "remaining/100" during initial phase, switches to "remaining/50" once daily grants begin (total_granted > 100).
+- ✅ **Database Migrations:** Consolidated all migrations into single comprehensive fix (20260523000000_comprehensive_fix.sql) with proper permissions and INSERT policies.
 
 ### May 22, 2026
 - ✅ **Theme Toggle Fix:** Fixed light/dark mode switching issue where theme-init.js and theme-toggle.tsx had conflicting defaults

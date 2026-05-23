@@ -115,6 +115,8 @@ supabase/TEST_*.sql
 # All documentation files are local reference only — exclude from GitHub
 *.md
 !README.md
+!CSRF_IMPLEMENTATION.md
+!CHANGELOG.md
 *.txt
 *.docx
 *.doc
