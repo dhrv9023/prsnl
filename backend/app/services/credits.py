@@ -44,6 +44,43 @@ LOW_CREDIT_THRESHOLD = 20  # warn the user when remaining credits fall below thi
 
 # ── Initial credit grant (IP-gated) ───────────────────────────────────────────
 
+def _is_transient_supabase_error(exc: Exception) -> bool:
+    """Check if a Supabase error is a transient Cloudflare/network failure worth retrying."""
+    err_msg = str(exc).lower()
+    return any(kw in err_msg for kw in (
+        "json could not be generated",
+        "cloudflare",
+        "attention required",
+        "502", "503", "504",
+        "timeout",
+        "connection",
+    ))
+
+
+async def _rpc_with_retry(supabase, fn_name: str, params: dict, *, max_attempts: int = 3, return_data: bool = False):
+    """
+    Calls a Supabase RPC with retry + exponential backoff.
+    Handles transient Cloudflare 403 WAF blocks that return HTML instead of JSON.
+
+    If return_data=True, returns the result.data from the RPC call.
+    """
+    import asyncio
+
+    for attempt in range(1, max_attempts + 1):
+        try:
+            result = await supabase.rpc(fn_name, params).execute()
+            return result if return_data else None
+        except Exception as exc:
+            if attempt == max_attempts or not _is_transient_supabase_error(exc):
+                raise
+            delay = 1.5 * (2 ** (attempt - 1))  # 1.5s, 3s
+            logger.warning(
+                "Supabase RPC %s transient failure (attempt %d/%d), retrying in %.1fs: %s",
+                fn_name, attempt, max_attempts, delay, exc,
+            )
+            await asyncio.sleep(delay)
+
+
 async def grant_initial_credits(supabase, user_id: str, client_ip: str) -> int:
     """
     Grants INITIAL_CREDIT_GRANT credits to a new user if their IP has not already
@@ -79,13 +116,14 @@ async def grant_initial_credits(supabase, user_id: str, client_ip: str) -> int:
             )
             return 0
 
-        # Grant credits via PostgreSQL function (atomic)
-        await supabase.rpc("grant_credits", {
+        # Grant credits via PostgreSQL function (atomic) — with retry for transient
+        # Cloudflare WAF 403 blocks that return HTML instead of JSON
+        await _rpc_with_retry(supabase, "grant_credits", {
             "p_user_id": user_id,
             "p_amount":  INITIAL_CREDIT_GRANT,
             "p_feature": "initial_grant",
             "p_metadata": {"source": "signup", "ip": client_ip},
-        }).execute()
+        })
 
         # Record the IP claim
         await supabase.table("ip_credit_claims").insert({
@@ -146,13 +184,13 @@ async def deduct_feature_credits(
                     "low_credits": False,
                 }
 
-        # ── Atomic deduction via PostgreSQL RPC ────────────────────────────
-        result = await supabase.rpc("deduct_credits", {
+        # ── Atomic deduction via PostgreSQL RPC (with retry for Cloudflare WAF) ─
+        result = await _rpc_with_retry(supabase, "deduct_credits", {
             "p_user_id":  user_id,
             "p_feature":  feature,
             "p_amount":   cost,
             "p_metadata": metadata or {},
-        }).execute()
+        }, return_data=True)
 
         data = result.data
         if isinstance(data, list):
@@ -210,12 +248,12 @@ async def refund_feature_credits(
         if profile_resp.data and profile_resp.data[0].get("is_unlimited"):
             return
 
-        await supabase.rpc("grant_credits", {
+        await _rpc_with_retry(supabase, "grant_credits", {
             "p_user_id": user_id,
             "p_amount":  cost,
             "p_feature": reason,
             "p_metadata": {"refund_for": feature, "reason": reason},
-        }).execute()
+        })
 
         logger.info(
             "refund_feature_credits: refunded %d credits to user %s for failed %s",
@@ -306,12 +344,12 @@ async def grant_daily_credits(supabase, user_id: str) -> dict:
             return {"granted": False, "amount": 0, "already_granted_today": True, "not_eligible": False}
 
         # ── 6. Grant 50 credits ────────────────────────────────────────────
-        await supabase.rpc("grant_credits", {
+        await _rpc_with_retry(supabase, "grant_credits", {
             "p_user_id": user_id,
             "p_amount":  DAILY_CREDIT_GRANT,
             "p_feature": "daily_grant",
             "p_metadata": {"source": "daily_login", "date": today_utc},
-        }).execute()
+        })
 
         # ── 7. Record the grant ──────────────────────────────────────────────
         await supabase.table("daily_credit_grants").insert({
@@ -348,12 +386,12 @@ async def admin_grant_credits(    supabase,
     Returns updated balance.
     """
     try:
-        await supabase.rpc("grant_credits", {
+        await _rpc_with_retry(supabase, "grant_credits", {
             "p_user_id": target_user_id,
             "p_amount":  amount,
             "p_feature": reason,
             "p_metadata": {"granted_by": granted_by, "reason": reason},
-        }).execute()
+        })
 
         # Fetch updated balance
         res = await supabase.table("profiles") \

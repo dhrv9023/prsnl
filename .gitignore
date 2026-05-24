@@ -115,8 +115,6 @@ supabase/TEST_*.sql
 # Ignore all markdown files except whitelisted ones
 *.md
 !README.md
-!CSRF_IMPLEMENTATION.md
-!CHANGELOG.md
 !.kiro/README.md
 
 # Ignore all text and document files except requirements.txt and robots.txt
@@ -151,3 +149,5 @@ backend.log
 # Subprojects with their own repos (excluded from prsnl repo)
 # ─────────────────────────────────────────────────────────────────────────────
 kareerist_blog/
+
+qa_report/
