@@ -61,6 +61,7 @@ const AdminPage = lazyWithRetry(() => import("./pages/AdminPage"));
 const CoverLetter = lazyWithRetry(() => import("./pages/CoverLetter"));
 const CreditsPage = lazyWithRetry(() => import("./pages/CreditsPage"));
 const InterviewHistory = lazyWithRetry(() => import("./pages/InterviewHistory"));
+const Contact = lazyWithRetry(() => import("./pages/Contact"));
 
 const queryClient = new QueryClient();
 
@@ -89,6 +90,7 @@ const App = () => (
                 <Route path="/cover-letter" element={<CoverLetter />} />
                 <Route path="/credits" element={<CreditsPage />} />
                 <Route path="/interview/history" element={<InterviewHistory />} />
+                <Route path="/contact" element={<Contact />} />
                 <Route path="/auth/callback" element={<AuthCallback />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>

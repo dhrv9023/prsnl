@@ -268,7 +268,7 @@ export function Navbar() {
             <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/30 bg-secondary/40 px-1.5 py-0.5 rounded">Soon</span>
           </span>
           <Link
-            to="/#contact"
+            to="/contact"
             className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors link-underline"
           >
             Contact
@@ -445,7 +445,7 @@ export function Navbar() {
               <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/30 bg-secondary/40 px-1.5 py-0.5 rounded">Soon</span>
             </span>
             <Link
-              to="/#contact"
+              to="/contact"
               onClick={() => setIsMobileMenuOpen(false)}
               className="text-base font-medium text-muted-foreground hover:text-foreground transition-colors py-2"
             >
