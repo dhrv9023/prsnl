@@ -110,9 +110,8 @@ supabase/HOTFIX_*.sql
 supabase/TEST_*.sql
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Documentation & Deployment Guides (local reference only, not pushed to GitHub)
+# Documentation & Docs (local reference only — not committed to GitHub)
 # ─────────────────────────────────────────────────────────────────────────────
-# All documentation files are local reference only — exclude from GitHub
 *.md
 !README.md
 !CSRF_IMPLEMENTATION.md
@@ -125,10 +124,14 @@ supabase/TEST_*.sql
 *.xls
 kareerist_sofar/
 code_explained/
+code_explanation/
 docs/
 documentation/
 codes.txt
 backend.log
+BLOG_TOPICS.md
+UPDATES_SUMMARY.md
+setup.md
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Misc
@@ -137,3 +140,8 @@ backend.log
 *.swp
 *.swo
 *~
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Subprojects with their own repos (excluded from prsnl repo)
+# ─────────────────────────────────────────────────────────────────────────────
+kareerist_blog/
