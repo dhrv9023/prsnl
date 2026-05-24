@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { useAuthContext } from "@/contexts/AuthContext";
 import {
     Mail, MessageSquare, Send, Loader2, CheckCircle2, AlertCircle,
-    ArrowLeft, MapPin, Clock, Phone, Linkedin, Twitter, Instagram, Github,
+    ArrowLeft, MapPin, Clock, Linkedin, Twitter, Instagram, Github,
     BookOpen, ArrowRight, ExternalLink
 } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
@@ -140,26 +140,7 @@ export default function Contact() {
                                     </a>
                                 </div>
 
-                                {/* WhatsApp */}
-                                <div className="space-y-3">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-                                            <Phone className="w-5 h-5 text-emerald-500" />
-                                        </div>
-                                        <h3 className="text-lg font-semibold">WhatsApp</h3>
-                                    </div>
-                                    <p className="text-sm text-muted-foreground/70 leading-relaxed">
-                                        Quick support via WhatsApp
-                                    </p>
-                                    <a
-                                        href="https://wa.me/919220947734"
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="inline-flex items-center gap-2 text-sm font-medium text-emerald-500 hover:underline underline-offset-4"
-                                    >
-                                        +91 9220947734
-                                    </a>
-                                </div>
+
 
                                 {/* Location */}
                                 <div className="space-y-3">

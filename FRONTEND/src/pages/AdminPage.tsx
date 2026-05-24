@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Navbar } from "@/components/layout/Navbar";
 import { useAuthContext } from "@/contexts/AuthContext";
@@ -11,7 +11,7 @@ import {
     ShieldCheck, Gauge, Lock, Loader2,
     TrendingUp, Activity, RefreshCw, Clock,
     Zap, Infinity as InfinityIcon, CreditCard, ChevronDown, ChevronUp,
-    Gift, ToggleLeft, ToggleRight, AlertTriangle,
+    Gift, ToggleLeft, ToggleRight, AlertTriangle, LogIn,
 } from "lucide-react";
 
 function timeAgo(dateStr: string): string {
@@ -142,7 +142,19 @@ function UserRow({ user, onGrant, onToggleUnlimited }: {
                             </span>
                         )}
                     </div>
-                    <p className="text-xs text-muted-foreground/40 mt-0.5">{timeAgo(localUser.created_at)}</p>
+                    <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                        <span className="text-xs text-muted-foreground/40 flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            Joined {timeAgo(localUser.created_at)}
+                        </span>
+                        <span className="text-xs flex items-center gap-1 font-medium"
+                            style={{ color: localUser.last_sign_in_at ? "rgb(134 239 172 / 0.8)" : "rgb(148 163 184 / 0.4)" }}>
+                            <LogIn className="w-3 h-3" />
+                            {localUser.last_sign_in_at
+                                ? `Last login: ${timeAgo(localUser.last_sign_in_at)}`
+                                : "Never logged in"}
+                        </span>
+                    </div>
                 </div>
 
                 {/* Credit bar */}

@@ -191,7 +191,7 @@ async def get_all_users(user: CurrentUser):
 
     try:
         profiles_resp = await supabase.table("profiles") \
-            .select("id, email, full_name, remaining_credits, total_credits_granted, is_unlimited, is_admin, created_at") \
+            .select("id, email, full_name, remaining_credits, total_credits_granted, is_unlimited, is_admin, created_at, last_sign_in_at") \
             .order("created_at", desc=True) \
             .execute()
 

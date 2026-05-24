@@ -622,7 +622,69 @@ const DashboardPage = () => {
                                 </div>
                             </div>
 
-                            {/* SECTION 2: User Metrics */}
+                            {/* SECTION 2: Improvement Tracker (moved to top, right after Career Intelligence) */}
+                            {hasAnalyzed && (intelData || deepData) && (
+                                <div className="rounded-xl border border-border/20 bg-card/60 backdrop-blur-sm overflow-hidden">
+                                    <div className="px-6 py-4 border-b border-border/15 flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <CheckCircle2 className="w-4 h-4 text-emerald-400/60" />
+                                            <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground/60">Improvement Tracker</p>
+                                        </div>
+                                        <span className="text-[10px] font-mono text-muted-foreground/30 uppercase tracking-widest">
+                                            {intelData ? "Hiring Intel" : "Deep Analysis"} · {selectedResumeName ?? ""}
+                                        </span>
+                                    </div>
+                                    <div className="divide-y divide-border/10">
+                                        {intelData ? (
+                                            intelData.report.highest_impact_improvements.slice(0, 5).map((item, i) => (
+                                                <div key={i} className="flex gap-4 px-6 py-4 group hover:bg-secondary/10 transition-colors">
+                                                    <div className="flex-shrink-0 w-6 h-6 rounded-md bg-primary/8 border border-primary/15 flex items-center justify-center mt-0.5">
+                                                        <span className="text-[10px] font-bold text-primary/50">{i + 1}</span>
+                                                    </div>
+                                                    <div className="flex-1 min-w-0 space-y-1">
+                                                        <p className="text-sm font-medium text-foreground/85 leading-snug">{item.improvement}</p>
+                                                        <p className="text-xs text-muted-foreground/55 leading-relaxed">{item.why}</p>
+                                                        {item.hiring_impact && (
+                                                            <div className="flex items-center gap-1.5 pt-0.5">
+                                                                <Zap className="w-3 h-3 text-amber-400/70 flex-shrink-0" />
+                                                                <span className="text-[11px] text-amber-400/70 font-medium">{item.hiring_impact}</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ))
+                                        ) : deepData?.action_items?.slice(0, 5).map((item, i) => {
+                                            const parts = item.split(" → ");
+                                            const problem = parts[0]?.replace(/^PRIORITY \d+ — /, "").trim();
+                                            const why = parts[1]?.trim();
+                                            const fix = parts[2]?.trim();
+                                            return (
+                                                <div key={i} className="flex gap-4 px-6 py-4 group hover:bg-secondary/10 transition-colors">
+                                                    <div className="flex-shrink-0 w-6 h-6 rounded-md bg-primary/8 border border-primary/15 flex items-center justify-center mt-0.5">
+                                                        <span className="text-[10px] font-bold text-primary/50">{i + 1}</span>
+                                                    </div>
+                                                    <div className="flex-1 min-w-0 space-y-1.5">
+                                                        {why && fix ? (
+                                                            <>
+                                                                <p className="text-sm font-medium text-foreground/85 leading-snug">{problem}</p>
+                                                                <p className="text-xs text-muted-foreground/55 leading-relaxed">{why}</p>
+                                                                <div className="flex items-start gap-1.5 pt-0.5 p-2.5 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
+                                                                    <ArrowRight className="w-3 h-3 text-emerald-400/60 flex-shrink-0 mt-0.5" />
+                                                                    <span className="text-[11px] text-emerald-400/80 leading-relaxed font-medium">{fix}</span>
+                                                                </div>
+                                                            </>
+                                                        ) : (
+                                                            <p className="text-sm text-muted-foreground/70 leading-relaxed">{item}</p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* SECTION 3: User Metrics */}
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                 <MetricCard
                                     label={atsMode === "jd_match" ? "ATS Score (with JD)" : "ATS Score (without JD)"}
@@ -702,7 +764,7 @@ const DashboardPage = () => {
                                 />
                             </div>
 
-                            {/* SECTION 2b: Credits + Interview History */}
+                            {/* SECTION 4: Credits + Interview History */}
                             <div className="grid gap-4 md:grid-cols-2">
                                 <CreditCard />
                                 {/* Interview History */}
@@ -747,14 +809,17 @@ const DashboardPage = () => {
                                 </div>
                             </div>
 
-                            {/* SECTION 3: Analysis History */}
+                            {/* SECTION 5: Analysis History — filtered by selected resume */}
                             <div className="rounded-xl border border-border/20 bg-card/60 backdrop-blur-sm overflow-hidden">
                                 <div className="px-6 py-4 flex items-center justify-between border-b border-border/15">
                                     <div className="flex items-center gap-2">
                                         <Clock className="w-4 h-4 text-muted-foreground/50" />
                                         <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground/60">Analysis History</p>
+                                        {selectedResumeName && (
+                                            <span className="text-[10px] font-mono text-muted-foreground/30 ml-1 hidden sm:block">· {selectedResumeName}</span>
+                                        )}
                                     </div>
-                                    {data.analysis_history.length > 0 && (
+                                    {selectedResumeHistory.length > 0 && (
                                         <Link
                                             to="/resume-analysis"
                                             className="text-xs text-muted-foreground/50 hover:text-foreground transition-colors flex items-center gap-1"
@@ -764,97 +829,42 @@ const DashboardPage = () => {
                                     )}
                                 </div>
                                 <div className="px-6">
-                                    {data.analysis_history.length > 0 ? (
-                                        data.analysis_history.slice(0, 10).map((item, i) => (
+                                    {selectedResumeHistory.length > 0 ? (
+                                        selectedResumeHistory.slice(0, 10).map((item, i) => (
                                             <HistoryItem
                                                 key={item.id}
                                                 item={item}
-                                                isLast={i === Math.min(data.analysis_history.length, 10) - 1}
+                                                isLast={i === Math.min(selectedResumeHistory.length, 10) - 1}
                                             />
                                         ))
                                     ) : (
                                         <div className="py-10 text-center">
-                                            <p className="text-sm text-muted-foreground/50">No analyses yet</p>
-                                            <p className="text-xs text-muted-foreground/30 mt-1">Upload your first resume to begin</p>
+                                            <p className="text-sm text-muted-foreground/50">
+                                                {selectedResumeName
+                                                    ? `No analyses for "${selectedResumeName}" yet`
+                                                    : "No analyses yet"}
+                                            </p>
+                                            <p className="text-xs text-muted-foreground/30 mt-1">
+                                                {selectedResumeName
+                                                    ? "Run a new analysis on this resume to see results here"
+                                                    : "Upload your first resume to begin"}
+                                            </p>
                                             <Link
                                                 to="/resume-analysis"
                                                 className="inline-flex items-center gap-2 mt-4 h-9 px-4 bg-secondary border border-border/30 text-foreground rounded-lg text-sm font-medium hover:bg-secondary/70 transition-colors"
                                             >
                                                 <Upload className="w-3.5 h-3.5" />
-                                                Start Analyzing
+                                                {selectedResumeName ? "Analyze This Resume" : "Start Analyzing"}
                                             </Link>
                                         </div>
                                     )}
                                 </div>
                             </div>
 
-                            {/* SECTION 4: Improvement Tracker (intel or deep) */}
-                            {hasAnalyzed && (intelData || deepData) && (
-                                <div className="rounded-xl border border-border/20 bg-card/60 backdrop-blur-sm overflow-hidden">
-                                    <div className="px-6 py-4 border-b border-border/15 flex items-center justify-between">
-                                        <div className="flex items-center gap-2">
-                                            <CheckCircle2 className="w-4 h-4 text-emerald-400/60" />
-                                            <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground/60">Improvement Tracker</p>
-                                        </div>
-                                        <span className="text-[10px] font-mono text-muted-foreground/30 uppercase tracking-widest">
-                                            {intelData ? "Hiring Intel" : "Deep Analysis"} · {selectedResumeName ?? ""}
-                                        </span>
-                                    </div>
-                                    <div className="divide-y divide-border/10">
-                                        {intelData ? (
-                                            intelData.report.highest_impact_improvements.slice(0, 5).map((item, i) => (
-                                                <div key={i} className="flex gap-4 px-6 py-4 group hover:bg-secondary/10 transition-colors">
-                                                    <div className="flex-shrink-0 w-6 h-6 rounded-md bg-primary/8 border border-primary/15 flex items-center justify-center mt-0.5">
-                                                        <span className="text-[10px] font-bold text-primary/50">{i + 1}</span>
-                                                    </div>
-                                                    <div className="flex-1 min-w-0 space-y-1">
-                                                        <p className="text-sm font-medium text-foreground/85 leading-snug">{item.improvement}</p>
-                                                        <p className="text-xs text-muted-foreground/55 leading-relaxed">{item.why}</p>
-                                                        {item.hiring_impact && (
-                                                            <div className="flex items-center gap-1.5 pt-0.5">
-                                                                <Zap className="w-3 h-3 text-amber-400/70 flex-shrink-0" />
-                                                                <span className="text-[11px] text-amber-400/70 font-medium">{item.hiring_impact}</span>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            ))
-                                        ) : deepData?.action_items?.slice(0, 5).map((item, i) => {
-                                            // Parse the "PRIORITY N — [problem] → [why] → [fix]" format
-                                            const parts = item.split(" → ");
-                                            const problem = parts[0]?.replace(/^PRIORITY \d+ — /, "").trim();
-                                            const why = parts[1]?.trim();
-                                            const fix = parts[2]?.trim();
-                                            return (
-                                                <div key={i} className="flex gap-4 px-6 py-4 group hover:bg-secondary/10 transition-colors">
-                                                    <div className="flex-shrink-0 w-6 h-6 rounded-md bg-primary/8 border border-primary/15 flex items-center justify-center mt-0.5">
-                                                        <span className="text-[10px] font-bold text-primary/50">{i + 1}</span>
-                                                    </div>
-                                                    <div className="flex-1 min-w-0 space-y-1.5">
-                                                        {/* If structured format, show parts separately */}
-                                                        {why && fix ? (
-                                                            <>
-                                                                <p className="text-sm font-medium text-foreground/85 leading-snug">{problem}</p>
-                                                                <p className="text-xs text-muted-foreground/55 leading-relaxed">{why}</p>
-                                                                <div className="flex items-start gap-1.5 pt-0.5 p-2.5 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
-                                                                    <ArrowRight className="w-3 h-3 text-emerald-400/60 flex-shrink-0 mt-0.5" />
-                                                                    <span className="text-[11px] text-emerald-400/80 leading-relaxed font-medium">{fix}</span>
-                                                                </div>
-                                                            </>
-                                                        ) : (
-                                                            // Fallback: show as plain text
-                                                            <p className="text-sm text-muted-foreground/70 leading-relaxed">{item}</p>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            )}
 
                         </div>
                     )}
+
 
                     {/* Feedback CTA */}
                     {!loading && !error && data && (

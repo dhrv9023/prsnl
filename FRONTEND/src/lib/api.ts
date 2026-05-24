@@ -675,6 +675,7 @@ export interface AdminUser {
     is_unlimited: boolean;
     is_admin: boolean;
     created_at: string;
+    last_sign_in_at: string | null;
 }
 
 // ── Admin endpoints ───────────────────────────────────────────────────────────

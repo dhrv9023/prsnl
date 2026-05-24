@@ -98,6 +98,17 @@ async def login(request: Request, user_data: UserAuth, response: Response):
             raise HTTPException(status_code=401, detail="Invalid credentials")
         csrf_token = set_session_cookies_and_cleanup(response, sess.access_token, getattr(sess, "refresh_token", None))
 
+        # Record last_sign_in_at in profiles (non-fatal)
+        try:
+            from datetime import datetime, timezone
+            now_iso = datetime.now(timezone.utc).isoformat()
+            uid = str(supa_response.user.id)
+            await supabase.table("profiles") \
+                .update({"last_sign_in_at": now_iso}) \
+                .eq("id", uid).execute()
+        except Exception as _e:
+            logger.warning("Could not update last_sign_in_at: %s", _e)
+
         return {
             "msg": "Login successful",
             "csrf_token": csrf_token,
@@ -161,6 +172,16 @@ async def oauth_exchange_session(request: Request, body: OAuthSessionExchange, r
 
     logger.info("[OAuth] Setting session cookies for user: %s", user.email)
     csrf_token = set_session_cookies_and_cleanup(response, sess.access_token, getattr(sess, "refresh_token", None))
+
+    # Record last_sign_in_at in profiles (non-fatal)
+    try:
+        from datetime import datetime, timezone
+        now_iso = datetime.now(timezone.utc).isoformat()
+        await anon.table("profiles") \
+            .update({"last_sign_in_at": now_iso}) \
+            .eq("id", str(user.id)).execute()
+    except Exception as _e:
+        logger.warning("[OAuth] Could not update last_sign_in_at: %s", _e)
 
     # ── IP-gated initial credit grant for new OAuth users ─────────────────
     # grant_initial_credits is idempotent — safe to call on every OAuth login.

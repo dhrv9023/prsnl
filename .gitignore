@@ -112,26 +112,32 @@ supabase/TEST_*.sql
 # ─────────────────────────────────────────────────────────────────────────────
 # Documentation & Docs (local reference only — not committed to GitHub)
 # ─────────────────────────────────────────────────────────────────────────────
+# Ignore all markdown files except whitelisted ones
 *.md
 !README.md
 !CSRF_IMPLEMENTATION.md
 !CHANGELOG.md
+!.kiro/README.md
+
+# Ignore all text and document files except requirements.txt and robots.txt
 *.txt
+!requirements.txt
+!robots.txt
 *.docx
 *.doc
 *.pdf
 *.xlsx
 *.xls
+
+# Local documentation directories
 kareerist_sofar/
 code_explained/
 code_explanation/
 docs/
 documentation/
-codes.txt
+
+# Backend logs
 backend.log
-BLOG_TOPICS.md
-UPDATES_SUMMARY.md
-setup.md
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Misc
