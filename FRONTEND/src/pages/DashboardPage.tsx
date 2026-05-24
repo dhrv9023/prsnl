@@ -40,8 +40,11 @@ function SkeletonRow() {
 // ── Time ago helper ──────────────────────────────────────────────────────────
 
 function timeAgo(dateStr: string): string {
+    // Ensure the string is parsed as UTC if no timezone specified
+    const normalized = dateStr.endsWith("Z") || dateStr.includes("+") ? dateStr : dateStr + "Z";
     const now = Date.now();
-    const then = new Date(dateStr).getTime();
+    const then = new Date(normalized).getTime();
+    if (isNaN(then)) return dateStr;
     const diff = now - then;
     const mins = Math.floor(diff / 60000);
     if (mins < 1) return "just now";
@@ -49,8 +52,10 @@ function timeAgo(dateStr: string): string {
     const hours = Math.floor(mins / 60);
     if (hours < 24) return `${hours}h ago`;
     const days = Math.floor(hours / 24);
-    if (days < 7) return `${days}d ago`;
-    return new Date(dateStr).toLocaleDateString();
+    if (days === 1) return "yesterday";
+    if (days < 30) return `${days}d ago`;
+    // Show readable date for older entries
+    return new Date(normalized).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: days > 365 ? "numeric" : undefined });
 }
 
 // ── Metric card ──────────────────────────────────────────────────────────────
@@ -229,18 +234,30 @@ function InsightWithHinglish({
                 />
             </div>
             <p className="text-sm text-muted-foreground/80 leading-relaxed max-w-2xl">{displayText}</p>
-            {intelData?.report.highest_impact_improvements.length && (
+            {/* Recruiter's first impression — unique insight, NOT in Improvement Tracker */}
+            {intelData?.report.recruiter_pov?.first_impression && (
                 <div className="mt-4 flex items-start gap-2.5 p-3 rounded-lg bg-primary/5 border border-primary/10">
-                    <Zap className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
+                    <Eye className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
                     <p className="text-sm text-foreground/80">
-                        <strong className="text-foreground">Top priority:</strong> {intelData.report.highest_impact_improvements[0].improvement}
+                        <strong className="text-foreground">Recruiter's first impression: </strong>
+                        {intelData.report.recruiter_pov.first_impression}
                     </p>
                 </div>
             )}
-            {!intelData && deepData?.action_items?.[0] && (
+            {/* For deep analysis: show the overall rating label + first recruiter concern as a different angle */}
+            {!intelData && deepData && (
                 <div className="mt-4 flex items-start gap-2.5 p-3 rounded-lg bg-primary/5 border border-primary/10">
-                    <Zap className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
-                    <p className="text-sm text-foreground/80">{deepData.action_items[0]}</p>
+                    <Eye className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
+                    <p className="text-sm text-foreground/80">
+                        <strong className="text-foreground">Overall rating: </strong>
+                        {deepData.overall_feedback}
+                        {deepData.sections && Object.keys(deepData.sections).length > 0 && (
+                            <span className="text-muted-foreground/60">
+                                {" · "}
+                                {Object.keys(deepData.sections).length} sections analysed
+                            </span>
+                        )}
+                    </p>
                 </div>
             )}
         </div>
@@ -427,6 +444,7 @@ const DashboardPage = () => {
     const [interviews, setInterviews] = useState<InterviewHistoryItem[]>([]);
     const [resumes, setResumes] = useState<ResumeListItem[]>([]);
     const [selectedResumeId, setSelectedResumeId] = useState<string>("");
+    const [showAllAnalyses, setShowAllAnalyses] = useState(false);
 
     // Auth gate: redirect if not logged in
     useEffect(() => {
@@ -668,9 +686,9 @@ const DashboardPage = () => {
                                                             <>
                                                                 <p className="text-sm font-medium text-foreground/85 leading-snug">{problem}</p>
                                                                 <p className="text-xs text-muted-foreground/55 leading-relaxed">{why}</p>
-                                                                <div className="flex items-start gap-1.5 pt-0.5 p-2.5 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
-                                                                    <ArrowRight className="w-3 h-3 text-emerald-400/60 flex-shrink-0 mt-0.5" />
-                                                                    <span className="text-[11px] text-emerald-400/80 leading-relaxed font-medium">{fix}</span>
+                                                                <div className="flex items-start gap-1.5 pt-0.5 p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-500/5 border border-emerald-300/50 dark:border-emerald-500/10">
+                                                                    <ArrowRight className="w-3 h-3 text-emerald-600 dark:text-emerald-400/60 flex-shrink-0 mt-0.5" />
+                                                                    <span className="text-[11px] text-emerald-700 dark:text-emerald-400/80 leading-relaxed font-medium">{fix}</span>
                                                                 </div>
                                                             </>
                                                         ) : (
@@ -781,37 +799,49 @@ const DashboardPage = () => {
                                         )}
                                     </div>
                                     <div className="divide-y divide-border/10">
-                                        {interviews.length > 0 ? (
-                                            interviews.slice(0, 4).map((item) => (
-                                                <div key={item.id} className="flex items-center justify-between px-5 py-3">
-                                                    <div className="flex-1 min-w-0">
-                                                        <p className="text-sm font-medium text-foreground/80 truncate">
-                                                            {item.role?.replace(/^\[ROAST\]/, "").replace(/\[LANG:[^\]]+\]/, "").trim() || "Mock Interview"}
-                                                        </p>
-                                                        <p className="text-xs text-muted-foreground/40 mt-0.5">{timeAgo(item.created_at)}</p>
+                                        {(() => {
+                                            // Filter interviews by selected resume (null resume_id = older interviews, show them always)
+                                            const filteredInterviews = selectedResumeId
+                                                ? interviews.filter((iv) => !iv.resume_id || iv.resume_id === selectedResumeId)
+                                                : interviews;
+                                            return filteredInterviews.length > 0 ? (
+                                                filteredInterviews.slice(0, 4).map((item) => (
+                                                    <div key={item.id} className="flex items-center justify-between px-5 py-3">
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="text-sm font-medium text-foreground/80 truncate">
+                                                                {item.role?.replace(/^\[ROAST\]/, "").replace(/\[LANG:[^\]]+\]/, "").trim() || "Mock Interview"}
+                                                            </p>
+                                                            <p className="text-xs text-muted-foreground/40 mt-0.5">{timeAgo(item.created_at)}</p>
+                                                        </div>
+                                                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${
+                                                            item.overall_score >= 7 ? "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-600/25"
+                                                            : item.overall_score >= 5 ? "text-amber-600 dark:text-amber-400 bg-amber-500/10 border-amber-600/25"
+                                                            : "text-red-600 dark:text-red-400 bg-red-500/10 border-red-600/25"
+                                                        }`}>
+                                                            {item.overall_score.toFixed(1)}/10
+                                                        </span>
                                                     </div>
-                                                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${
-                                                        item.overall_score >= 7 ? "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-600/25"
-                                                        : item.overall_score >= 5 ? "text-amber-600 dark:text-amber-400 bg-amber-500/10 border-amber-600/25"
-                                                        : "text-red-600 dark:text-red-400 bg-red-500/10 border-red-600/25"
-                                                    }`}>
-                                                        {item.overall_score.toFixed(1)}/10
-                                                    </span>
+                                                ))
+                                            ) : (
+                                                <div className="px-5 py-6 text-center">
+                                                    <p className="text-sm text-muted-foreground/50">
+                                                        {selectedResumeName ? `No interviews for this resume yet` : "No interviews yet"}
+                                                    </p>
+                                                    <Link to="/interview" className="text-xs text-primary/70 hover:text-primary mt-1 inline-block">Start your first →</Link>
                                                 </div>
-                                            ))
-                                        ) : (
-                                            <div className="px-5 py-6 text-center">
-                                                <p className="text-sm text-muted-foreground/50">No interviews yet</p>
-                                                <Link to="/interview" className="text-xs text-primary/70 hover:text-primary mt-1 inline-block">Start your first →</Link>
-                                            </div>
-                                        )}
+                                            );
+                                        })()}
                                     </div>
                                 </div>
                             </div>
 
-                            {/* SECTION 5: Analysis History — filtered by selected resume */}
+                            {/* SECTION 5: Analysis History — filtered by selected resume, collapsible */}
                             <div className="rounded-xl border border-border/20 bg-card/60 backdrop-blur-sm overflow-hidden">
-                                <div className="px-6 py-4 flex items-center justify-between border-b border-border/15">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowAllAnalyses((v) => !v)}
+                                    className="w-full px-6 py-4 flex items-center justify-between border-b border-border/15 hover:bg-secondary/10 transition-colors"
+                                >
                                     <div className="flex items-center gap-2">
                                         <Clock className="w-4 h-4 text-muted-foreground/50" />
                                         <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground/60">Analysis History</p>
@@ -819,46 +849,78 @@ const DashboardPage = () => {
                                             <span className="text-[10px] font-mono text-muted-foreground/30 ml-1 hidden sm:block">· {selectedResumeName}</span>
                                         )}
                                     </div>
-                                    {selectedResumeHistory.length > 0 && (
-                                        <Link
-                                            to="/resume-analysis"
-                                            className="text-xs text-muted-foreground/50 hover:text-foreground transition-colors flex items-center gap-1"
-                                        >
-                                            New Analysis <ArrowRight className="w-3 h-3" />
-                                        </Link>
-                                    )}
-                                </div>
-                                <div className="px-6">
-                                    {selectedResumeHistory.length > 0 ? (
-                                        selectedResumeHistory.slice(0, 10).map((item, i) => (
-                                            <HistoryItem
-                                                key={item.id}
-                                                item={item}
-                                                isLast={i === Math.min(selectedResumeHistory.length, 10) - 1}
-                                            />
-                                        ))
-                                    ) : (
-                                        <div className="py-10 text-center">
-                                            <p className="text-sm text-muted-foreground/50">
-                                                {selectedResumeName
-                                                    ? `No analyses for "${selectedResumeName}" yet`
-                                                    : "No analyses yet"}
-                                            </p>
-                                            <p className="text-xs text-muted-foreground/30 mt-1">
-                                                {selectedResumeName
-                                                    ? "Run a new analysis on this resume to see results here"
-                                                    : "Upload your first resume to begin"}
-                                            </p>
+                                    <div className="flex items-center gap-3">
+                                        {selectedResumeHistory.length > 0 && (
                                             <Link
                                                 to="/resume-analysis"
-                                                className="inline-flex items-center gap-2 mt-4 h-9 px-4 bg-secondary border border-border/30 text-foreground rounded-lg text-sm font-medium hover:bg-secondary/70 transition-colors"
+                                                onClick={(e) => e.stopPropagation()}
+                                                className="text-xs text-muted-foreground/50 hover:text-foreground transition-colors flex items-center gap-1"
                                             >
-                                                <Upload className="w-3.5 h-3.5" />
-                                                {selectedResumeName ? "Analyze This Resume" : "Start Analyzing"}
+                                                New Analysis <ArrowRight className="w-3 h-3" />
                                             </Link>
-                                        </div>
-                                    )}
-                                </div>
+                                        )}
+                                        <ChevronDown className={`w-4 h-4 text-muted-foreground/40 transition-transform duration-200 ${showAllAnalyses ? "rotate-180" : ""}`} />
+                                    </div>
+                                </button>
+                                {showAllAnalyses && (
+                                    <div className="px-6 animate-in slide-in-from-top-2 fade-in duration-200">
+                                        {selectedResumeHistory.length > 0 ? (
+                                            <>
+                                                {selectedResumeHistory.slice(0, 5).map((item, i) => (
+                                                    <HistoryItem
+                                                        key={item.id}
+                                                        item={item}
+                                                        isLast={i === Math.min(selectedResumeHistory.length, 5) - 1 && selectedResumeHistory.length <= 5}
+                                                    />
+                                                ))}
+                                                {selectedResumeHistory.length > 5 && (
+                                                    <div className="py-3 border-t border-border/10">
+                                                        <Link
+                                                            to="/resume-analysis"
+                                                            className="text-xs text-primary/70 hover:text-primary transition-colors flex items-center gap-1.5"
+                                                        >
+                                                            <Clock className="w-3 h-3" />
+                                                            View {selectedResumeHistory.length - 5} earlier {selectedResumeHistory.length - 5 === 1 ? "analysis" : "analyses"} →
+                                                        </Link>
+                                                    </div>
+                                                )}
+                                            </>
+                                        ) : (
+                                            <div className="py-10 text-center">
+                                                <p className="text-sm text-muted-foreground/50">
+                                                    {selectedResumeName
+                                                        ? `No analyses for "${selectedResumeName}" yet`
+                                                        : "No analyses yet"}
+                                                </p>
+                                                <p className="text-xs text-muted-foreground/30 mt-1">
+                                                    {selectedResumeName
+                                                        ? "Run a new analysis on this resume to see results here"
+                                                        : "Upload your first resume to begin"}
+                                                </p>
+                                                <Link
+                                                    to="/resume-analysis"
+                                                    className="inline-flex items-center gap-2 mt-4 h-9 px-4 bg-secondary border border-border/30 text-foreground rounded-lg text-sm font-medium hover:bg-secondary/70 transition-colors"
+                                                >
+                                                    <Upload className="w-3.5 h-3.5" />
+                                                    {selectedResumeName ? "Analyze This Resume" : "Start Analyzing"}
+                                                </Link>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                                {!showAllAnalyses && (
+                                    <div className="px-6 py-3 text-center">
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowAllAnalyses(true)}
+                                            className="text-xs text-muted-foreground/50 hover:text-foreground transition-colors"
+                                        >
+                                            {selectedResumeHistory.length > 0
+                                                ? `Click to expand ${selectedResumeHistory.length} ${selectedResumeHistory.length === 1 ? "analysis" : "analyses"}`
+                                                : "No analyses yet"}
+                                        </button>
+                                    </div>
+                                )}
                             </div>
 
 

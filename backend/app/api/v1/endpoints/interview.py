@@ -151,6 +151,8 @@ async def start_interview_route(
         role=body.role,
         experience_level=body.experience_level,
     )
+    # Store resume_id so it can be saved with the report on /end
+    session.resume_id = body.resume_id  # type: ignore[attr-defined]
 
     # 3. Request AI Generation (normal or roast mode)
     try:
@@ -430,6 +432,7 @@ async def end_interview_route(request: Request, user: CurrentUser) -> InterviewR
             "experience_level": session.experience_level,
             "questions_count": len(session.questions),
             "answers_count": count,
+            "resume_id": getattr(session, "resume_id", None),
         }
         await supabase.table("interview_reports").insert(report_record).execute()
         logger.info("Interview report persisted for user %s (score: %s)", user_id_str, overall)
@@ -457,7 +460,7 @@ async def get_interview_history(user: CurrentUser):
 
     try:
         res = await supabase.table("interview_reports") \
-            .select("id, overall_score, qualitative_score, breakdown, role, experience_level, questions_count, answers_count, created_at") \
+            .select("id, overall_score, qualitative_score, breakdown, role, experience_level, questions_count, answers_count, created_at, resume_id") \
             .eq("user_id", user_id_str) \
             .order("created_at", desc=True) \
             .limit(20) \

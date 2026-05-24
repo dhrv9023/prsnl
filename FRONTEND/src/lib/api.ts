@@ -780,6 +780,7 @@ export interface InterviewHistoryItem {
     questions_count: number;
     answers_count: number;
     created_at: string;
+    resume_id: string | null;
 }
 
 // ── Interview History endpoint ────────────────────────────────────────────────
