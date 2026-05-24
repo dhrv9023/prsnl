@@ -47,6 +47,41 @@ All notable changes to Kareerist are documented here.
 
 ---
 
+## [1.1.0] - May 24, 2026 — Kareerist Blog Launch
+
+### Added
+- **Standalone Blog** (`kareerist_blog/`) — Separate Vite + React + TypeScript project
+  - Deployed at [kareerisit-blog.vercel.app](https://kareerisit-blog.vercel.app)
+  - Own GitHub repo: `github.com/dhrv9023/kareerisit_blog`
+  - Excluded from `prsnl` repo via `.gitignore`
+- **Blog Features:**
+  - Featured post (large hero card) + standard post grid (3-column)
+  - Click any card → opens full article reader page (not modal)
+  - Full article content with **bold** and bullet point rendering
+  - Sticky nav bar with back button on article page
+  - Smooth card hover animations
+- **Password-Protected Admin Panel** (Ctrl+Shift+A)
+  - Login screen with shake animation on wrong password
+  - Session persisted in `localStorage` — stays logged in
+  - Tabbed interface: Create Post / Manage Posts
+  - Cover image live preview while typing URL
+  - Post list with thumbnails and delete confirmation
+  - Logout button
+- **Content:** 5 launch posts from `BLOG_TOPICS.md` quick-win list:
+  1. Why Your Resume Scores 45/100 on ATS (Featured)
+  2. The 6 Interview Question Types You'll Face
+  3. The 3-Paragraph Cover Letter Formula
+  4. The College Student's Resume Guide
+  5. Tech Resume Guide: Engineers, Data Scientists & DevOps
+- **Supabase Integration:**
+  - `blog_posts` table with RLS allowing anon read + write (for admin panel)
+  - `content` column added for full article body
+  - All 10 categories from `BLOG_TOPICS.md` available in admin
+
+---
+
+
+
 ## [1.0.0] - May 22, 2026
 
 ### Added

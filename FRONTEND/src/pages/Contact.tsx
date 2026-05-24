@@ -1,12 +1,14 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useAuthContext } from "@/contexts/AuthContext";
 import {
     Mail, MessageSquare, Send, Loader2, CheckCircle2, AlertCircle,
-    ArrowLeft, MapPin, Clock, Phone, Linkedin, Twitter, Instagram, Github
+    ArrowLeft, MapPin, Clock, Phone, Linkedin, Twitter, Instagram, Github,
+    BookOpen, ArrowRight, ExternalLink
 } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
+
 
 export default function Contact() {
     const { user } = useAuthContext();
@@ -18,6 +20,36 @@ export default function Contact() {
     });
     const [status, setStatus] = useState<"idle" | "sending" | "success" | "error">("idle");
     const [errorMessage, setErrorMessage] = useState("");
+
+    // Blog posts from standalone blog
+    const [blogPosts, setBlogPosts] = useState<Array<{
+        id: string; title: string; description?: string;
+        category: string; category_color: string;
+        media_url: string; type: string;
+    }>>([]);
+    const [blogLoading, setBlogLoading] = useState(true);
+
+    useEffect(() => {
+        async function fetchBlogPosts() {
+            try {
+                const res = await fetch(
+                    `https://qifdqnksyodhispfptgj.supabase.co/rest/v1/blog_posts?select=id,title,description,category,category_color,media_url,type&order=display_order.asc&limit=3`,
+                    {
+                        headers: {
+                            apikey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFpZmRxbmtzeW9kaGlzcGZwdGdqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1OTc1NjgsImV4cCI6MjA5NTE3MzU2OH0.gjcvkhKw6DVvZSn6Og0SvFvTWRRl9DMGhroeLcnWkWw",
+                            Authorization: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFpZmRxbmtzeW9kaGlzcGZwdGdqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1OTc1NjgsImV4cCI6MjA5NTE3MzU2OH0.gjcvkhKw6DVvZSn6Og0SvFvTWRRl9DMGhroeLcnWkWw",
+                        }
+                    }
+                );
+                if (res.ok) setBlogPosts(await res.json());
+            } catch {
+                // silently fail — blog section just won't show
+            } finally {
+                setBlogLoading(false);
+            }
+        }
+        fetchBlogPosts();
+    }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -353,6 +385,104 @@ export default function Contact() {
                                     </form>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                </section>
+
+                {/* Blog Section */}
+                <section className="py-16 px-6 md:px-12 border-t border-border/30">
+                    <div className="max-w-6xl mx-auto">
+                        <div className="flex items-end justify-between mb-10">
+                            <div>
+                                <div className="flex items-center gap-2 mb-3">
+                                    <div className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center">
+                                        <BookOpen className="w-4 h-4 text-primary" />
+                                    </div>
+                                    <span className="text-xs font-mono uppercase tracking-widest text-muted-foreground">Kareerist Blog</span>
+                                </div>
+                                <h2 className="text-2xl font-bold">Career Insights & Tips</h2>
+                                <p className="text-sm text-muted-foreground/70 mt-1 max-w-md">
+                                    Practical advice to land your dream job — from ATS optimization to salary negotiation.
+                                </p>
+                            </div>
+                            <a
+                                href="https://kareerisit-blog.vercel.app"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="hidden md:inline-flex items-center gap-2 text-sm font-semibold text-primary hover:underline underline-offset-4 flex-shrink-0"
+                            >
+                                View all posts
+                                <ExternalLink className="w-4 h-4" />
+                            </a>
+                        </div>
+
+                        {blogLoading ? (
+                            <div className="grid md:grid-cols-3 gap-6">
+                                {[1,2,3].map(i => (
+                                    <div key={i} className="rounded-2xl border border-border/30 bg-card/60 overflow-hidden animate-pulse">
+                                        <div className="h-44 bg-secondary/40" />
+                                        <div className="p-5 space-y-3">
+                                            <div className="h-3 bg-secondary/40 rounded w-20" />
+                                            <div className="h-4 bg-secondary/40 rounded w-full" />
+                                            <div className="h-4 bg-secondary/40 rounded w-3/4" />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : blogPosts.length > 0 ? (
+                            <div className="grid md:grid-cols-3 gap-6">
+                                {blogPosts.map(post => (
+                                    <a
+                                        key={post.id}
+                                        href="https://kareerisit-blog.vercel.app"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="group rounded-2xl border border-border/30 bg-card/60 backdrop-blur-sm overflow-hidden hover:border-border/60 hover:shadow-lg transition-all duration-300 block"
+                                    >
+                                        {/* Thumbnail */}
+                                        <div className="relative h-44 overflow-hidden">
+                                            <img
+                                                src={post.media_url}
+                                                alt={post.title}
+                                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                            />
+                                            <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+                                            <span
+                                                className="absolute bottom-3 left-3 text-white text-xs font-bold px-2.5 py-1 rounded-full"
+                                                style={{ backgroundColor: post.category_color }}
+                                            >
+                                                {post.category}
+                                            </span>
+                                        </div>
+                                        {/* Content */}
+                                        <div className="p-5">
+                                            <h3 className="font-semibold text-sm leading-snug text-foreground/90 group-hover:text-foreground line-clamp-2 mb-2 transition-colors">
+                                                {post.title}
+                                            </h3>
+                                            {post.description && (
+                                                <p className="text-xs text-muted-foreground/60 line-clamp-2 leading-relaxed">
+                                                    {post.description}
+                                                </p>
+                                            )}
+                                            <div className="flex items-center gap-1 mt-3 text-xs font-semibold text-primary">
+                                                Read article
+                                                <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
+                                            </div>
+                                        </div>
+                                    </a>
+                                ))}
+                            </div>
+                        ) : null}
+
+                        <div className="mt-8 text-center md:hidden">
+                            <a
+                                href="https://kareerisit-blog.vercel.app"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-2 text-sm font-semibold text-primary hover:underline underline-offset-4"
+                            >
+                                View all posts <ExternalLink className="w-4 h-4" />
+                            </a>
                         </div>
                     </div>
                 </section>
