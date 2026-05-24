@@ -162,21 +162,18 @@ export default function Contact() {
                                     </h3>
                                     <div className="flex items-center gap-3">
                                         <a
-                                            href="#"
-                                            className="w-10 h-10 rounded-xl bg-secondary/40 hover:bg-secondary/60 border border-border/30 flex items-center justify-center transition-colors"
-                                            aria-label="LinkedIn"
-                                        >
-                                            <Linkedin className="w-4 h-4 text-muted-foreground" />
-                                        </a>
-                                        <a
-                                            href="#"
+                                            href="https://twitter.com/kareerist5"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
                                             className="w-10 h-10 rounded-xl bg-secondary/40 hover:bg-secondary/60 border border-border/30 flex items-center justify-center transition-colors"
                                             aria-label="Twitter"
                                         >
                                             <Twitter className="w-4 h-4 text-muted-foreground" />
                                         </a>
                                         <a
-                                            href="#"
+                                            href="https://instagram.com/kare.erist"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
                                             className="w-10 h-10 rounded-xl bg-secondary/40 hover:bg-secondary/60 border border-border/30 flex items-center justify-center transition-colors"
                                             aria-label="Instagram"
                                         >
@@ -184,7 +181,14 @@ export default function Contact() {
                                         </a>
                                         <a
                                             href="#"
-                                            className="w-10 h-10 rounded-xl bg-secondary/40 hover:bg-secondary/60 border border-border/30 flex items-center justify-center transition-colors"
+                                            className="w-10 h-10 rounded-xl bg-secondary/40 hover:bg-secondary/60 border border-border/30 flex items-center justify-center transition-colors opacity-50 cursor-not-allowed"
+                                            aria-label="LinkedIn"
+                                        >
+                                            <Linkedin className="w-4 h-4 text-muted-foreground" />
+                                        </a>
+                                        <a
+                                            href="#"
+                                            className="w-10 h-10 rounded-xl bg-secondary/40 hover:bg-secondary/60 border border-border/30 flex items-center justify-center transition-colors opacity-50 cursor-not-allowed"
                                             aria-label="GitHub"
                                         >
                                             <Github className="w-4 h-4 text-muted-foreground" />
