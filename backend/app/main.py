@@ -182,6 +182,12 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         if any(path.startswith(p) for p in _CSRF_EXEMPT_PREFIXES):
             return await call_next(request)
 
+        # Skip CSRF check if authenticated via Authorization header
+        # Token-based auth is physically immune to CSRF because headers cannot be forged cross-site
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            return await call_next(request)
+
         # Validate double-submit: header must match cookie
         cookie_token = request.cookies.get(CSRF_COOKIE_NAME, "")
         header_token = request.headers.get("X-CSRF-Token", "")

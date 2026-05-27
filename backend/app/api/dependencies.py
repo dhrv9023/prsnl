@@ -36,6 +36,13 @@ async def get_current_user(request: Request):
 
     # ── Normal auth flow ───────────────────────────────────────────────────
     token = request.cookies.get(settings.AUTH_ACCESS_COOKIE_NAME)
+    
+    # Fallback to Authorization Header if HttpOnly cookie is blocked/missing
+    if not token:
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.removeprefix("Bearer ").strip()
+
     supabase = await get_db()
 
     if not token:

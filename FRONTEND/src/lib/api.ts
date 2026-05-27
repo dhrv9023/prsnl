@@ -70,6 +70,94 @@ function getCsrfToken(): string {
     return token;
 }
 
+// ── JWT Token Storage ────────────────────────────────────────────────────────
+const ACCESS_TOKEN_KEY = "__krs_access_token";
+const REFRESH_TOKEN_KEY = "__krs_refresh_token";
+
+export function getStoredAccessToken(): string | null {
+    try {
+        return localStorage.getItem(ACCESS_TOKEN_KEY);
+    } catch {
+        return null;
+    }
+}
+
+export function setStoredAccessToken(token: string): void {
+    try {
+        localStorage.setItem(ACCESS_TOKEN_KEY, token);
+    } catch {
+        // ignore
+    }
+}
+
+export function getStoredRefreshToken(): string | null {
+    try {
+        return localStorage.getItem(REFRESH_TOKEN_KEY);
+    } catch {
+        return null;
+    }
+}
+
+export function setStoredRefreshToken(token: string): void {
+    try {
+        localStorage.setItem(REFRESH_TOKEN_KEY, token);
+    } catch {
+        // ignore
+    }
+}
+
+export function clearStoredTokens(): void {
+    try {
+        localStorage.removeItem(ACCESS_TOKEN_KEY);
+        localStorage.removeItem(REFRESH_TOKEN_KEY);
+    } catch {
+        // ignore
+    }
+}
+
+export function getAuthHeaders(): Record<string, string> {
+    const headers: Record<string, string> = {};
+    const accessToken = getStoredAccessToken();
+    if (accessToken) {
+        headers["Authorization"] = `Bearer ${accessToken}`;
+    }
+    return headers;
+}
+
+async function tryRefreshSession(): Promise<string | null> {
+    const refreshToken = getStoredRefreshToken();
+    if (!refreshToken) return null;
+
+    try {
+        const res = await fetch(`${BASE}/auth/refresh`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                ...DEV_BYPASS_HEADERS,
+            },
+            body: JSON.stringify({ refresh_token: refreshToken }),
+        });
+
+        if (!res.ok) {
+            throw new Error("Failed to refresh token");
+        }
+
+        const data = await res.json() as { access_token?: string; refresh_token?: string };
+        if (data.access_token) {
+            setStoredAccessToken(data.access_token);
+            if (data.refresh_token) {
+                setStoredRefreshToken(data.refresh_token);
+            }
+            return data.access_token;
+        }
+    } catch (err) {
+        // If refresh fails, clear all session info so they are logged out
+        clearStoredTokens();
+        clearCsrfToken();
+    }
+    return null;
+}
+
 // ── Generic fetch wrapper ────────────────────────────────────────────────────
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
@@ -87,16 +175,37 @@ async function request<T>(
         if (token) csrfHeaders["X-CSRF-Token"] = token;
     }
 
-    const res = await fetch(`${BASE}${path}`, {
+    const authHeaders = getAuthHeaders();
+
+    let res = await fetch(`${BASE}${path}`, {
         ...options,
         credentials: "include", // always send the HttpOnly cookie
         headers: {
             "Content-Type": "application/json",
             ...DEV_BYPASS_HEADERS,
             ...csrfHeaders,
+            ...authHeaders,
             ...options.headers,
         },
     });
+
+    // Auto-refresh token if we get an Unauthorized response (except for login or refresh itself)
+    if (res.status === 401 && !path.startsWith("/auth/login") && !path.startsWith("/auth/refresh")) {
+        const newAccessToken = await tryRefreshSession();
+        if (newAccessToken) {
+            res = await fetch(`${BASE}${path}`, {
+                ...options,
+                credentials: "include",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...DEV_BYPASS_HEADERS,
+                    ...csrfHeaders,
+                    "Authorization": `Bearer ${newAccessToken}`,
+                    ...options.headers,
+                },
+            });
+        }
+    }
 
     if (!res.ok) {
         let detail = `HTTP ${res.status}`;
@@ -152,7 +261,13 @@ export async function apiLogin(
     email: string,
     password: string
 ): Promise<{ msg: string; user: AuthUser }> {
-    const result = await request<{ msg: string; user: AuthUser; csrf_token?: string }>("/auth/login", {
+    const result = await request<{
+        msg: string;
+        user: AuthUser;
+        csrf_token?: string;
+        access_token?: string;
+        refresh_token?: string;
+    }>("/auth/login", {
         method: "POST",
         body: JSON.stringify({ email, password }),
     });
@@ -160,31 +275,59 @@ export async function apiLogin(
     if (result.csrf_token) {
         setCsrfToken(result.csrf_token);
     }
+    // Store JWT access & refresh tokens
+    if (result.access_token) {
+        setStoredAccessToken(result.access_token);
+    }
+    if (result.refresh_token) {
+        setStoredRefreshToken(result.refresh_token);
+    }
     return result;
 }
 
 export async function apiLogout(): Promise<{ msg: string }> {
     const result = await request<{ msg: string }>("/auth/logout", { method: "POST" });
-    // Clear CSRF token on logout
+    // Clear tokens and CSRF token on logout
     clearCsrfToken();
+    clearStoredTokens();
     return result;
 }
 
 export async function apiGetMe(): Promise<AuthMeResponse> {
-    return request("/auth/me");
+    const me = await request<AuthMeResponse & { access_token?: string; refresh_token?: string }>("/auth/me");
+    if (me.access_token) {
+        setStoredAccessToken(me.access_token);
+    }
+    if (me.refresh_token) {
+        setStoredRefreshToken(me.refresh_token);
+    }
+    return me;
 }
 
 export async function apiExchangeOAuthSession(
     code: string,
     code_verifier: string
 ): Promise<{ msg: string; user: AuthUser }> {
-    const result = await request<{ msg: string; user: AuthUser; csrf_token?: string }>("/auth/oauth/session", {
+    const result = await request<{
+        msg: string;
+        user: AuthUser;
+        csrf_token?: string;
+        access_token?: string;
+        refresh_token?: string;
+    }>("/auth/oauth/session", {
         method: "POST",
         body: JSON.stringify({ code, code_verifier }),
     });
     // Store CSRF token if returned (production cross-origin setup)
     if (result.csrf_token) {
         setCsrfToken(result.csrf_token);
+    }
+    // Store JWT access & refresh tokens
+    if (result.access_token) {
+        setStoredAccessToken(result.access_token);
+    }
+    if (result.refresh_token) {
+        setStoredRefreshToken(result.refresh_token);
     }
     return result;
 }
@@ -206,8 +349,9 @@ export async function apiUploadResume(
     form.append("file", file);
 
     const csrfToken = getCsrfToken();
+    const authHeaders = getAuthHeaders();
 
-    const res = await fetch(`${BASE}/resumes/upload`, {
+    let res = await fetch(`${BASE}/resumes/upload`, {
         method: "POST",
         credentials: "include",
         body: form,
@@ -215,8 +359,25 @@ export async function apiUploadResume(
             // ⚠️ Do NOT set Content-Type here — browser sets it with correct boundary
             ...DEV_BYPASS_HEADERS,
             ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
+            ...authHeaders,
         },
     });
+
+    if (res.status === 401) {
+        const newAccessToken = await tryRefreshSession();
+        if (newAccessToken) {
+            res = await fetch(`${BASE}/resumes/upload`, {
+                method: "POST",
+                credentials: "include",
+                body: form,
+                headers: {
+                    ...DEV_BYPASS_HEADERS,
+                    ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
+                    "Authorization": `Bearer ${newAccessToken}`,
+                },
+            });
+        }
+    }
 
     if (!res.ok) {
         let detail = `Upload failed (HTTP ${res.status})`;
@@ -556,16 +717,36 @@ async function interviewRequest<T>(
         if (token) csrfHeaders["X-CSRF-Token"] = token;
     }
 
-    const res = await fetch(`${INTERVIEW_BASE}${path}`, {
+    const authHeaders = getAuthHeaders();
+
+    let res = await fetch(`${INTERVIEW_BASE}${path}`, {
         ...options,
         credentials: "include",
         headers: {
             "Content-Type": "application/json",
             ...DEV_BYPASS_HEADERS,
             ...csrfHeaders,
+            ...authHeaders,
             ...options.headers,
         },
     });
+
+    if (res.status === 401) {
+        const newAccessToken = await tryRefreshSession();
+        if (newAccessToken) {
+            res = await fetch(`${INTERVIEW_BASE}${path}`, {
+                ...options,
+                credentials: "include",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...DEV_BYPASS_HEADERS,
+                    ...csrfHeaders,
+                    "Authorization": `Bearer ${newAccessToken}`,
+                    ...options.headers,
+                },
+            });
+        }
+    }
 
     if (!res.ok) {
         let detail = `HTTP ${res.status}`;
@@ -612,20 +793,38 @@ export async function apiSubmitVoiceAnswer(
 ): Promise<AnswerEvaluation> {
     // Voice answers use multipart/form-data — cannot use the JSON wrapper
     const csrfToken = getCsrfToken();
+    const authHeaders = getAuthHeaders();
     const form = new FormData();
     form.append("question_id", String(question_id));
     form.append("audio", audioBlob, "answer.webm");
 
-    const res = await fetch(`${INTERVIEW_BASE}/submit_voice`, {
+    let res = await fetch(`${INTERVIEW_BASE}/submit_voice`, {
         method: "POST",
         credentials: "include",
         headers: {
             // Do NOT set Content-Type — browser sets it with the correct multipart boundary
             ...DEV_BYPASS_HEADERS,
             ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
+            ...authHeaders,
         },
         body: form,
     });
+
+    if (res.status === 401) {
+        const newAccessToken = await tryRefreshSession();
+        if (newAccessToken) {
+            res = await fetch(`${INTERVIEW_BASE}/submit_voice`, {
+                method: "POST",
+                credentials: "include",
+                headers: {
+                    ...DEV_BYPASS_HEADERS,
+                    ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
+                    "Authorization": `Bearer ${newAccessToken}`,
+                },
+                body: form,
+            });
+        }
+    }
 
     if (!res.ok) {
         let detail = `HTTP ${res.status}`;

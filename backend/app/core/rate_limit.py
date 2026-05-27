@@ -96,8 +96,13 @@ def get_client_ip(request: Request) -> str:
 def _cookie_access_token(request: Request) -> str | None:
     raw = request.cookies.get(settings.AUTH_ACCESS_COOKIE_NAME)
     if not raw:
+        # Fallback to Authorization header for token-based auth
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            raw = auth_header.removeprefix("Bearer ").strip()
+    if not raw:
         return None
-    # Strip legacy Bearer prefix defensively (cookie now stores raw JWT)
+    # Strip legacy Bearer prefix defensively
     return raw.removeprefix("Bearer ").strip() or None
 
 

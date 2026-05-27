@@ -112,6 +112,8 @@ async def login(request: Request, user_data: UserAuth, response: Response):
         return {
             "msg": "Login successful",
             "csrf_token": csrf_token,
+            "access_token": sess.access_token,
+            "refresh_token": getattr(sess, "refresh_token", None),
             "user": {
                 "id": supa_response.user.id,
                 "email": supa_response.user.email
@@ -201,17 +203,29 @@ async def oauth_exchange_session(request: Request, body: OAuthSessionExchange, r
     return {
         "msg": "Session established",
         "csrf_token": csrf_token,
+        "access_token": sess.access_token,
+        "refresh_token": getattr(sess, "refresh_token", None),
         "user": {"id": user.id, "email": user.email},
     }
 
 
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str | None = None
+
+
 @router.post("/refresh")
 @limiter.limit(settings.RATE_LIMIT_AUTH)
-async def refresh_session(request: Request, response: Response):
+async def refresh_session(request: Request, response: Response, body: RefreshTokenRequest = None):
     """
-    Rotate access (and refresh) tokens using the HttpOnly refresh cookie.
+    Rotate access (and refresh) tokens using the HttpOnly refresh cookie or body refresh_token.
     """
-    raw = request.cookies.get(settings.AUTH_REFRESH_COOKIE_NAME)
+    raw = None
+    if body and body.refresh_token:
+        raw = body.refresh_token
+
+    if not raw:
+        raw = request.cookies.get(settings.AUTH_REFRESH_COOKIE_NAME)
+
     if not raw:
         raise HTTPException(status_code=401, detail="No refresh token")
 
@@ -229,7 +243,11 @@ async def refresh_session(request: Request, response: Response):
         raise HTTPException(status_code=401, detail="No session after refresh")
 
     set_session_cookies(response, sess.access_token, getattr(sess, "refresh_token", None))
-    return {"msg": "Session refreshed"}
+    return {
+        "msg": "Session refreshed",
+        "access_token": sess.access_token,
+        "refresh_token": getattr(sess, "refresh_token", None),
+    }
 
 @router.post("/logout")
 async def logout(response: Response):
@@ -245,9 +263,9 @@ async def logout(response: Response):
 
 
 @router.get("/me")
-async def get_current_user_profile(user: CurrentUser):
+async def get_current_user_profile(request: Request, user: CurrentUser):
     """
-    Protected route: valid HttpOnly session cookie.
+    Protected route: valid HttpOnly session cookie or Authorization header.
     Includes `profile` from public.profiles when the Phase 4 migration has been applied.
     Returns `is_admin: bool` so the frontend can enforce role-based access.
     Also triggers daily credit grant check — safe to call on every page load.
@@ -279,4 +297,10 @@ async def get_current_user_profile(user: CurrentUser):
         "is_admin": is_admin,
         "daily_grant": daily_grant,   # { granted, amount, already_granted_today, not_eligible }
         "msg": "You are fully authenticated!",
+        "access_token": request.cookies.get(settings.AUTH_ACCESS_COOKIE_NAME) or (
+            request.headers.get("Authorization").removeprefix("Bearer ").strip()
+            if request.headers.get("Authorization") and request.headers.get("Authorization").startswith("Bearer ")
+            else None
+        ),
+        "refresh_token": request.cookies.get(settings.AUTH_REFRESH_COOKIE_NAME),
     }
