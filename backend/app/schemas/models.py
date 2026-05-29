@@ -104,6 +104,7 @@ class InterviewSession(BaseModel):
     resume_text: str = ""
     role: str = ""
     experience_level: str = ""
+    resume_id: str | None = None
     questions: List[InterviewQuestion] = []
     answers: Dict[int, str] = {}
     evaluations: Dict[int, AnswerEvaluation] = {}

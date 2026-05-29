@@ -150,9 +150,8 @@ async def start_interview_route(
         resume_text=resume_text,
         role=body.role,
         experience_level=body.experience_level,
+        resume_id=body.resume_id,
     )
-    # Store resume_id so it can be saved with the report on /end
-    session.resume_id = body.resume_id  # type: ignore[attr-defined]
 
     # 3. Request AI Generation (normal or roast mode)
     try:
