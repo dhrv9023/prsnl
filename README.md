@@ -255,6 +255,17 @@ pytest tests/ -v
 
 ## Recent Updates
 
+### May 29, 2026
+- ✅ **Admin Panel Enhancements:** Added user activity modal showing per-user resumes, analyses, interviews, cover letters, and credit transactions. Added search functionality to filter users by email/name. Fixed user list sorting to show most recent logins first.
+- ✅ **Last Login Tracking:** Fixed `last_sign_in_at` display in admin panel. Now shows full timestamp on hover and relative time (e.g., "2h ago") in the list. Updated on every login (email/password and OAuth).
+- ✅ **Interview Session Fix:** Added `resume_id` field to `InterviewSession` model so interviews are properly linked to resumes.
+- ✅ **Backend Deployment:** Fixed backend URL configuration (was using wrong Render URL). Now correctly points to `https://prsnl.onrender.com`.
+
+### May 24, 2026
+- ✅ **Dashboard Restructuring:** Moved Improvement Tracker to top position. Filtered Analysis History and Interview History by selected resume. Made Analysis History collapsible. Fixed green color visibility in light mode.
+- ✅ **Contact Page:** Removed phone number from public contact page.
+- ✅ **Blog Launch:** Deployed standalone blog at kareerisit-blog.vercel.app with password-protected admin panel and 5 launch posts.
+
 ### May 23, 2026
 - ✅ **CSRF Token Handling (Cross-Origin Fix):** Fixed production 403 errors by implementing in-memory CSRF token storage. Backend now returns `csrf_token` in login/OAuth responses, and frontend stores it in memory + sessionStorage instead of relying on cross-origin cookies (which can't be read by JavaScript). CSRFMiddleware now adds CORS headers to 403 responses.
 - ✅ **Experience Level Validation:** Fixed interview setup validation error by mapping frontend display values ("Fresher (0–1 yr)") to backend enum values ("fresher"). Updated AIInterview component to use value/display pairs.
