@@ -20,7 +20,11 @@ class Settings(BaseSettings):
     SUPABASE_ANON_KEY: str | None = None  # PKCE OAuth: POST /auth/oauth/session
     SUPABASE_JWT_SECRET: str | None = None  # JWT Secret (API settings); HS256 for rate-limit key
     HUGGINGFACE_API_KEY: str
-    CORS_ORIGINS: str = "http://localhost:8080,http://localhost:5173,http://127.0.0.1:8080,http://127.0.0.1:5173"
+    CORS_ORIGINS: str = (
+        "http://localhost:8080,http://localhost:5173,http://127.0.0.1:8080,http://127.0.0.1:5173,"
+        "https://kareerist2026.vercel.app,https://kareerist.vercel.app,"
+        "https://kareerist2026-git-main-dhruv9023s-projects.vercel.app"
+    )
     COOKIE_SECURE: bool = False  # Set True in production (HTTPS only)
     COOKIE_SAMESITE: Literal["lax", "strict", "none"] = "lax"
     AUTH_COOKIE_PATH: str = "/"
