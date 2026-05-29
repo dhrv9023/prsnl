@@ -184,6 +184,7 @@ async def get_admin_stats(user: CurrentUser):
 async def get_all_users(user: CurrentUser):
     """
     Returns all enrolled users with their credit balances and usage stats.
+    Sorted by last_sign_in_at (most recent login first), with never-logged-in users at the bottom.
     Admin only.
     """
     await _require_admin(user)
@@ -192,7 +193,7 @@ async def get_all_users(user: CurrentUser):
     try:
         profiles_resp = await supabase.table("profiles") \
             .select("id, email, full_name, remaining_credits, total_credits_granted, is_unlimited, is_admin, created_at, last_sign_in_at") \
-            .order("created_at", desc=True) \
+            .order("last_sign_in_at", desc=True) \
             .execute()
 
         users = profiles_resp.data or []
