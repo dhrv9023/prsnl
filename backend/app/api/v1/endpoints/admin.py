@@ -210,6 +210,74 @@ async def get_all_users(user: CurrentUser):
         raise HTTPException(status_code=500, detail="Failed to fetch users.")
 
 
+# ── GET /admin/users/{user_id}/activity ───────────────────────────────────────
+
+@router.get("/users/{target_user_id}/activity")
+async def get_user_activity(target_user_id: str, user: CurrentUser):
+    """Returns full activity summary for a specific user: resumes, analyses, interviews, cover letters. Admin only."""
+    await _require_admin(user)
+    supabase = await get_db()
+
+    result = {}
+
+    # Resumes
+    try:
+        r = await supabase.table("resumes") \
+            .select("id, file_url, resume_quality_feedback, created_at") \
+            .eq("user_id", target_user_id) \
+            .order("created_at", desc=True).limit(20).execute()
+        result["resumes"] = r.data or []
+    except Exception as e:
+        logger.warning("Activity: resumes failed for %s: %s", target_user_id, e)
+        result["resumes"] = []
+
+    # Analyses
+    try:
+        a = await supabase.table("ai_analyses") \
+            .select("id, analysis_type, created_at") \
+            .eq("user_id", target_user_id) \
+            .order("created_at", desc=True).limit(30).execute()
+        result["analyses"] = a.data or []
+    except Exception as e:
+        logger.warning("Activity: analyses failed for %s: %s", target_user_id, e)
+        result["analyses"] = []
+
+    # Interviews
+    try:
+        i = await supabase.table("interview_reports") \
+            .select("id, overall_score, qualitative_score, role, experience_level, questions_count, created_at") \
+            .eq("user_id", target_user_id) \
+            .order("created_at", desc=True).limit(20).execute()
+        result["interviews"] = i.data or []
+    except Exception as e:
+        logger.warning("Activity: interviews failed for %s: %s", target_user_id, e)
+        result["interviews"] = []
+
+    # Cover letters
+    try:
+        cl = await supabase.table("job_applications") \
+            .select("id, company_name, job_title, created_at") \
+            .eq("user_id", target_user_id) \
+            .order("created_at", desc=True).limit(20).execute()
+        result["cover_letters"] = cl.data or []
+    except Exception as e:
+        logger.warning("Activity: cover letters failed for %s: %s", target_user_id, e)
+        result["cover_letters"] = []
+
+    # Credit transactions
+    try:
+        ct = await supabase.table("credit_transactions") \
+            .select("id, feature, credits_used, credits_before, credits_after, created_at") \
+            .eq("user_id", target_user_id) \
+            .order("created_at", desc=True).limit(30).execute()
+        result["credit_transactions"] = ct.data or []
+    except Exception as e:
+        logger.warning("Activity: credit_transactions failed for %s: %s", target_user_id, e)
+        result["credit_transactions"] = []
+
+    return result
+
+
 # ── GET /admin/users/{user_id}/credit-history ─────────────────────────────────
 
 @router.get("/users/{target_user_id}/credit-history")

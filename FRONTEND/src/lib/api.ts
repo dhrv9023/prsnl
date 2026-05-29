@@ -912,6 +912,59 @@ export async function apiGetUserCreditHistory(userId: string): Promise<CreditTra
     return request(`/admin/users/${userId}/credit-history`);
 }
 
+// ── Admin user activity ───────────────────────────────────────────────────────
+
+export interface UserActivityResume {
+    id: string;
+    file_url: string;
+    resume_quality_feedback: number | null;
+    created_at: string;
+}
+
+export interface UserActivityAnalysis {
+    id: string;
+    analysis_type: string;
+    created_at: string;
+}
+
+export interface UserActivityInterview {
+    id: string;
+    overall_score: number;
+    qualitative_score: string | null;
+    role: string | null;
+    experience_level: string | null;
+    questions_count: number;
+    created_at: string;
+}
+
+export interface UserActivityCoverLetter {
+    id: string;
+    company_name: string | null;
+    job_title: string | null;
+    created_at: string;
+}
+
+export interface UserActivityCreditTxn {
+    id: string;
+    feature: string;
+    credits_used: number;
+    credits_before: number;
+    credits_after: number;
+    created_at: string;
+}
+
+export interface UserActivity {
+    resumes: UserActivityResume[];
+    analyses: UserActivityAnalysis[];
+    interviews: UserActivityInterview[];
+    cover_letters: UserActivityCoverLetter[];
+    credit_transactions: UserActivityCreditTxn[];
+}
+
+export async function apiGetUserActivity(userId: string): Promise<UserActivity> {
+    return request(`/admin/users/${userId}/activity`);
+}
+
 // ── Credit types ──────────────────────────────────────────────────────────────
 
 export interface CreditBalance {

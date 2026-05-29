@@ -3,25 +3,41 @@ import { Link, useNavigate } from "react-router-dom";
 import { Navbar } from "@/components/layout/Navbar";
 import { useAuthContext } from "@/contexts/AuthContext";
 import {
-    apiGetAdminStats, apiGetAdminUsers, apiGrantCredits, apiSetUnlimited,
-    type AdminStats, type AdminUser,
+    apiGetAdminStats, apiGetAdminUsers, apiGrantCredits, apiSetUnlimited, apiGetUserActivity,
+    type AdminStats, type AdminUser, type UserActivity,
 } from "@/lib/api";
 import {
     Users, FileText, BarChart3, Mail, Mic2,
     ShieldCheck, Gauge, Lock, Loader2,
     TrendingUp, Activity, RefreshCw, Clock,
     Zap, Infinity as InfinityIcon, CreditCard, ChevronDown, ChevronUp,
-    Gift, ToggleLeft, ToggleRight, AlertTriangle, LogIn,
+    Gift, ToggleLeft, ToggleRight, AlertTriangle, LogIn, Search,
+    Eye, X,
 } from "lucide-react";
 
-function timeAgo(dateStr: string): string {
-    const diff = Date.now() - new Date(dateStr).getTime();
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function timeAgo(dateStr: string | null | undefined): string {
+    if (!dateStr) return "Never";
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return "Invalid date";
+    const diff = Date.now() - d.getTime();
+    if (diff < 0) return "just now";
     const mins = Math.floor(diff / 60000);
     if (mins < 1) return "just now";
     if (mins < 60) return `${mins}m ago`;
     const hours = Math.floor(mins / 60);
     if (hours < 24) return `${hours}h ago`;
-    return `${Math.floor(hours / 24)}d ago`;
+    const days = Math.floor(hours / 24);
+    if (days < 30) return `${days}d ago`;
+    return d.toLocaleDateString();
+}
+
+function formatDate(dateStr: string | null | undefined): string {
+    if (!dateStr) return "—";
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return "—";
+    return d.toLocaleString();
 }
 
 function activityLabel(type: string): string {
@@ -47,6 +63,8 @@ function activityColor(type: string): string {
     return map[type] ?? "text-muted-foreground bg-secondary/20 border-border/20";
 }
 
+// ── Stat Card ─────────────────────────────────────────────────────────────────
+
 function StatCard({ label, value, sub, icon: Icon, color = "text-foreground", loading }: {
     label: string; value: number | string; sub?: string;
     icon: React.ElementType; color?: string; loading: boolean;
@@ -71,12 +89,194 @@ function StatCard({ label, value, sub, icon: Icon, color = "text-foreground", lo
     );
 }
 
+// ── User Activity Modal ───────────────────────────────────────────────────────
+
+function UserActivityModal({ user, onClose }: { user: AdminUser; onClose: () => void }) {
+    const [activity, setActivity] = useState<UserActivity | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [activeTab, setActiveTab] = useState<"resumes" | "analyses" | "interviews" | "cover_letters" | "credits">("analyses");
+
+    useEffect(() => {
+        apiGetUserActivity(user.id)
+            .then(setActivity)
+            .catch(() => setActivity(null))
+            .finally(() => setLoading(false));
+    }, [user.id]);
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
+            <div
+                className="w-full max-w-2xl max-h-[85vh] flex flex-col rounded-2xl border border-border/30 bg-background shadow-2xl overflow-hidden"
+                onClick={e => e.stopPropagation()}
+            >
+                {/* Header */}
+                <div className="flex items-center justify-between px-6 py-4 border-b border-border/20 flex-shrink-0">
+                    <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary/60 to-primary/30 flex items-center justify-center text-sm font-bold text-primary-foreground">
+                            {(user.email?.[0] ?? "U").toUpperCase()}
+                        </div>
+                        <div>
+                            <p className="text-sm font-semibold text-foreground">{user.email}</p>
+                            <p className="text-xs text-muted-foreground/50">
+                                Joined {timeAgo(user.created_at)} · Last login: <span className="text-green-400/80">{timeAgo(user.last_sign_in_at)}</span>
+                            </p>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="w-8 h-8 rounded-lg hover:bg-secondary/40 flex items-center justify-center transition-colors">
+                        <X className="w-4 h-4 text-muted-foreground" />
+                    </button>
+                </div>
+
+                {/* Credit summary bar */}
+                <div className="grid grid-cols-4 gap-px bg-border/10 flex-shrink-0">
+                    {[
+                        { label: "Resumes", value: activity?.resumes.length ?? "—", color: "text-blue-400" },
+                        { label: "Analyses", value: activity?.analyses.length ?? "—", color: "text-purple-400" },
+                        { label: "Interviews", value: activity?.interviews.length ?? "—", color: "text-teal-400" },
+                        { label: "Cover Letters", value: activity?.cover_letters.length ?? "—", color: "text-amber-400" },
+                    ].map(({ label, value, color }) => (
+                        <div key={label} className="bg-card/40 px-4 py-3 text-center">
+                            <p className={`text-lg font-bold ${color}`}>{loading ? "…" : value}</p>
+                            <p className="text-[10px] text-muted-foreground/50 uppercase tracking-wider">{label}</p>
+                        </div>
+                    ))}
+                </div>
+
+                {/* Tabs */}
+                <div className="flex gap-1 px-4 pt-3 border-b border-border/15 flex-shrink-0 overflow-x-auto">
+                    {(["analyses", "interviews", "resumes", "cover_letters", "credits"] as const).map(tab => (
+                        <button key={tab} onClick={() => setActiveTab(tab)}
+                            className={`px-3 py-2 text-xs font-semibold capitalize whitespace-nowrap border-b-2 transition-colors ${
+                                activeTab === tab ? "border-primary text-foreground" : "border-transparent text-muted-foreground/50 hover:text-muted-foreground"
+                            }`}>
+                            {tab.replace("_", " ")}
+                        </button>
+                    ))}
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 overflow-y-auto p-4">
+                    {loading ? (
+                        <div className="space-y-2">{[1,2,3,4,5].map(i => <div key={i} className="h-10 rounded-lg bg-border/15 animate-pulse" />)}</div>
+                    ) : !activity ? (
+                        <p className="text-sm text-muted-foreground/40 text-center py-8">Failed to load activity.</p>
+                    ) : (
+                        <>
+                            {/* Analyses */}
+                            {activeTab === "analyses" && (
+                                <div className="space-y-1.5">
+                                    {activity.analyses.length === 0 ? (
+                                        <p className="text-sm text-muted-foreground/40 text-center py-8">No analyses yet.</p>
+                                    ) : activity.analyses.map(a => (
+                                        <div key={a.id} className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-secondary/10 border border-border/10">
+                                            <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-xs font-medium ${activityColor(a.analysis_type)}`}>
+                                                {activityLabel(a.analysis_type)}
+                                            </span>
+                                            <span className="text-xs text-muted-foreground/50 flex items-center gap-1">
+                                                <Clock className="w-3 h-3" />{formatDate(a.created_at)}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* Interviews */}
+                            {activeTab === "interviews" && (
+                                <div className="space-y-1.5">
+                                    {activity.interviews.length === 0 ? (
+                                        <p className="text-sm text-muted-foreground/40 text-center py-8">No interviews yet.</p>
+                                    ) : activity.interviews.map(iv => (
+                                        <div key={iv.id} className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-secondary/10 border border-border/10">
+                                            <div>
+                                                <p className="text-sm font-medium text-foreground/80">{iv.role ?? "Unknown role"}</p>
+                                                <p className="text-xs text-muted-foreground/50">{iv.experience_level} · {iv.questions_count} questions</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-sm font-bold text-teal-400">{iv.overall_score}/10</p>
+                                                <p className="text-xs text-muted-foreground/50">{timeAgo(iv.created_at)}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* Resumes */}
+                            {activeTab === "resumes" && (
+                                <div className="space-y-1.5">
+                                    {activity.resumes.length === 0 ? (
+                                        <p className="text-sm text-muted-foreground/40 text-center py-8">No resumes uploaded yet.</p>
+                                    ) : activity.resumes.map(r => (
+                                        <div key={r.id} className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-secondary/10 border border-border/10">
+                                            <div className="flex items-center gap-2 min-w-0">
+                                                <FileText className="w-4 h-4 text-blue-400 flex-shrink-0" />
+                                                <p className="text-sm text-foreground/70 truncate">
+                                                    {r.file_url.split("/").pop()?.replace(/^\d+_/, "") ?? "resume.pdf"}
+                                                </p>
+                                            </div>
+                                            <div className="text-right flex-shrink-0 ml-3">
+                                                {r.resume_quality_feedback != null && (
+                                                    <p className="text-xs font-semibold text-blue-400">Score: {r.resume_quality_feedback}</p>
+                                                )}
+                                                <p className="text-xs text-muted-foreground/50">{timeAgo(r.created_at)}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* Cover Letters */}
+                            {activeTab === "cover_letters" && (
+                                <div className="space-y-1.5">
+                                    {activity.cover_letters.length === 0 ? (
+                                        <p className="text-sm text-muted-foreground/40 text-center py-8">No cover letters yet.</p>
+                                    ) : activity.cover_letters.map(cl => (
+                                        <div key={cl.id} className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-secondary/10 border border-border/10">
+                                            <div>
+                                                <p className="text-sm font-medium text-foreground/80">{cl.job_title ?? "Unknown role"}</p>
+                                                <p className="text-xs text-muted-foreground/50">{cl.company_name ?? "Unknown company"}</p>
+                                            </div>
+                                            <span className="text-xs text-muted-foreground/50">{timeAgo(cl.created_at)}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* Credits */}
+                            {activeTab === "credits" && (
+                                <div className="space-y-1.5">
+                                    {activity.credit_transactions.length === 0 ? (
+                                        <p className="text-sm text-muted-foreground/40 text-center py-8">No credit transactions yet.</p>
+                                    ) : activity.credit_transactions.map(ct => (
+                                        <div key={ct.id} className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-secondary/10 border border-border/10">
+                                            <div>
+                                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-medium ${activityColor(ct.feature)}`}>
+                                                    {activityLabel(ct.feature)}
+                                                </span>
+                                                <p className="text-xs text-muted-foreground/50 mt-0.5">{ct.credits_before} → {ct.credits_after}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-sm font-bold text-amber-400">-{ct.credits_used}</p>
+                                                <p className="text-xs text-muted-foreground/50">{timeAgo(ct.created_at)}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
 // ── User Row ──────────────────────────────────────────────────────────────────
 
-function UserRow({ user, onGrant, onToggleUnlimited }: {
+function UserRow({ user, onGrant, onToggleUnlimited, onViewActivity }: {
     user: AdminUser;
     onGrant: (userId: string, amount: number) => Promise<void>;
     onToggleUnlimited: (userId: string, current: boolean) => Promise<void>;
+    onViewActivity: (user: AdminUser) => void;
 }) {
     const [expanded, setExpanded] = useState(false);
     const [grantAmount, setGrantAmount] = useState("50");
@@ -101,7 +301,6 @@ function UserRow({ user, onGrant, onToggleUnlimited }: {
                 ...prev,
                 remaining_credits: prev.remaining_credits + amt,
                 total_credits_granted: prev.total_credits_granted + amt,
-                credits_used: prev.credits_used,
             }));
         } finally {
             setGranting(false);
@@ -117,6 +316,10 @@ function UserRow({ user, onGrant, onToggleUnlimited }: {
             setToggling(false);
         }
     }
+
+    // Format last login with full date on hover via title attribute
+    const lastLoginText = localUser.last_sign_in_at ? timeAgo(localUser.last_sign_in_at) : "Never";
+    const lastLoginFull = localUser.last_sign_in_at ? formatDate(localUser.last_sign_in_at) : "Never logged in";
 
     return (
         <div className="border-b border-border/10 last:border-0">
@@ -147,12 +350,13 @@ function UserRow({ user, onGrant, onToggleUnlimited }: {
                             <Clock className="w-3 h-3" />
                             Joined {timeAgo(localUser.created_at)}
                         </span>
-                        <span className="text-xs flex items-center gap-1 font-medium"
-                            style={{ color: localUser.last_sign_in_at ? "rgb(134 239 172 / 0.8)" : "rgb(148 163 184 / 0.4)" }}>
+                        <span
+                            title={lastLoginFull}
+                            className="text-xs flex items-center gap-1 font-medium cursor-help"
+                            style={{ color: localUser.last_sign_in_at ? "rgb(134 239 172 / 0.8)" : "rgb(148 163 184 / 0.4)" }}
+                        >
                             <LogIn className="w-3 h-3" />
-                            {localUser.last_sign_in_at
-                                ? `Last login: ${timeAgo(localUser.last_sign_in_at)}`
-                                : "Never logged in"}
+                            {localUser.last_sign_in_at ? `Last login: ${lastLoginText}` : "Never logged in"}
                         </span>
                     </div>
                 </div>
@@ -175,12 +379,33 @@ function UserRow({ user, onGrant, onToggleUnlimited }: {
                     )}
                 </div>
 
+                {/* View activity button */}
+                <button
+                    onClick={(e) => { e.stopPropagation(); onViewActivity(localUser); }}
+                    className="flex-shrink-0 w-7 h-7 rounded-lg bg-secondary/20 hover:bg-primary/20 border border-border/20 hover:border-primary/30 flex items-center justify-center transition-colors"
+                    title="View full activity"
+                >
+                    <Eye className="w-3.5 h-3.5 text-muted-foreground hover:text-primary" />
+                </button>
+
                 {expanded ? <ChevronUp className="w-4 h-4 text-muted-foreground/40 flex-shrink-0" /> : <ChevronDown className="w-4 h-4 text-muted-foreground/40 flex-shrink-0" />}
             </div>
 
             {/* Expanded panel */}
             {expanded && (
                 <div className="px-5 pb-4 pt-1 bg-secondary/5 border-t border-border/10 space-y-4 animate-in slide-in-from-top-1 fade-in duration-150">
+                    {/* Full timestamps */}
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="rounded-lg bg-secondary/20 px-3 py-2">
+                            <p className="text-muted-foreground/50 mb-0.5">Joined</p>
+                            <p className="font-medium text-foreground/70">{formatDate(localUser.created_at)}</p>
+                        </div>
+                        <div className="rounded-lg bg-secondary/20 px-3 py-2">
+                            <p className="text-muted-foreground/50 mb-0.5">Last Login</p>
+                            <p className="font-medium text-green-400/80">{formatDate(localUser.last_sign_in_at)}</p>
+                        </div>
+                    </div>
+
                     <div className="grid grid-cols-3 gap-3 text-center">
                         <div className="rounded-lg bg-secondary/20 p-3">
                             <p className="text-xs text-muted-foreground/50 mb-1">Granted</p>
@@ -205,10 +430,11 @@ function UserRow({ user, onGrant, onToggleUnlimited }: {
                                 value={grantAmount}
                                 onChange={(e) => setGrantAmount(e.target.value)}
                                 min="1" max="10000"
+                                onClick={e => e.stopPropagation()}
                                 className="w-20 bg-secondary/20 border border-border/30 rounded-lg px-2.5 py-1.5 text-sm text-foreground focus:outline-none focus:border-primary/40"
                             />
                             <button
-                                onClick={handleGrant}
+                                onClick={(e) => { e.stopPropagation(); handleGrant(); }}
                                 disabled={granting}
                                 className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-emerald-500/15 border border-emerald-500/25 text-emerald-400 text-xs font-semibold hover:bg-emerald-500/25 transition-colors disabled:opacity-50"
                             >
@@ -219,7 +445,7 @@ function UserRow({ user, onGrant, onToggleUnlimited }: {
 
                         {/* Toggle unlimited */}
                         <button
-                            onClick={handleToggle}
+                            onClick={(e) => { e.stopPropagation(); handleToggle(); }}
                             disabled={toggling}
                             className={`flex items-center gap-2 h-8 px-3 rounded-lg border text-xs font-semibold transition-colors disabled:opacity-50 ${
                                 localUser.is_unlimited
@@ -249,6 +475,8 @@ export default function AdminPage() {
     const [error, setError] = useState("");
     const [refreshing, setRefreshing] = useState(false);
     const [activeTab, setActiveTab] = useState<"overview" | "users">("overview");
+    const [search, setSearch] = useState("");
+    const [activityUser, setActivityUser] = useState<AdminUser | null>(null);
 
     useEffect(() => {
         if (!auth.isLoading && !auth.isAuthenticated) navigate("/", { replace: true });
@@ -302,6 +530,11 @@ export default function AdminPage() {
         await apiSetUnlimited(userId, !current);
     }
 
+    const filteredUsers = users.filter(u =>
+        u.email.toLowerCase().includes(search.toLowerCase()) ||
+        (u.full_name ?? "").toLowerCase().includes(search.toLowerCase())
+    );
+
     if (auth.isLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-background">
@@ -341,6 +574,12 @@ export default function AdminPage() {
     return (
         <div className="min-h-screen bg-background text-foreground">
             <Navbar />
+
+            {/* Activity modal */}
+            {activityUser && (
+                <UserActivityModal user={activityUser} onClose={() => setActivityUser(null)} />
+            )}
+
             <main className="pt-24 pb-16">
                 <div className="container max-w-6xl space-y-6">
 
@@ -387,7 +626,6 @@ export default function AdminPage() {
                     {/* ── OVERVIEW TAB ─────────────────────────────────────── */}
                     {activeTab === "overview" && (
                         <div className="space-y-6">
-                            {/* Primary stat cards */}
                             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                                 <StatCard label="Total Users" value={stats?.total_users ?? 0} sub={stats ? `+${stats.new_users_7d} this week` : undefined} icon={Users} color="text-emerald-400" loading={loading} />
                                 <StatCard label="Resumes Uploaded" value={stats?.total_resumes ?? 0} icon={FileText} color="text-blue-400" loading={loading} />
@@ -549,33 +787,53 @@ export default function AdminPage() {
                     {activeTab === "users" && (
                         <div className="space-y-4">
                             <div className="rounded-xl border border-border/25 bg-card/60 overflow-hidden">
-                                <div className="px-5 py-4 border-b border-border/15 flex items-center justify-between">
+                                <div className="px-5 py-4 border-b border-border/15 flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
                                     <div>
                                         <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground/50">Enrolled Users</p>
-                                        <h2 className="text-base font-semibold">{users.length} users</h2>
+                                        <h2 className="text-base font-semibold">{filteredUsers.length} {search ? "matching" : "total"} users</h2>
                                     </div>
-                                    <div className="flex items-center gap-2 text-xs text-muted-foreground/50">
-                                        <Zap className="w-3.5 h-3.5" />
-                                        Click a user to manage credits
+                                    {/* Search */}
+                                    <div className="relative">
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/40" />
+                                        <input
+                                            type="text"
+                                            placeholder="Search by email or name..."
+                                            value={search}
+                                            onChange={e => setSearch(e.target.value)}
+                                            className="pl-8 pr-3 h-8 w-64 bg-secondary/20 border border-border/30 rounded-lg text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/40"
+                                        />
+                                        {search && (
+                                            <button onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2">
+                                                <X className="w-3 h-3 text-muted-foreground/40 hover:text-muted-foreground" />
+                                            </button>
+                                        )}
                                     </div>
+                                </div>
+                                <div className="px-5 py-2 border-b border-border/10 bg-secondary/5">
+                                    <p className="text-xs text-muted-foreground/40 flex items-center gap-2">
+                                        <Eye className="w-3 h-3" /> Click the eye icon to view full user activity · Click a row to manage credits
+                                    </p>
                                 </div>
                                 {usersLoading ? (
                                     <div className="p-5 space-y-3">
                                         {[1,2,3,4,5].map(i => <div key={i} className="h-14 rounded-lg bg-border/15 animate-pulse" />)}
                                     </div>
-                                ) : users.length > 0 ? (
+                                ) : filteredUsers.length > 0 ? (
                                     <div>
-                                        {users.map((u) => (
+                                        {filteredUsers.map((u) => (
                                             <UserRow
                                                 key={u.id}
                                                 user={u}
                                                 onGrant={handleGrant}
                                                 onToggleUnlimited={handleToggleUnlimited}
+                                                onViewActivity={setActivityUser}
                                             />
                                         ))}
                                     </div>
                                 ) : (
-                                    <p className="p-8 text-center text-sm text-muted-foreground/40">No users found.</p>
+                                    <p className="p-8 text-center text-sm text-muted-foreground/40">
+                                        {search ? `No users matching "${search}"` : "No users found."}
+                                    </p>
                                 )}
                             </div>
                         </div>
