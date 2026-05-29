@@ -249,7 +249,7 @@ app.add_middleware(
     allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization", "X-Requested-With", "X-CSRF-Token"],
+    allow_headers=["*"],
 )
 
 # Security headers — added AFTER CORSMiddleware so it wraps all responses
