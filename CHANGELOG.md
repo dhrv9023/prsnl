@@ -4,6 +4,31 @@ All notable changes to Kareerist are documented here.
 
 ## [Unreleased]
 
+### Added
+- **Admin User Activity Modal (May 29, 2026)** - Comprehensive user activity view
+  - New `GET /admin/users/{id}/activity` endpoint returns all user activity across features
+  - 5-tab modal: Resumes, Analyses, Interviews, Cover Letters, Credit Transactions
+  - Last 20 items per feature with key metadata displayed
+  - Accessible from admin panel user list via "View Activity" button
+  - Helps admins quickly understand user engagement patterns
+
+- **User Search in Admin Panel (May 29, 2026)** - Filter user list by email
+  - Search input filters users client-side (email matching)
+  - Instant search with debouncing
+  - Clear button to reset search
+
+- **Last Login Tracking (May 27, 2026)** - Activity monitoring for admin
+  - New `last_sign_in_at` column in `profiles` table (migration 20260524000001)
+  - Updated on every successful login and OAuth session
+  - Admin user list sorted by last login (most recent first), null values at bottom
+  - Enables admin to identify inactive users and engagement patterns
+
+- **Interview Resume Tracking (May 24, 2026)** - Link interviews to source resumes
+  - New `resume_id` column in `interview_reports` table (migration 20260524000002)
+  - Stored on interview start, persisted in final report
+  - Enables analysis of which resumes lead to better interview performance
+  - Nullable for backward compatibility with old reports
+
 ### Fixed
 - **CSRF Token Handling (May 23, 2026)** - Fixed production 403 errors in cross-origin setup
   - Backend now returns `csrf_token` in login/OAuth response body
@@ -139,6 +164,7 @@ All notable changes to Kareerist are documented here.
 |---------|------|--------|
 | 1.0.0 | May 22, 2026 | Released |
 | 1.0.1 | May 23, 2026 | Released (CSRF + validation fixes) |
+| 1.0.2 | May 24-29, 2026 | Released (Admin enhancements + tracking) |
 
 ---
 
