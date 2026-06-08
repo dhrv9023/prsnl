@@ -56,22 +56,50 @@ export default function Contact() {
         setStatus("sending");
         setErrorMessage("");
 
+        const serviceId = import.meta.env.VITE_EMAILJS_SERVICE_ID || "service_kh71agt";
+        const templateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID || "template_7mfw80b";
+        const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
+
+        if (!publicKey) {
+            setStatus("error");
+            setErrorMessage("Email service is not fully configured (missing Public Key). Please set VITE_EMAILJS_PUBLIC_KEY in your env file.");
+            return;
+        }
+
         try {
-            // TODO: Implement backend endpoint for contact form
-            // For now, simulate sending
-            await new Promise((resolve) => setTimeout(resolve, 1500));
-            
-            // Simulate success
-            setStatus("success");
-            setFormData({
-                name: "",
-                email: user?.email || "",
-                category: "general",
-                message: "",
+            const response = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    service_id: serviceId,
+                    template_id: templateId,
+                    user_id: publicKey,
+                    template_params: {
+                        name: formData.name,
+                        email: formData.email,
+                        category: formData.category,
+                        message: formData.message,
+                    },
+                }),
             });
 
-            // Reset success message after 5 seconds
-            setTimeout(() => setStatus("idle"), 5000);
+            if (response.ok) {
+                setStatus("success");
+                setFormData({
+                    name: "",
+                    email: user?.email || "",
+                    category: "general",
+                    message: "",
+                });
+
+                // Reset success message after 5 seconds
+                setTimeout(() => setStatus("idle"), 5000);
+            } else {
+                const errorText = await response.text();
+                throw new Error(errorText || "Failed to send email");
+            }
         } catch (error) {
             setStatus("error");
             setErrorMessage("Failed to send message. Please try emailing us directly.");
@@ -483,8 +511,7 @@ export default function Contact() {
                                     </span>
                                 </summary>
                                 <p className="mt-3 text-sm text-muted-foreground/70 leading-relaxed">
-                                    We aim to respond to all inquiries within 24-48 hours. For urgent issues,
-                                    please reach out via WhatsApp for faster support.
+                                    We aim to respond to all inquiries within 24-48 hours.
                                 </p>
                             </details>
 
