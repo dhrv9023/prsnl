@@ -30,12 +30,13 @@ export function useAuth() {
 
     // ── On mount: check if a valid session cookie already exists ─────────────
     useEffect(() => {
-        // Reset isSubmitting on page focus / pageshow (handles returning from OAuth / back button)
+        // Reset isSubmitting on page focus / pageshow / visibilitychange (handles returning from OAuth / back button)
         const resetSubmitting = () => {
             setState((s) => ({ ...s, isSubmitting: false }));
         };
         window.addEventListener("pageshow", resetSubmitting);
         window.addEventListener("focus", resetSubmitting);
+        document.addEventListener("visibilitychange", resetSubmitting);
 
         // Clear any stale Supabase session from localStorage on every mount.
         // persistSession:true is needed so Supabase can store the PKCE code_verifier
@@ -73,6 +74,7 @@ export function useAuth() {
         return () => {
             window.removeEventListener("pageshow", resetSubmitting);
             window.removeEventListener("focus", resetSubmitting);
+            document.removeEventListener("visibilitychange", resetSubmitting);
         };
     }, []);
 
@@ -121,6 +123,11 @@ export function useAuth() {
             return false;
         }
 
+        // Safety fallback timer to prevent infinite loading state if navigation is interrupted
+        const safetyTimer = setTimeout(() => {
+            setState((s) => ({ ...s, isSubmitting: false }));
+        }, 4000);
+
         const { error } = await supabase.auth.signInWithOAuth({
             provider: "google",
             options: {
@@ -133,6 +140,7 @@ export function useAuth() {
         });
 
         if (error) {
+            clearTimeout(safetyTimer);
             setState((s) => ({ ...s, isSubmitting: false, error: error.message }));
             return false;
         }
