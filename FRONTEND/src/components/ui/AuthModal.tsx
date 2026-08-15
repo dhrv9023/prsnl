@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Loader2, X, Mail, Lock, User, ArrowRight, AlertTriangle, Chrome } from "lucide-react";
 
 interface AuthModalProps {
@@ -29,8 +30,10 @@ export function AuthModal({
     const [password, setPassword] = useState("");
     const [name, setName] = useState("");
 
-    // Clear error when switching modes or typing
-    useEffect(() => { clearError(); }, [mode, clearError]);
+    // Clear error & reset submission state when mounting or switching modes
+    useEffect(() => {
+        clearError();
+    }, [mode, clearError]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -44,19 +47,25 @@ export function AuthModal({
     };
 
     const toggle = () => {
+        clearError();
         setMode((m) => (m === "login" ? "signup" : "login"));
         setEmail(""); setPassword(""); setName("");
     };
 
-    return (
+    const handleClose = () => {
+        clearError();
+        if (onClose) onClose();
+    };
+
+    const modalContent = (
         /* ── Backdrop ── */
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
             {/* ── Modal Card ── */}
-            <div className="relative w-full max-w-md mx-4 bg-card border border-border/50 rounded-2xl shadow-2xl overflow-hidden">
+            <div className="relative w-full max-w-md bg-card border border-border/50 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                 {/* Close Button */}
                 {onClose && (
                     <button
-                        onClick={onClose}
+                        onClick={handleClose}
                         className="absolute right-4 top-4 p-2 rounded-full text-muted-foreground hover:bg-secondary/80 hover:text-foreground transition-colors z-10"
                     >
                         <X className="w-4 h-4" />
@@ -110,8 +119,9 @@ export function AuthModal({
                                     type="text"
                                     placeholder="Full name"
                                     value={name}
+                                    disabled={isSubmitting}
                                     onChange={(e) => setName(e.target.value)}
-                                    className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-secondary/40 border border-border/40 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-foreground/20 focus:ring-1 focus:ring-foreground/10 transition-all"
+                                    className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-secondary/40 border border-border/40 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-foreground/20 focus:ring-1 focus:ring-foreground/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                                 />
                             </div>
                         )}
@@ -124,8 +134,9 @@ export function AuthModal({
                                 placeholder="Email address"
                                 value={email}
                                 required
+                                disabled={isSubmitting}
                                 onChange={(e) => setEmail(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-secondary/40 border border-border/40 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-foreground/20 focus:ring-1 focus:ring-foreground/10 transition-all"
+                                className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-secondary/40 border border-border/40 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-foreground/20 focus:ring-1 focus:ring-foreground/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                             />
                         </div>
 
@@ -138,8 +149,9 @@ export function AuthModal({
                                 value={password}
                                 required
                                 minLength={6}
+                                disabled={isSubmitting}
                                 onChange={(e) => setPassword(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-secondary/40 border border-border/40 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-foreground/20 focus:ring-1 focus:ring-foreground/10 transition-all"
+                                className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-secondary/40 border border-border/40 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-foreground/20 focus:ring-1 focus:ring-foreground/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                             />
                         </div>
 
@@ -173,7 +185,8 @@ export function AuthModal({
                         {mode === "login" ? "Don't have an account?" : "Already have an account?"}{" "}
                         <button
                             onClick={toggle}
-                            className="text-foreground font-medium hover:underline underline-offset-2 transition-colors"
+                            disabled={isSubmitting}
+                            className="text-foreground font-medium hover:underline underline-offset-2 transition-colors disabled:opacity-50"
                         >
                             {mode === "login" ? "Sign up" : "Sign in"}
                         </button>
@@ -184,4 +197,7 @@ export function AuthModal({
             </div>
         </div>
     );
+
+    return createPortal(modalContent, document.body);
 }
+

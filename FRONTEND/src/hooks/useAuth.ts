@@ -30,6 +30,13 @@ export function useAuth() {
 
     // ── On mount: check if a valid session cookie already exists ─────────────
     useEffect(() => {
+        // Reset isSubmitting on page focus / pageshow (handles returning from OAuth / back button)
+        const resetSubmitting = () => {
+            setState((s) => ({ ...s, isSubmitting: false }));
+        };
+        window.addEventListener("pageshow", resetSubmitting);
+        window.addEventListener("focus", resetSubmitting);
+
         // Clear any stale Supabase session from localStorage on every mount.
         // persistSession:true is needed so Supabase can store the PKCE code_verifier
         // during OAuth, but we never want it to auto-restore a Supabase session —
@@ -62,6 +69,11 @@ export function useAuth() {
                 }
             })
             .catch(() => setState({ user: null, isAdmin: false, isLoading: false, isSubmitting: false, error: "" }));
+
+        return () => {
+            window.removeEventListener("pageshow", resetSubmitting);
+            window.removeEventListener("focus", resetSubmitting);
+        };
     }, []);
 
     // ── Login ────────────────────────────────────────────────────────────────
@@ -175,7 +187,7 @@ export function useAuth() {
 
     // ── Clear error helper ────────────────────────────────────────────────────
     const clearError = useCallback(() => {
-        setState((s) => ({ ...s, error: "" }));
+        setState((s) => ({ ...s, error: "", isSubmitting: false }));
     }, []);
 
     return {
