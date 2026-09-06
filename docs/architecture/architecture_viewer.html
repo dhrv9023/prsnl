@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Kareerist Miro Architecture Canvas</title>
   
-  <!-- CDNs -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
-  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Local bundles with CDN fallback -->
+  <script src="./tailwind.min.js" onerror="this.onerror=null;this.src='https://cdn.tailwindcss.com';"></script>
+  <script src="./mermaid.min.js" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js';"></script>
+  <script src="./lucide.min.js" onerror="this.onerror=null;this.src='https://unpkg.com/lucide@latest';"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   
   <style>
@@ -1642,11 +1642,21 @@ Outgoing JSON Response (HTTP 200 OK + Remaining Credits Header)`
         const svgEl = renderArea.querySelector('svg');
         if (svgEl) {
           svgEl.style.maxWidth = 'none';
-          svgEl.removeAttribute('width');
-          svgEl.removeAttribute('height');
+          const viewBox = svgEl.getAttribute('viewBox');
+          if (viewBox) {
+            const parts = viewBox.trim().split(/[\s,]+/).map(Number);
+            if (parts.length === 4 && !isNaN(parts[2]) && !isNaN(parts[3])) {
+              const vbWidth = parts[2];
+              const vbHeight = parts[3];
+              svgEl.setAttribute('width', vbWidth);
+              svgEl.setAttribute('height', vbHeight);
+              svgEl.style.width = `${vbWidth}px`;
+              svgEl.style.height = `${vbHeight}px`;
+            }
+          }
         }
 
-        resetView();
+        fitView();
         attachNodeListeners();
       } catch (err) {
         console.error("Mermaid Render Error:", err);
