@@ -58,16 +58,16 @@ flowchart TD
         P_INTERVIEW["AIInterview.tsx<br/>• questions, currentStep<br/>• MediaRecorder audio stream"]
         P_LETTER["CoverLetter.tsx<br/>• letterText, isHumanized"]
         
-        CRED -.->|deductLocal() optimistic| P_RESUME
-        CRED -.->|deductLocal() optimistic| P_INTERVIEW
-        CRED -.->|deductLocal() optimistic| P_LETTER
+        CRED -.->|deductLocal optimistic| P_RESUME
+        CRED -.->|deductLocal optimistic| P_INTERVIEW
+        CRED -.->|deductLocal optimistic| P_LETTER
     end
 
     subgraph SYNC["Backend Reconciliation"]
         BE_RPC["FastAPI / PostgreSQL<br/>Authoritative Balance"]
-        P_RESUME -->|refreshCredits()| BE_RPC
-        P_INTERVIEW -->|refreshCredits()| BE_RPC
-        P_LETTER -->|refreshCredits()| BE_RPC
+        P_RESUME -->|refreshCredits RPC| BE_RPC
+        P_INTERVIEW -->|refreshCredits RPC| BE_RPC
+        P_LETTER -->|refreshCredits RPC| BE_RPC
         BE_RPC -->|Update balance| CRED
     end
 ```
