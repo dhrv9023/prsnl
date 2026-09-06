@@ -4,6 +4,51 @@ All notable changes to Kareerist are documented here.
 
 ## [Unreleased]
 
+---
+
+## [1.0.3] - September 6, 2026 — Bug Fix Release
+
+### Fixed
+
+- **Credit Refund on Deep Analysis Failure (Sep 6, 2026)**
+  - Previously, if the Groq LLM timed out or returned a bad response during Deep Analysis,
+    the endpoint raised HTTP 502 but credits were permanently deducted with no refund.
+  - `ai_analysis.py` now calls `refund_feature_credits()` atomically before raising 502.
+  - Users see a clear message: "Deep analysis failed — your credits have been refunded."
+  - The refund is recorded in `credit_transactions` with `feature = "ai_failure_refund"`.
+
+- **Credit Refund on Hiring Intel Failure (Sep 6, 2026)**
+  - Same root cause as Deep Analysis — Hiring Intel (25 cr) deducted credits even on
+    Groq failure/timeout, with no refund path.
+  - `ai_analysis.py` now calls `refund_feature_credits()` before raising 502 in the
+    `hiring_intelligence` endpoint.
+  - Secondary effect: false "not enough credits" popup on retry is eliminated because
+    the backend now correctly restores balance before the frontend re-fetches it.
+
+- **Mobile Sign-In Background Scroll (Sep 6, 2026)**
+  - On mobile browsers, touching the AuthModal backdrop caused the page behind it to
+    scroll upward (background "lifting" during sign-in).
+  - `AuthModal.tsx` now sets `document.body.style.overflow = "hidden"` on mount and
+    restores it on unmount via a `useEffect` cleanup, preventing touch-scroll bleed-through.
+
+### Improved
+
+- **Hiring Intel Slow-Load UX (Sep 6, 2026)**
+  - Hiring Intel can take 30–60s on Render free-tier due to LLM complexity + cold starts.
+    Previously the button just spun with no feedback, giving a dead-hang impression.
+  - `ResumeAnalysis.tsx` now sets a 45-second timeout that reveals an amber message:
+    "⏳ Still working — Hiring Intel is thorough (30–60s). Hang tight…"
+  - The message is automatically cleared when the call completes (success or failure).
+
+- **`deductLocal()` now active (Sep 6, 2026)**
+  - The optimistic credit deduction in `CreditContext.tsx` was previously a no-op
+    (`const deductLocal = useCallback((_feature) => {}, [])`).
+  - It is now functional: clicking a feature button immediately subtracts credits
+    from the local displayed balance for instant UI feedback.
+  - `refreshCredits()` is always called in the `finally` block to reconcile with
+    the authoritative backend balance.
+
+
 ### Added
 - **Admin User Activity Modal (May 29, 2026)** - Comprehensive user activity view
   - New `GET /admin/users/{id}/activity` endpoint returns all user activity across features
@@ -165,12 +210,17 @@ All notable changes to Kareerist are documented here.
 | 1.0.0 | May 22, 2026 | Released |
 | 1.0.1 | May 23, 2026 | Released (CSRF + validation fixes) |
 | 1.0.2 | May 24-29, 2026 | Released (Admin enhancements + tracking) |
+| 1.0.3 | Sep 6, 2026 | Released (Credit refund on AI failure, mobile scroll fix, slow-load UX) |
 
 ---
 
 ## Known Issues
 
-None currently tracked. Please report issues via GitHub.
+All bugs from September 6, 2026 report have been resolved:
+- ~~Credits deducted on Deep Analysis failure~~ — Fixed in 1.0.3
+- ~~Credits deducted on Hiring Intel failure~~ — Fixed in 1.0.3
+- ~~Mobile sign-in background scrolls~~ — Fixed in 1.0.3
+- ~~Hiring Intel dead-hang (no UX feedback)~~ — Fixed in 1.0.3
 
 ---
 
