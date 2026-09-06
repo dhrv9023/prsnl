@@ -279,13 +279,25 @@ async def submit_voice_answer_route(
     if question.type == "code":
         raise HTTPException(status_code=400, detail="Code questions must be submitted as text via /submit.")
 
+    ALLOWED_AUDIO_EXTENSIONS = {".webm", ".wav", ".mp4", ".ogg", ".m4a"}
+    ALLOWED_AUDIO_TYPES = {
+        "audio/webm", "audio/wav", "audio/wave", "audio/x-wav",
+        "audio/mp4", "audio/ogg", "audio/x-m4a", "video/webm", "video/mp4"
+    }
+
+    if audio.content_type and audio.content_type.lower() not in ALLOWED_AUDIO_TYPES:
+        raise HTTPException(status_code=400, detail="Invalid audio format. Allowed formats: webm, wav, mp4, ogg, m4a.")
+
     # ── Read audio bytes ───────────────────────────────────────────────────
     audio_bytes = await audio.read()
     if not audio_bytes:
         raise HTTPException(status_code=400, detail="Audio file is empty.")
+    if len(audio_bytes) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Audio file too large. Maximum 10MB.")
 
     # ── Transcribe via Groq Whisper ────────────────────────────────────────
-    suffix = os.path.splitext(audio.filename or "answer.webm")[1] or ".webm"
+    raw_suffix = os.path.splitext(audio.filename or "answer.webm")[1].lower()
+    suffix = raw_suffix if raw_suffix in ALLOWED_AUDIO_EXTENSIONS else ".webm"
     tmp_path: str | None = None
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:

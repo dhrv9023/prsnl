@@ -211,5 +211,6 @@ async def get_analysis_history(resume_id: str, user: CurrentUser):
         raise HTTPException(404, "Resume not found")
 
     history_res = await supabase.table("ai_analyses").select("*") \
-        .eq("resume_id", resume_id).order("created_at", desc=True).execute()
+        .eq("resume_id", resume_id).eq("user_id", str(user.id)).order("created_at", desc=True).execute()
     return history_res.data
+

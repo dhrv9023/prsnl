@@ -30,6 +30,18 @@ class UserAuth(BaseModel):
     password: str = Field(..., min_length=8)
     full_name: str | None = None
 
+    @field_validator("full_name", mode="before")
+    @classmethod
+    def sanitize_full_name(cls, v: str | None) -> str | None:
+        if not v:
+            return None
+        # Strip all HTML tags
+        v = re.sub(r"<[^>]+>", "", v)
+        # Strip special characters that could be dangerous in scripts or attributes
+        v = re.sub(r'[<>"\'&;]', "", v)
+        v = v[:100].strip()
+        return v or None
+
     @field_validator("password")
     @classmethod
     def password_strength(cls, v: str) -> str:
@@ -163,7 +175,7 @@ async def oauth_exchange_session(request: Request, body: OAuthSessionExchange, r
         # Log more details about the error
         import traceback
         logger.error("[OAuth] Traceback: %s", traceback.format_exc())
-        raise HTTPException(status_code=401, detail=f"Invalid or expired OAuth code: {str(e)}")
+        raise HTTPException(status_code=401, detail="OAuth authentication failed. Please try again.")
 
     sess = exchanged.session
     user = exchanged.user

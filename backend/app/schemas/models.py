@@ -30,7 +30,7 @@ class CoverLetterRoastRequest(BaseModel):
     language: str = "english"  # any language accepted in roast mode
 
 class HumanizeRequest(BaseModel):
-    text: str  # the cover letter text to humanize
+    text: str = Field(..., min_length=50, max_length=5000)  # the cover letter text to humanize
 
 class SavePDFRequest(BaseModel):
     application_id: str
