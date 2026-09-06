@@ -54,53 +54,61 @@
 
 ```mermaid
 flowchart TD
-    subgraph CLIENT["Client Layer (Vercel)"]
-        Browser["User Browser<br/>Chrome / Safari / Firefox"]
-        FE["React 18 SPA<br/>Vite · TypeScript · Tailwind"]
-        Browser -->|HTTPS Navigation| FE
+    classDef client fill:#0f172a,stroke:#38bdf8,stroke-width:2px,color:#f8fafc
+    classDef edge fill:#1e1b4b,stroke:#818cf8,stroke-width:2px,color:#f8fafc
+    classDef backend fill:#064e3b,stroke:#34d399,stroke-width:2px,color:#f8fafc
+    classDef supa fill:#451a03,stroke:#fbbf24,stroke-width:2px,color:#f8fafc
+    classDef redis fill:#14532d,stroke:#4ade80,stroke-width:2px,color:#f8fafc
+    classDef ai fill:#3b0764,stroke:#c084fc,stroke-width:2px,color:#f8fafc
+    classDef mon fill:#4c0519,stroke:#fb7185,stroke-width:2px,color:#f8fafc
+
+    subgraph TIER1["1. Client Tier"]
+        BROWSER["<b>User Web Browser</b><br/>Chrome · Safari · Firefox · Mobile"]:::client
     end
 
-    subgraph API_GATEWAY["API & Security Layer (Render)"]
-        BE["FastAPI 0.128<br/>Python 3.13 · Uvicorn"]
-        MW["Middleware Chain<br/>Logger · CSRF · Headers"]
-        RL{"Rate Limit<br/>Check"}
-        AC{"Auth & JWT<br/>Check"}
-        CC{"Credit<br/>Balance Check"}
+    subgraph TIER2["2. Edge & Frontend Layer (Vercel CDN)"]
+        SPA["<b>React 18 Single Page Application</b><br/>TypeScript · Vite · Tailwind · Shadcn UI<br/><i>State: AuthContext & CreditContext</i>"]:::edge
+    end
+
+    subgraph TIER3["3. API Gateway & Backend Tier (Render)"]
+        direction TB
+        MW["<b>FastAPI Middleware Pipeline</b><br/>RequestLogger ➔ ProxyHeaders ➔ CSRF ➔ BodySizeLimit ➔ SecurityHeaders"]:::backend
+        API["<b>FastAPI 0.128 REST Backend (Python 3.13)</b><br/>SlowAPI Rate Limiter · Pydantic v2 Models<br/><i>Routers: /auth · /resumes · /analysis · /interview · /credits · /admin</i>"]:::backend
+        MW --> API
+    end
+
+    subgraph TIER4["4. Persistence & External Services Tier"]
+        direction TB
         
-        FE -->|REST API /api/v1<br/>HttpOnly Cookies| BE
-        BE --> MW --> RL
-        RL -->|Exceeded -> 429| ERR429["429 Rate Limit"]
-        RL -->|Pass| AC
-        AC -->|Invalid -> 401| ERR401["401 Unauthorized"]
-        AC -->|Pass| CC
-        CC -->|Insufficient -> 402| ERR402["402 Payment Required"]
-        CC -->|Sufficient| HANDLER["Endpoint Route Handler"]
+        subgraph SUPABASE["Supabase Cloud Platform"]
+            AUTH["<b>Supabase Auth</b><br/>JWT HS256 Validation & Google PKCE OAuth"]:::supa
+            DB[("<b>PostgreSQL 15 Database</b><br/>9 User-Scoped Tables · Row Level Security (RLS)<br/>Atomic Stored Procedures (deduct_credits, grant_credits)")]:::supa
+            STORE["<b>Supabase Storage</b><br/>Bucket: Resumes (AES-256 Encrypted PDFs)"]:::supa
+        end
+
+        subgraph CACHE["In-Memory Cache"]
+            REDIS[("<b>Upstash Redis Cache</b><br/>• Active Interview Sessions (45-min TTL)<br/>• SlowAPI Rate Limit Sliding Counters")]:::redis
+        end
+
+        subgraph AISERVICES["AI Inference Providers"]
+            GROQ["<b>Groq Cloud LPU</b><br/>• llama-3.3-70b-versatile (Critique, Intel, Letters)<br/>• whisper-large-v3-turbo (Voice Audio STT)"]:::ai
+            HF["<b>HuggingFace Hub</b><br/>sentence-transformers/all-mpnet-base-v2"]:::ai
+        end
+
+        subgraph OBS["Telemetry"]
+            SENTRY["<b>Sentry Telemetry</b><br/>Error Tracking & Performance Tracing"]:::mon
+        end
     end
 
-    subgraph PERSISTENCE["Persistence Layer (Supabase & Redis)"]
-        SUPA_AUTH["Supabase Auth<br/>JWT HS256 Validation"]
-        SUPA_DB["PostgreSQL 15<br/>9 Tables + RLS Policies"]
-        SUPA_RPC["Atomic RPC Functions<br/>deduct_credits / refund"]
-        SUPA_STORE["Storage Bucket<br/>Resume PDFs"]
-        REDIS["Upstash Redis<br/>Interview State (45m TTL)"]
-    end
-
-    subgraph AI_SERVICES["External AI Services"]
-        GROQ_LLM["Groq Cloud API<br/>Qwen 2.5 / LLaMA 3.3"]
-        GROQ_WHISPER["Groq Whisper<br/>Voice Transcription"]
-        HF_EMBED["HuggingFace Hub<br/>all-mpnet-base-v2"]
-        SENTRY["Sentry Cloud<br/>Error Telemetry"]
-    end
-
-    AC -.->|Verify JWT| SUPA_AUTH
-    CC -.->|Atomic Deduction| SUPA_RPC
-    HANDLER -->|Query / Mutate| SUPA_DB
-    HANDLER -->|Save / Fetch PDF| SUPA_STORE
-    HANDLER -->|Session State| REDIS
-    HANDLER -->|LLM Inference| GROQ_LLM
-    HANDLER -->|Audio Audio STT| GROQ_WHISPER
-    HANDLER -->|Cosine Embeddings| HF_EMBED
-    BE -.->|Exception Logs| SENTRY
+    BROWSER -->|1. HTTPS / WSS Navigation| SPA
+    SPA -->|2. REST API Calls (/api/v1)<br/>HttpOnly Session Cookies + CSRF Header| MW
+    API -->|3. Verify JWT & OAuth Session| AUTH
+    API -->|4. SQL Queries & Atomic RPCs| DB
+    API -->|5. Store & Fetch Resume PDFs| STORE
+    API -->|6. Session Cache & Rate Limits| REDIS
+    API -->|7. LLM Chat & Audio Transcription| GROQ
+    API -->|8. Sentence Embeddings Cosine Distance| HF
+    API -.->|9. Uncaught Exceptions| SENTRY
 ```
 
 ---
