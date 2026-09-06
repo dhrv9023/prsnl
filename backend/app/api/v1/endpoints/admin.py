@@ -1,6 +1,7 @@
 # app/api/v1/endpoints/admin.py
 import logging
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
@@ -386,3 +387,131 @@ async def set_user_unlimited(
     except Exception as e:
         logger.error("set-unlimited failed for user %s: %s", target_user_id, e)
         raise HTTPException(status_code=500, detail="Failed to update unlimited status.")
+
+
+# ── GET /admin/docs (Documentation Portal) ────────────────────────────────────
+
+def _find_docs_dir() -> Path:
+    """Locate the project docs directory relative to repository root or CWD."""
+    for parent in Path(__file__).resolve().parents:
+        cand = parent / "docs"
+        if cand.is_dir() and (cand / "architecture").is_dir():
+            return cand
+    cwd = Path.cwd()
+    for cand in [cwd / "docs", cwd.parent / "docs", cwd.parent.parent / "docs"]:
+        if cand.is_dir() and (cand / "architecture").is_dir():
+            return cand
+    return Path(__file__).resolve().parents[5] / "docs"
+
+
+def _categorize_doc(rel_path: str) -> tuple[str, str]:
+    """Categorize document into logical navigation taxonomy."""
+    if rel_path.startswith("architecture/flowcharts/"):
+        return "Architecture & Flowcharts", "System Flowcharts (12 Diagrams)"
+    elif rel_path.startswith("architecture/"):
+        return "Architecture & Flowcharts", "Overview & Guide"
+    elif rel_path.startswith("explanations/backend/"):
+        return "Backend Architecture", "FastAPI & Core Services"
+    elif rel_path.startswith("explanations/frontend/"):
+        return "Frontend Architecture", "React Components & State"
+    elif rel_path.startswith("explanations/database/"):
+        return "Database & Migrations", "Schema & RLS Policies"
+    elif rel_path.startswith("explanations/blog/"):
+        return "Blog System", "Blog Architecture"
+    elif rel_path.startswith("qa/"):
+        return "QA Audits & Pentest", "Security & QA Reports"
+    elif rel_path.startswith("history/"):
+        return "Project History", "Evolution & Changelog"
+    elif rel_path.startswith("security/"):
+        return "Security Specifications", "Security Standards"
+    elif rel_path.startswith("specifications/"):
+        return "Master Specifications", "Project Master Docs"
+    return "General", "General Documentation"
+
+
+def _extract_title(f: Path) -> str:
+    """Extract clean title from first Markdown # heading or filename."""
+    title = f.stem.replace("_", " ").title()
+    try:
+        lines = f.read_text(encoding="utf-8", errors="ignore").splitlines()
+        for line in lines:
+            line = line.strip()
+            if line.startswith("# "):
+                candidate = line[2:].strip()
+                if candidate:
+                    return candidate
+    except Exception:
+        pass
+    return title
+
+
+@router.get("/docs")
+async def get_admin_docs_catalog(user: CurrentUser):
+    """
+    Admin: returns the complete catalog of all 119 documentation files,
+    categorized by architecture, backend, frontend, database, QA, and history.
+    """
+    await _require_admin(user)
+    docs_dir = _find_docs_dir()
+    if not docs_dir or not docs_dir.is_dir():
+        raise HTTPException(status_code=404, detail="Documentation directory not found.")
+
+    items = []
+    for f in sorted(docs_dir.glob("**/*.*")):
+        if f.suffix not in [".md", ".html"]:
+            continue
+        rel_path = f.relative_to(docs_dir).as_posix()
+        cat, group = _categorize_doc(rel_path)
+        title = _extract_title(f)
+
+        items.append({
+            "id": rel_path.replace("/", "__").replace(".", "_"),
+            "path": rel_path,
+            "title": title,
+            "category": cat,
+            "group": group,
+            "size": f.stat().st_size,
+            "is_flowchart": "flowcharts" in rel_path or "diagram" in rel_path.lower(),
+        })
+
+    return {
+        "docs": items,
+        "total": len(items),
+    }
+
+
+@router.get("/docs/content")
+async def get_admin_doc_content(path: str, user: CurrentUser):
+    """
+    Admin: returns the raw verbatim markdown or HTML content for a specific document.
+    Enforces strict path-traversal validation to prevent directory traversal attacks.
+    """
+    await _require_admin(user)
+    docs_dir = _find_docs_dir()
+    if not docs_dir or not docs_dir.is_dir():
+        raise HTTPException(status_code=404, detail="Documentation directory not found.")
+
+    # Strict path traversal prevention: ensure target is strictly inside docs_dir
+    target = (docs_dir / path).resolve()
+    try:
+        target.relative_to(docs_dir.resolve())
+    except ValueError:
+        logger.warning("AUDIT: Path traversal blocked for user %s with path: %s", getattr(user, "id", None), path)
+        raise HTTPException(status_code=403, detail="Invalid path traversal detected.")
+
+    if not target.is_file():
+        raise HTTPException(status_code=404, detail=f"Document not found: {path}")
+
+    try:
+        content = target.read_text(encoding="utf-8", errors="ignore")
+    except Exception as e:
+        logger.error("Failed to read document %s: %s", path, e)
+        raise HTTPException(status_code=500, detail="Failed to read document content.")
+
+    return {
+        "path": path,
+        "filename": target.name,
+        "size": target.stat().st_size,
+        "content": content,
+    }
+

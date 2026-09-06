@@ -912,6 +912,38 @@ export async function apiGetUserCreditHistory(userId: string): Promise<CreditTra
     return request(`/admin/users/${userId}/credit-history`);
 }
 
+// ── Admin documentation portal ────────────────────────────────────────────────
+
+export interface AdminDocItem {
+    id: string;
+    path: string;
+    title: string;
+    category: string;
+    group: string;
+    size: number;
+    is_flowchart: boolean;
+}
+
+export interface AdminDocCatalogResponse {
+    docs: AdminDocItem[];
+    total: number;
+}
+
+export interface AdminDocContentResponse {
+    path: string;
+    filename: string;
+    size: number;
+    content: string;
+}
+
+export async function apiGetAdminDocsCatalog(): Promise<AdminDocCatalogResponse> {
+    return request("/admin/docs");
+}
+
+export async function apiGetAdminDocContent(path: string): Promise<AdminDocContentResponse> {
+    return request(`/admin/docs/content?path=${encodeURIComponent(path)}`);
+}
+
 // ── Admin user activity ───────────────────────────────────────────────────────
 
 export interface UserActivityResume {

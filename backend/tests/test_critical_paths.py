@@ -594,3 +594,47 @@ class TestSecurityAuditRemediations:
         assert "<!--" not in cleaned_comment
         assert "World" in cleaned_comment
 
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CATEGORY 9 — Admin Documentation Portal
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TestAdminDocs:
+
+    def test_docs_without_auth_returns_401(self, client):
+        """Unauthenticated requests to /admin/docs must return 401."""
+        response = client.get("/api/v1/admin/docs")
+        assert response.status_code == 401
+
+    def test_docs_content_path_traversal_blocked(self):
+        """Path traversal attacks like ../../etc/passwd must be rejected with 403."""
+        import asyncio
+        from app.api.v1.endpoints.admin import get_admin_doc_content
+        from fastapi import HTTPException
+        from unittest.mock import MagicMock
+
+        mock_user = MagicMock()
+        mock_user.id = "admin-123"
+
+        with patch("app.api.v1.endpoints.admin._require_admin", return_value={"is_admin": True}):
+            with pytest.raises(HTTPException) as exc:
+                asyncio.run(get_admin_doc_content(path="../../etc/passwd", user=mock_user))
+            assert exc.value.status_code == 403
+
+    def test_docs_catalog_returns_all_documents_for_admin(self):
+        """Admin users must receive the full catalog of documentation files."""
+        import asyncio
+        from app.api.v1.endpoints.admin import get_admin_docs_catalog
+        from unittest.mock import MagicMock
+
+        mock_user = MagicMock()
+        mock_user.id = "admin-123"
+
+        with patch("app.api.v1.endpoints.admin._require_admin", return_value={"is_admin": True}):
+            result = asyncio.run(get_admin_docs_catalog(user=mock_user))
+            assert "docs" in result
+            assert result["total"] > 100
+            assert any(d["is_flowchart"] for d in result["docs"])
+            assert any(d["category"] == "Architecture & Flowcharts" for d in result["docs"])
+
+

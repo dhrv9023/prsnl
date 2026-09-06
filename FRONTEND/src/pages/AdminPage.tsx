@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, lazy, Suspense } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Navbar } from "@/components/layout/Navbar";
 import { useAuthContext } from "@/contexts/AuthContext";
@@ -12,8 +12,10 @@ import {
     TrendingUp, Activity, RefreshCw, Clock,
     Zap, Infinity as InfinityIcon, CreditCard, ChevronDown, ChevronUp,
     Gift, ToggleLeft, ToggleRight, AlertTriangle, LogIn, Search,
-    Eye, X,
+    Eye, X, BookOpen,
 } from "lucide-react";
+
+const DocumentationPortal = lazy(() => import("@/components/admin/DocumentationPortal").then(m => ({ default: m.DocumentationPortal })));
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -474,7 +476,7 @@ export default function AdminPage() {
     const [usersLoading, setUsersLoading] = useState(false);
     const [error, setError] = useState("");
     const [refreshing, setRefreshing] = useState(false);
-    const [activeTab, setActiveTab] = useState<"overview" | "users">("overview");
+    const [activeTab, setActiveTab] = useState<"overview" | "users" | "documentation">("overview");
     const [search, setSearch] = useState("");
     const [activityUser, setActivityUser] = useState<AdminUser | null>(null);
 
@@ -613,14 +615,34 @@ export default function AdminPage() {
 
                     {/* Tabs */}
                     <div className="flex gap-1 border-b border-border/20">
-                        {(["overview", "users"] as const).map((tab) => (
-                            <button key={tab} onClick={() => setActiveTab(tab)}
-                                className={`px-4 py-2.5 text-sm font-semibold capitalize border-b-2 transition-colors ${
-                                    activeTab === tab ? "border-primary text-foreground" : "border-transparent text-muted-foreground/50 hover:text-muted-foreground"
-                                }`}>
-                                {tab === "users" ? `Users (${users.length})` : "Overview"}
-                            </button>
-                        ))}
+                        <button
+                            onClick={() => setActiveTab("overview")}
+                            className={`px-4 py-2.5 text-sm font-semibold capitalize border-b-2 transition-colors ${
+                                activeTab === "overview" ? "border-primary text-foreground" : "border-transparent text-muted-foreground/50 hover:text-muted-foreground"
+                            }`}
+                        >
+                            Overview
+                        </button>
+                        <button
+                            onClick={() => setActiveTab("users")}
+                            className={`px-4 py-2.5 text-sm font-semibold capitalize border-b-2 transition-colors ${
+                                activeTab === "users" ? "border-primary text-foreground" : "border-transparent text-muted-foreground/50 hover:text-muted-foreground"
+                            }`}
+                        >
+                            Users ({users.length})
+                        </button>
+                        <button
+                            onClick={() => setActiveTab("documentation")}
+                            className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors flex items-center gap-2 ${
+                                activeTab === "documentation" ? "border-primary text-primary" : "border-transparent text-muted-foreground/50 hover:text-muted-foreground"
+                            }`}
+                        >
+                            <BookOpen className="w-4 h-4 text-blue-400" />
+                            Documentation
+                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400">
+                                139 Docs
+                            </span>
+                        </button>
                     </div>
 
                     {/* ── OVERVIEW TAB ─────────────────────────────────────── */}
@@ -836,6 +858,20 @@ export default function AdminPage() {
                                     </p>
                                 )}
                             </div>
+                        </div>
+                    )}
+
+                    {/* ── DOCUMENTATION TAB ────────────────────────────────── */}
+                    {activeTab === "documentation" && (
+                        <div className="animate-in fade-in duration-200">
+                            <Suspense fallback={
+                                <div className="h-[600px] rounded-2xl border border-border/30 bg-card/40 flex flex-col items-center justify-center gap-3">
+                                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                                    <p className="text-xs font-mono text-muted-foreground/60">Loading Documentation Portal...</p>
+                                </div>
+                            }>
+                                <DocumentationPortal />
+                            </Suspense>
                         </div>
                     )}
 
