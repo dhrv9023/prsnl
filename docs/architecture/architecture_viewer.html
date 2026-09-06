@@ -434,7 +434,7 @@
     end
 
     BROWSER -->|1. HTTPS / WSS Navigation| SPA
-    SPA -->|2. REST API Calls (/api/v1)<br/>HttpOnly Session Cookies + CSRF Header| MW
+    SPA -->|2. REST API Calls to /api/v1<br/>HttpOnly Session Cookies + CSRF Header| MW
     API -->|3. Verify JWT & OAuth Session| AUTH
     API -->|4. SQL Queries & Atomic RPCs| DB
     API -->|5. Store & Fetch Resume PDFs| STORE
