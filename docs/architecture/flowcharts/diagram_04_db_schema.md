@@ -4,6 +4,12 @@
 
 ---
 
+> 💡 **Quick Visual Preview:** In Antigravity IDE / VS Code, press **Ctrl + Shift + V** (or click the **Open Preview to the Side** icon at top-right) to view this flowchart rendered visually.
+> 🌐 **Interactive Canvas Viewer:** You can also open [architecture_viewer.html](../architecture_viewer.html) directly in any web browser to pan, zoom, and inspect components.
+
+---
+
+
 ## 🗄️ Relational Database Model (At a Glance)
 
 ```

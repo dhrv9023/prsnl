@@ -4,6 +4,12 @@
 
 ---
 
+> 💡 **Quick Visual Preview:** In Antigravity IDE / VS Code, press **Ctrl + Shift + V** (or click the **Open Preview to the Side** icon at top-right) to view this flowchart rendered visually.
+> 🌐 **Interactive Canvas Viewer:** You can also open [architecture_viewer.html](../architecture_viewer.html) directly in any web browser to pan, zoom, and inspect components.
+
+---
+
+
 ## 🔁 Request Pipeline & Security Gates (At a Glance)
 
 ```
@@ -61,6 +67,7 @@ Outgoing JSON Response (HTTP 200 OK + Remaining Credits Header)
 ## 📊 Technical Flowchart (Mermaid)
 
 ```mermaid
+%%{init: {'theme': 'dark', 'themeVariables': {'fontSize': '15px', 'fontFamily': 'Inter, system-ui, sans-serif'}, 'flowchart': {'nodeSpacing': 80, 'rankSpacing': 95, 'padding': 22, 'curve': 'basis'}}}%%
 flowchart TD
     Req["Incoming API Request<br/>fetch('/api/v1/...')"]
     

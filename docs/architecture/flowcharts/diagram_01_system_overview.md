@@ -48,11 +48,15 @@
 └───────────────────────────┘ └───────────────────┘ └─────────────────────────┘
 ```
 
+> 💡 **Quick Visual Preview:** In Antigravity IDE / VS Code, press **Ctrl + Shift + V** (or click the **Open Preview to the Side** icon at the top right of this editor) to view this flowchart rendered visually.
+> 🌐 **Interactive Canvas Viewer:** You can also open [architecture_viewer.html](../architecture_viewer.html) directly in any web browser to pan, zoom, and inspect components.
+
 ---
 
 ## 📊 Technical Flowchart (Mermaid)
 
 ```mermaid
+%%{init: {'theme': 'dark', 'themeVariables': {'fontSize': '15px', 'fontFamily': 'Inter, system-ui, sans-serif'}, 'flowchart': {'nodeSpacing': 85, 'rankSpacing': 100, 'padding': 24, 'curve': 'basis'}}}%%
 flowchart TD
     classDef client fill:#0f172a,stroke:#38bdf8,stroke-width:2px,color:#f8fafc
     classDef edge fill:#1e1b4b,stroke:#818cf8,stroke-width:2px,color:#f8fafc
@@ -62,52 +66,56 @@ flowchart TD
     classDef ai fill:#3b0764,stroke:#c084fc,stroke-width:2px,color:#f8fafc
     classDef mon fill:#4c0519,stroke:#fb7185,stroke-width:2px,color:#f8fafc
 
-    subgraph TIER1["1. Client Tier"]
-        BROWSER["<b>User Web Browser</b><br/>Chrome · Safari · Firefox · Mobile"]:::client
+    subgraph TIER1["Tier 1: Client Application Layer"]
+        BROWSER["<b>User Web Browser</b><br/>Desktop (Chrome · Firefox · Safari) & Mobile Browsers<br/><i>Renders Single Page Application</i>"]:::client
     end
 
-    subgraph TIER2["2. Edge & Frontend Layer (Vercel CDN)"]
-        SPA["<b>React 18 Single Page Application</b><br/>TypeScript · Vite · Tailwind · Shadcn UI<br/><i>State: AuthContext & CreditContext</i>"]:::edge
+    subgraph TIER2["Tier 2: Edge Delivery & Static Hosting (Vercel CDN)"]
+        SPA["<b>React 18 Single Page Application</b><br/>TypeScript · Vite · TailwindCSS · Shadcn UI<br/><i>Client State: AuthContext · CreditContext · RoastMode</i>"]:::edge
     end
 
-    subgraph TIER3["3. API Gateway & Backend Tier (Render)"]
+    subgraph TIER3["Tier 3: Core API Services & Security (Render PaaS)"]
         direction TB
-        MW["<b>FastAPI Middleware Pipeline</b><br/>RequestLogger ➔ ProxyHeaders ➔ CSRF ➔ BodySizeLimit ➔ SecurityHeaders"]:::backend
-        API["<b>FastAPI 0.128 REST Backend (Python 3.13)</b><br/>SlowAPI Rate Limiter · Pydantic v2 Models<br/><i>Routers: /auth · /resumes · /analysis · /interview · /credits · /admin</i>"]:::backend
+        MW["<b>FastAPI Middleware Stack</b><br/>RequestLogger ➔ ProxyHeaders ➔ CSRF ➔ BodySizeLimit ➔ SecurityHeaders"]:::backend
+        API["<b>FastAPI 0.128 Application Server</b><br/>Python 3.13 · SlowAPI Rate Limiting · Pydantic v2 Models<br/><i>Routers: /auth · /resumes · /analysis · /interview · /credits · /admin</i>"]:::backend
         MW --> API
     end
 
-    subgraph TIER4["4. Persistence & External Services Tier"]
-        direction TB
-        
-        subgraph SUPABASE["Supabase Cloud Platform"]
-            AUTH["<b>Supabase Auth</b><br/>JWT HS256 Validation & Google PKCE OAuth"]:::supa
-            DB[("<b>PostgreSQL 15 Database</b><br/>9 User-Scoped Tables · Row Level Security (RLS)<br/>Atomic Stored Procedures (deduct_credits, grant_credits)")]:::supa
-            STORE["<b>Supabase Storage</b><br/>Bucket: Resumes (AES-256 Encrypted PDFs)"]:::supa
+    subgraph TIER4["Tier 4: Cloud Data, Cache & External AI Inference Services"]
+        direction LR
+
+        subgraph COL_DATA["Database & Storage (Supabase)"]
+            direction TB
+            AUTH["<b>Supabase Auth Service</b><br/>JWT HS256 & Google PKCE OAuth"]:::supa
+            DB[("<b>PostgreSQL 15 Database</b><br/>9 User Tables · RLS Policies<br/>Atomic Credit RPC Functions")]:::supa
+            STORE["<b>Supabase Storage</b><br/>Encrypted Resume PDFs Bucket"]:::supa
         end
 
-        subgraph CACHE["In-Memory Cache"]
-            REDIS[("<b>Upstash Redis Cache</b><br/>• Active Interview Sessions (45-min TTL)<br/>• SlowAPI Rate Limit Sliding Counters")]:::redis
+        subgraph COL_CACHE["Session & Rate Cache"]
+            direction TB
+            REDIS[("<b>Upstash Redis</b><br/>45-min Mock Interview State<br/>SlowAPI IP Rate Counters")]:::redis
         end
 
-        subgraph AISERVICES["AI Inference Providers"]
-            GROQ["<b>Groq Cloud LPU</b><br/>• llama-3.3-70b-versatile (Critique, Intel, Letters)<br/>• whisper-large-v3-turbo (Voice Audio STT)"]:::ai
-            HF["<b>HuggingFace Hub</b><br/>sentence-transformers/all-mpnet-base-v2"]:::ai
+        subgraph COL_AI["AI Inference Cloud"]
+            direction TB
+            GROQ["<b>Groq Cloud LPU Engine</b><br/>• Llama 3.3 70B (Critique & Letters)<br/>• Whisper v3 Turbo (Speech STT)"]:::ai
+            HF["<b>HuggingFace Hub API</b><br/>• sentence-transformers embeddings"]:::ai
         end
 
-        subgraph OBS["Telemetry"]
-            SENTRY["<b>Sentry Telemetry</b><br/>Error Tracking & Performance Tracing"]:::mon
+        subgraph COL_OBS["Telemetry"]
+            direction TB
+            SENTRY["<b>Sentry APM</b><br/>Error Tracking & Tracing"]:::mon
         end
     end
 
-    BROWSER -->|1. HTTPS / WSS Navigation| SPA
-    SPA -->|2. REST API Calls to /api/v1<br/>HttpOnly Session Cookies + CSRF Header| MW
-    API -->|3. Verify JWT & OAuth Session| AUTH
-    API -->|4. SQL Queries & Atomic RPCs| DB
-    API -->|5. Store & Fetch Resume PDFs| STORE
-    API -->|6. Session Cache & Rate Limits| REDIS
-    API -->|7. LLM Chat & Audio Transcription| GROQ
-    API -->|8. Sentence Embeddings Cosine Distance| HF
+    BROWSER -->|1. HTTPS / WSS Requests| SPA
+    SPA -->|2. REST API Calls to /api/v1<br/>HttpOnly Cookie + CSRF Header| MW
+    API -->|3. Validate JWT & OAuth| AUTH
+    API -->|4. SQL Queries & Atomic Deductions| DB
+    API -->|5. Store / Fetch Encrypted PDFs| STORE
+    API -->|6. Interview State & Sliding Window| REDIS
+    API -->|7. LLM Prompts & Audio STT| GROQ
+    API -->|8. Cosine Similarity Calculation| HF
     API -.->|9. Uncaught Exceptions| SENTRY
 ```
 
