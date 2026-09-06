@@ -30,10 +30,21 @@ export function AuthModal({
     const [password, setPassword] = useState("");
     const [name, setName] = useState("");
 
+    // Fix: Lock body scroll on mobile when modal is open so the background
+    // doesn't scroll behind the backdrop on touch devices.
+    useEffect(() => {
+        const prev = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+        return () => {
+            document.body.style.overflow = prev;
+        };
+    }, []);
+
     // Clear error & reset submission state when mounting or switching modes
     useEffect(() => {
         clearError();
     }, [mode, clearError]);
+
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();

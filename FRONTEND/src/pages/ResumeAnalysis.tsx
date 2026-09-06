@@ -192,6 +192,7 @@ export default function ResumeAnalysis() {
     const [targetRole, setTargetRole] = useState("");
     const [experienceLevel, setExperienceLevel] = useState("mid");
     const [intelLoading, setIntelLoading] = useState(false);
+    const [intelSlowWarning, setIntelSlowWarning] = useState(false);
     const [intel, setIntel] = useState<{ report: HiringIntelReport; atsScore: number; targetRole: string; experienceLevel: string } | null>(null);
     const [analysisTab, setAnalysisTab] = useState<"ats" | "deep" | "intel">("ats");
 
@@ -329,8 +330,10 @@ export default function ResumeAnalysis() {
         if (!jobDesc.trim()) { setError("Hiring Intel requires a job description."); return; }
         if (!targetRole.trim()) { setError("Please enter the target role."); return; }
         if (!canUse("hiring_intel")) { setError("Insufficient credits. Hiring Intelligence costs 25 credits."); return; }
-        setError(""); setIntelLoading(true);
+        setError(""); setIntelLoading(true); setIntelSlowWarning(false);
         deductLocal("hiring_intel");
+        // Show a "still working" message after 45s so the UI doesn't feel dead
+        const slowTimer = setTimeout(() => setIntelSlowWarning(true), 45_000);
         try {
             const id = await ensureUploaded();
             const result = await apiGetHiringIntel(id, jobDesc, targetRole.trim(), experienceLevel);
@@ -341,6 +344,8 @@ export default function ResumeAnalysis() {
         } catch (e: unknown) {
             setError(friendlyError(e, "Hiring intelligence analysis failed."));
         } finally {
+            clearTimeout(slowTimer);
+            setIntelSlowWarning(false);
             setIntelLoading(false);
             refreshCredits();
         }
@@ -476,6 +481,12 @@ export default function ResumeAnalysis() {
                         : <><Brain className="w-3.5 h-3.5" /><span>{intel ? "Re-run Intel" : "Hiring Intel"}</span><span className="ml-auto text-[10px] font-bold opacity-70">25 cr</span></>
                     }
                 </button>
+                {/* Slow-loading reassurance: shown after 45s to prevent dead-hang perception */}
+                {intelSlowWarning && (
+                    <p className="text-[10px] text-amber-600 dark:text-amber-400 text-center leading-snug pt-0.5">
+                        ⏳ Still working — Hiring Intel is thorough (30–60s). Hang tight…
+                    </p>
+                )}
             </div>
 
             <p className="text-[10px] text-muted-foreground/25 text-center pt-1">

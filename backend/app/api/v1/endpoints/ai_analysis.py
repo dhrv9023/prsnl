@@ -9,6 +9,7 @@ from app.db.supabase import get_db
 from app.services.math_engine import ats_score
 from app.services.deep_analysis import generate_deep_analysis
 from app.services.hiring_intel import generate_hiring_intel
+from app.services.credits import refund_feature_credits
 from app.schemas.models import MatchRequest, HiringIntelRequest, DeepAnalysisRequest
 
 logger = logging.getLogger(__name__)
@@ -103,7 +104,9 @@ async def deep_analysis(
     )
 
     if not result:
-        raise HTTPException(status_code=502, detail="Deep analysis failed — please try again")
+        # AI call failed after credits were already deducted — refund the user
+        await refund_feature_credits(supabase, str(user.id), "deep_analysis", 15, "ai_failure_refund")
+        raise HTTPException(status_code=502, detail="Deep analysis failed — your credits have been refunded. Please try again.")
 
     analysis_record = {
         "resume_id": body.resume_id,
@@ -167,7 +170,9 @@ async def hiring_intelligence(
     )
 
     if not intel_report:
-        raise HTTPException(status_code=502, detail="Hiring intelligence analysis failed — please try again")
+        # AI call failed after credits were already deducted — refund the user
+        await refund_feature_credits(supabase, str(user.id), "hiring_intel", 25, "ai_failure_refund")
+        raise HTTPException(status_code=502, detail="Hiring intelligence analysis failed — your credits have been refunded. Please try again.")
 
     # 3. Save to DB
     analysis_record = {
