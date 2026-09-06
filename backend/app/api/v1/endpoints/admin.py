@@ -1,5 +1,6 @@
 # app/api/v1/endpoints/admin.py
 import logging
+import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -429,27 +430,76 @@ def _categorize_doc(rel_path: str) -> tuple[str, str]:
     return "General", "General Documentation"
 
 
-def _extract_title(f: Path) -> str:
-    """Extract clean title from first Markdown # heading or filename."""
+def _extract_doc_metadata(f: Path, rel_path: str) -> tuple[str, str, str, str]:
+    """
+    Extract clean title, code_target (source code file), code_type, and directory
+    from markdown metadata or filesystem structure.
+    """
     title = f.stem.replace("_", " ").title()
+    code_target = None
+    code_type = None
+
     try:
-        lines = f.read_text(encoding="utf-8", errors="ignore").splitlines()
-        for line in lines:
-            line = line.strip()
-            if line.startswith("# "):
-                candidate = line[2:].strip()
+        content = f.read_text(encoding="utf-8", errors="ignore")
+        for line in content.splitlines()[:25]:
+            line_str = line.strip()
+            if line_str.startswith("# "):
+                candidate = line_str[2:].strip()
                 if candidate:
-                    return candidate
+                    title = candidate
+
+            if not code_target:
+                m_loc = re.match(r"^\*{0,2}Location:\*{0,2}\s*`?([^`\n\r]+)`?", line_str, re.IGNORECASE)
+                if m_loc:
+                    loc = m_loc.group(1).strip()
+                    if loc.startswith("prsnl/"):
+                        loc = loc[6:]
+                    if loc:
+                        code_target = loc
+
+            if not code_type:
+                m_type = re.match(r"^\*{0,2}Type:\*{0,2}\s*([^\n\r]+)", line_str, re.IGNORECASE)
+                if m_type:
+                    code_type = m_type.group(1).strip().strip("`*")
     except Exception:
         pass
-    return title
+
+    if not code_target:
+        if "architecture/flowcharts" in rel_path:
+            code_type = code_type or "System Flowchart Diagram"
+            code_target = f"docs/{rel_path}"
+        elif "qa/" in rel_path:
+            code_type = code_type or "QA Security Audit"
+            code_target = f"docs/{rel_path}"
+        elif "history/" in rel_path:
+            code_type = code_type or "Project Evolution / History"
+            code_target = f"docs/{rel_path}"
+        elif "security/" in rel_path:
+            code_type = code_type or "Security Specification"
+            code_target = f"docs/{rel_path}"
+        elif "specifications/" in rel_path:
+            code_type = code_type or "Master Specification"
+            code_target = f"docs/{rel_path}"
+        else:
+            code_type = code_type or "Documentation"
+            code_target = f"docs/{rel_path}"
+
+    if not code_type:
+        code_type = "Source File"
+
+    directory = Path(code_target).parent.as_posix()
+    if directory == ".":
+        directory = "root"
+
+    return title, code_target, code_type, directory
 
 
 @router.get("/docs")
 async def get_admin_docs_catalog(user: CurrentUser):
     """
-    Admin: returns the complete catalog of all 119 documentation files,
-    categorized by architecture, backend, frontend, database, QA, and history.
+    Admin: returns the complete catalog of all 139 documentation files,
+    categorized by architecture, backend, frontend, database, QA, and history,
+    including exact source code targets and directory hierarchy.
     """
     await _require_admin(user)
     docs_dir = _find_docs_dir()
@@ -462,7 +512,7 @@ async def get_admin_docs_catalog(user: CurrentUser):
             continue
         rel_path = f.relative_to(docs_dir).as_posix()
         cat, group = _categorize_doc(rel_path)
-        title = _extract_title(f)
+        title, code_target, code_type, directory = _extract_doc_metadata(f, rel_path)
 
         items.append({
             "id": rel_path.replace("/", "__").replace(".", "_"),
@@ -470,6 +520,9 @@ async def get_admin_docs_catalog(user: CurrentUser):
             "title": title,
             "category": cat,
             "group": group,
+            "code_target": code_target,
+            "code_type": code_type,
+            "directory": directory,
             "size": f.stat().st_size,
             "is_flowchart": "flowcharts" in rel_path or "diagram" in rel_path.lower(),
         })

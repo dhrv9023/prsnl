@@ -8,7 +8,8 @@ import {
     BookOpen, Search, FileText, ChevronRight, ChevronDown,
     Copy, Check, ExternalLink, RefreshCw, Loader2,
     Code, Eye, Folder, Layers, Shield, Cpu, Database,
-    GitBranch, History, Terminal, X, ArrowLeft
+    GitBranch, History, Terminal, X, ArrowLeft, FileCode,
+    FolderTree, LayoutGrid
 } from "lucide-react";
 import { marked } from "marked";
 import mermaid from "mermaid";
@@ -25,6 +26,9 @@ export function DocumentationPortal() {
     const [catalogError, setCatalogError] = useState("");
     const [search, setSearch] = useState("");
     
+    // Explorer view mode: 'category' (by architecture domain) vs 'directory' (by codebase repo structure)
+    const [explorerMode, setExplorerMode] = useState<"category" | "directory">("category");
+
     // Selected Document & Content state
     const [selectedDoc, setSelectedDoc] = useState<AdminDocItem | null>(null);
     const [content, setContent] = useState<string>("");
@@ -35,6 +39,7 @@ export function DocumentationPortal() {
     // View mode: 'visual' (rendered markdown + SVGs) vs 'raw' (verbatim source)
     const [viewMode, setViewMode] = useState<"visual" | "raw">("visual");
     const [copied, setCopied] = useState(false);
+    const [copiedPath, setCopiedPath] = useState(false);
     
     // Collapsible Category states
     const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({
@@ -46,6 +51,15 @@ export function DocumentationPortal() {
         "Project History": false,
         "Security Specifications": false,
         "Master Specifications": false,
+    });
+
+    // Collapsible Directory states
+    const [expandedDirectories, setExpandedDirectories] = useState<Record<string, boolean>>({
+        "backend/app/api/v1/endpoints": true,
+        "backend/app/services": true,
+        "FRONTEND/src/pages": true,
+        "supabase/migrations": true,
+        "docs/architecture/flowcharts": true,
     });
 
     const contentRef = useRef<HTMLDivElement>(null);
@@ -191,7 +205,7 @@ export function DocumentationPortal() {
         };
     }, [renderedHtml, viewMode]);
 
-    // Group docs by category
+    // Group docs by category or directory
     const groupedDocs = useMemo(() => {
         const groups: Record<string, AdminDocItem[]> = {};
         const q = search.toLowerCase().trim();
@@ -201,24 +215,61 @@ export function DocumentationPortal() {
                 const match = d.title.toLowerCase().includes(q) ||
                               d.path.toLowerCase().includes(q) ||
                               d.category.toLowerCase().includes(q) ||
-                              d.group.toLowerCase().includes(q);
+                              d.group.toLowerCase().includes(q) ||
+                              (d.code_target && d.code_target.toLowerCase().includes(q)) ||
+                              (d.directory && d.directory.toLowerCase().includes(q));
                 if (!match) return;
             }
 
-            if (!groups[d.category]) {
-                groups[d.category] = [];
+            const key = explorerMode === "category" ? d.category : (d.directory || "root");
+
+            if (!groups[key]) {
+                groups[key] = [];
             }
-            groups[d.category].push(d);
+            groups[key].push(d);
         });
 
-        return groups;
-    }, [docs, search]);
+        // In directory mode, sort directory keys logically
+        if (explorerMode === "directory") {
+            const sortedKeys = Object.keys(groups).sort((a, b) => {
+                const getOrder = (str: string) => {
+                    if (str.startsWith("backend")) return 1;
+                    if (str.startsWith("FRONTEND")) return 2;
+                    if (str.startsWith("supabase")) return 3;
+                    if (str.startsWith("kareerist_blog")) return 4;
+                    if (str.startsWith("docs/architecture")) return 5;
+                    if (str.startsWith("docs/qa")) return 6;
+                    if (str.startsWith("docs/history")) return 7;
+                    if (str.startsWith("docs")) return 8;
+                    return 9;
+                };
+                const diff = getOrder(a) - getOrder(b);
+                if (diff !== 0) return diff;
+                return a.localeCompare(b);
+            });
 
-    function toggleCategory(cat: string) {
-        setExpandedCategories(prev => ({
-            ...prev,
-            [cat]: !prev[cat]
-        }));
+            const sortedGroups: Record<string, AdminDocItem[]> = {};
+            sortedKeys.forEach(k => {
+                sortedGroups[k] = groups[k];
+            });
+            return sortedGroups;
+        }
+
+        return groups;
+    }, [docs, search, explorerMode]);
+
+    function toggleGroup(key: string) {
+        if (explorerMode === "category") {
+            setExpandedCategories(prev => ({
+                ...prev,
+                [key]: !prev[key]
+            }));
+        } else {
+            setExpandedDirectories(prev => ({
+                ...prev,
+                [key]: !prev[key]
+            }));
+        }
     }
 
     function handleCopy() {
@@ -229,25 +280,45 @@ export function DocumentationPortal() {
         });
     }
 
-    function getCategoryIcon(cat: string) {
-        switch (cat) {
-            case "Architecture & Flowcharts":
-                return Layers;
-            case "Backend Architecture":
-                return Cpu;
-            case "Frontend Architecture":
-                return Code;
-            case "Database & Migrations":
-                return Database;
-            case "QA Audits & Pentest":
-                return Shield;
-            case "Project History":
-                return History;
-            case "Security Specifications":
-                return Shield;
-            default:
-                return BookOpen;
+    function getGroupIcon(key: string) {
+        if (explorerMode === "category") {
+            switch (key) {
+                case "Architecture & Flowcharts":
+                    return Layers;
+                case "Backend Architecture":
+                    return Cpu;
+                case "Frontend Architecture":
+                    return Code;
+                case "Database & Migrations":
+                    return Database;
+                case "QA Audits & Pentest":
+                    return Shield;
+                case "Project History":
+                    return History;
+                case "Security Specifications":
+                    return Shield;
+                default:
+                    return BookOpen;
+            }
         }
+        // Directory mode icons
+        if (key.startsWith("backend")) return Cpu;
+        if (key.startsWith("FRONTEND")) return Code;
+        if (key.startsWith("supabase")) return Database;
+        if (key.includes("flowchart") || key.includes("architecture")) return Layers;
+        if (key.includes("qa") || key.includes("security")) return Shield;
+        if (key.includes("history")) return History;
+        return Folder;
+    }
+
+    function getDocIcon(doc: AdminDocItem) {
+        if (doc.is_flowchart) return Layers;
+        if (doc.category.includes("Backend") || (doc.code_target && doc.code_target.startsWith("backend"))) return Cpu;
+        if (doc.category.includes("Frontend") || (doc.code_target && doc.code_target.startsWith("FRONTEND"))) return Code;
+        if (doc.category.includes("Database") || (doc.code_target && doc.code_target.startsWith("supabase"))) return Database;
+        if (doc.category.includes("QA") || doc.category.includes("Security")) return Shield;
+        if (doc.category.includes("History")) return History;
+        return FileCode;
     }
 
     return (
@@ -296,9 +367,39 @@ export function DocumentationPortal() {
             <div className="flex-1 flex overflow-hidden">
                 {/* ── Left Sidebar (Tree / Explorer) ────────────────────────────── */}
                 <aside className="w-80 border-r border-border/20 bg-secondary/5 flex flex-col h-full flex-shrink-0">
-                    <div className="p-3 border-b border-border/10 flex items-center justify-between text-[11px] font-mono text-muted-foreground/60 uppercase tracking-wider">
-                        <span>Explorer</span>
-                        <span>{Object.values(groupedDocs).flat().length} items</span>
+                    <div className="p-2.5 border-b border-border/10 space-y-2">
+                        <div className="flex items-center justify-between text-[11px] font-mono text-muted-foreground/60 uppercase tracking-wider px-1">
+                            <span>Explorer</span>
+                            <span>{Object.values(groupedDocs).flat().length} items</span>
+                        </div>
+
+                        {/* View Switcher: By Category vs By Code Directory */}
+                        <div className="flex items-center p-0.5 bg-secondary/30 border border-border/20 rounded-lg text-xs">
+                            <button
+                                onClick={() => setExplorerMode("category")}
+                                className={`flex-1 flex items-center justify-center gap-1.5 py-1 px-2 rounded-md text-[11px] font-medium transition-colors ${
+                                    explorerMode === "category"
+                                        ? "bg-primary text-primary-foreground shadow-sm font-semibold"
+                                        : "text-muted-foreground hover:text-foreground"
+                                }`}
+                                title="Browse by Architecture Domain"
+                            >
+                                <LayoutGrid className="w-3 h-3" />
+                                Categories
+                            </button>
+                            <button
+                                onClick={() => setExplorerMode("directory")}
+                                className={`flex-1 flex items-center justify-center gap-1.5 py-1 px-2 rounded-md text-[11px] font-medium transition-colors ${
+                                    explorerMode === "directory"
+                                        ? "bg-primary text-primary-foreground shadow-sm font-semibold"
+                                        : "text-muted-foreground hover:text-foreground"
+                                }`}
+                                title="Browse by Project Codebase Folder Structure"
+                            >
+                                <FolderTree className="w-3 h-3" />
+                                Code Tree
+                            </button>
+                        </div>
                     </div>
 
                     <div className="flex-1 overflow-y-auto p-2.5 space-y-1">
@@ -316,22 +417,26 @@ export function DocumentationPortal() {
                                 No documentation matching "{search}"
                             </div>
                         ) : (
-                            Object.entries(groupedDocs).map(([category, catDocs]) => {
-                                const Icon = getCategoryIcon(category);
-                                const isExpanded = search ? true : !!expandedCategories[category];
+                            Object.entries(groupedDocs).map(([groupKey, groupDocs]) => {
+                                const Icon = getGroupIcon(groupKey);
+                                const isExpanded = search
+                                    ? true
+                                    : explorerMode === "category"
+                                        ? !!expandedCategories[groupKey]
+                                        : !!expandedDirectories[groupKey];
 
                                 return (
-                                    <div key={category} className="rounded-xl overflow-hidden">
+                                    <div key={groupKey} className="rounded-xl overflow-hidden">
                                         <button
-                                            onClick={() => toggleCategory(category)}
+                                            onClick={() => toggleGroup(groupKey)}
                                             className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-foreground/80 hover:bg-secondary/20 rounded-lg transition-colors group"
                                         >
                                             <span className="flex items-center gap-2 truncate">
                                                 <Icon className="w-3.5 h-3.5 text-primary/70 group-hover:text-primary transition-colors flex-shrink-0" />
-                                                <span className="truncate">{category}</span>
+                                                <span className="truncate font-mono text-xs">{groupKey}</span>
                                             </span>
                                             <div className="flex items-center gap-1.5 text-muted-foreground/40 text-[10px] font-mono flex-shrink-0">
-                                                <span>{catDocs.length}</span>
+                                                <span>{groupDocs.length}</span>
                                                 {isExpanded ? (
                                                     <ChevronDown className="w-3 h-3" />
                                                 ) : (
@@ -341,27 +446,42 @@ export function DocumentationPortal() {
                                         </button>
 
                                         {isExpanded && (
-                                            <div className="pl-3 pr-1 py-1 space-y-0.5 border-l border-border/15 ml-3 my-0.5">
-                                                {catDocs.map(doc => {
+                                            <div className="pl-3 pr-1 py-1 space-y-1 border-l border-border/15 ml-3 my-0.5">
+                                                {groupDocs.map(doc => {
                                                     const isSelected = selectedDoc?.path === doc.path;
+                                                    const DocIcon = getDocIcon(doc);
+
                                                     return (
                                                         <button
                                                             key={doc.path}
                                                             onClick={() => setSelectedDoc(doc)}
-                                                            className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs transition-all flex items-center justify-between gap-2 ${
+                                                            className={`w-full text-left px-2.5 py-2 rounded-lg text-xs transition-all flex flex-col gap-1 ${
                                                                 isSelected
                                                                     ? "bg-primary/15 text-primary font-semibold border border-primary/25 shadow-sm"
                                                                     : "text-muted-foreground/70 hover:bg-secondary/20 hover:text-foreground border border-transparent"
                                                             }`}
-                                                            title={doc.path}
+                                                            title={`${doc.title}\n${doc.code_target ? `Code file: ${doc.code_target}` : doc.path}`}
                                                         >
-                                                            <span className="truncate flex items-center gap-1.5">
-                                                                <FileText className={`w-3 h-3 flex-shrink-0 ${isSelected ? "text-primary" : "text-muted-foreground/40"}`} />
-                                                                <span className="truncate">{doc.title}</span>
-                                                            </span>
-                                                            {doc.is_flowchart && (
-                                                                <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-purple-500/15 border border-purple-500/25 text-purple-400 flex-shrink-0">
-                                                                    Flow
+                                                            <div className="flex items-center justify-between gap-2 w-full">
+                                                                <span className="truncate flex items-center gap-1.5">
+                                                                    <DocIcon className={`w-3.5 h-3.5 flex-shrink-0 ${isSelected ? "text-primary" : "text-muted-foreground/40"}`} />
+                                                                    <span className="truncate font-medium text-foreground/90">{doc.title}</span>
+                                                                </span>
+                                                                {doc.code_type ? (
+                                                                    <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-secondary/50 border border-border/30 text-muted-foreground flex-shrink-0">
+                                                                        {doc.code_type.length > 15 ? doc.code_type.slice(0, 13) + "…" : doc.code_type}
+                                                                    </span>
+                                                                ) : doc.is_flowchart ? (
+                                                                    <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-purple-500/15 border border-purple-500/25 text-purple-400 flex-shrink-0">
+                                                                        Flow
+                                                                    </span>
+                                                                ) : null}
+                                                            </div>
+
+                                                            {doc.code_target && (
+                                                                <span className="text-[10px] font-mono text-muted-foreground/50 truncate flex items-center gap-1 pl-5">
+                                                                    <FileCode className="w-2.5 h-2.5 text-sky-400/60 flex-shrink-0" />
+                                                                    <span className="truncate">{doc.code_target}</span>
                                                                 </span>
                                                             )}
                                                         </button>
@@ -382,18 +502,30 @@ export function DocumentationPortal() {
                         <>
                             {/* Document Header Bar */}
                             <div className="px-6 py-3.5 border-b border-border/20 bg-card/60 flex flex-wrap items-center justify-between gap-3 flex-shrink-0">
-                                <div className="space-y-0.5 min-w-0">
-                                    <div className="flex items-center gap-2 text-[11px] font-mono text-muted-foreground/60">
+                                <div className="space-y-1 min-w-0">
+                                    <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono text-muted-foreground/60">
                                         <span>{selectedDoc.category}</span>
                                         <span>•</span>
                                         <span className="text-primary/70">{selectedDoc.group}</span>
+                                        {selectedDoc.code_type && (
+                                            <>
+                                                <span>•</span>
+                                                <span className="px-1.5 py-0.2 rounded bg-blue-500/15 border border-blue-500/30 text-blue-400 font-semibold text-[10px]">
+                                                    {selectedDoc.code_type}
+                                                </span>
+                                            </>
+                                        )}
                                     </div>
                                     <h3 className="text-base font-bold text-foreground truncate">
                                         {selectedDoc.title}
                                     </h3>
-                                    <p className="text-[11px] font-mono text-muted-foreground/50 truncate">
-                                        {selectedDoc.path} · {(selectedDoc.size / 1024).toFixed(1)} KB
-                                    </p>
+                                    {selectedDoc.code_target && (
+                                        <div className="flex items-center gap-1.5 text-xs font-mono text-sky-400/90 truncate">
+                                            <FileCode className="w-3.5 h-3.5 text-sky-400 flex-shrink-0" />
+                                            <span className="text-muted-foreground/60">Code File:</span>
+                                            <span className="font-semibold text-sky-300 truncate">{selectedDoc.code_target}</span>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Controls: Visual/Raw Mode, Copy */}
@@ -467,11 +599,83 @@ export function DocumentationPortal() {
                                         </pre>
                                     </div>
                                 ) : (
-                                    <div
-                                        ref={contentRef}
-                                        className="max-w-4xl mx-auto doc-markdown"
-                                        dangerouslySetInnerHTML={{ __html: renderedHtml }}
-                                    />
+                                    <div className="max-w-4xl mx-auto space-y-6">
+                                        {/* Source Code Association Card */}
+                                        {selectedDoc.code_target && (
+                                            <div className="p-5 rounded-2xl bg-slate-900/90 border border-slate-800 shadow-xl">
+                                                <div className="flex flex-wrap items-center justify-between gap-2 pb-3 mb-3 border-b border-slate-800">
+                                                    <div className="flex items-center gap-2 text-xs font-semibold text-slate-200">
+                                                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                                                        <span>Source Code File Explained By This Document</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        {selectedDoc.code_type && (
+                                                            <span className="px-2.5 py-0.5 rounded-full text-xs font-mono bg-blue-500/20 border border-blue-500/40 text-blue-300 font-medium">
+                                                                {selectedDoc.code_type}
+                                                            </span>
+                                                        )}
+                                                        <span className="text-xs font-mono text-slate-500">
+                                                            {(selectedDoc.size / 1024).toFixed(1)} KB Doc
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex flex-wrap items-center justify-between gap-3">
+                                                    <div className="space-y-0.5 min-w-0">
+                                                        <div className="text-[11px] font-mono text-slate-400 uppercase tracking-wider">
+                                                            Target Code File
+                                                        </div>
+                                                        <div className="font-mono text-sm font-bold text-sky-300 truncate flex items-center gap-2">
+                                                            <FileCode className="w-4 h-4 text-sky-400 flex-shrink-0" />
+                                                            <span className="truncate select-all">{selectedDoc.code_target}</span>
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => {
+                                                            if (selectedDoc.code_target) {
+                                                                navigator.clipboard.writeText(selectedDoc.code_target);
+                                                                setCopiedPath(true);
+                                                                setTimeout(() => setCopiedPath(false), 2000);
+                                                            }
+                                                        }}
+                                                        className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-mono text-slate-200 flex items-center gap-1.5 transition-colors border border-slate-700 shadow-sm flex-shrink-0"
+                                                        title="Copy exact source file path to clipboard"
+                                                    >
+                                                        {copiedPath ? (
+                                                            <>
+                                                                <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                                                <span className="text-emerald-400 font-semibold">Path Copied!</span>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <Copy className="w-3.5 h-3.5 text-slate-400" />
+                                                                <span>Copy Code Path</span>
+                                                            </>
+                                                        )}
+                                                    </button>
+                                                </div>
+
+                                                {/* Directory Breadcrumbs */}
+                                                <div className="mt-3 pt-3 border-t border-slate-800/60 flex items-center gap-1.5 text-xs font-mono text-slate-400 overflow-x-auto">
+                                                    <Folder className="w-3.5 h-3.5 text-amber-400/80 flex-shrink-0" />
+                                                    <span className="text-slate-500 font-medium">Directory:</span>
+                                                    {(selectedDoc.directory || "root").split("/").map((segment, idx, arr) => (
+                                                        <span key={idx} className="flex items-center gap-1">
+                                                            <span className="text-slate-300 font-semibold hover:text-white transition-colors">{segment}</span>
+                                                            {idx < arr.length - 1 && <span className="text-slate-600">/</span>}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Rendered Markdown */}
+                                        <div
+                                            ref={contentRef}
+                                            className="doc-markdown"
+                                            dangerouslySetInnerHTML={{ __html: renderedHtml }}
+                                        />
+                                    </div>
                                 )}
                             </div>
                         </>

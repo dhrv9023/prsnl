@@ -922,6 +922,9 @@ export interface AdminDocItem {
     group: string;
     size: number;
     is_flowchart: boolean;
+    code_target?: string;
+    code_type?: string;
+    directory?: string;
 }
 
 export interface AdminDocCatalogResponse {

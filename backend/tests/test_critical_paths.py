@@ -636,5 +636,7 @@ class TestAdminDocs:
             assert result["total"] > 100
             assert any(d["is_flowchart"] for d in result["docs"])
             assert any(d["category"] == "Architecture & Flowcharts" for d in result["docs"])
+            assert any("admin.py" in d.get("code_target", "") for d in result["docs"])
+            assert any(d.get("directory") for d in result["docs"])
 
 
