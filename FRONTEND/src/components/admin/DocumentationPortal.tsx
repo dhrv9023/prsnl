@@ -16,7 +16,7 @@ import mermaid from "mermaid";
 // Configure marked with GFM options
 marked.setOptions({
     gfm: true,
-    breaks: true,
+    breaks: false,
 });
 
 export function DocumentationPortal() {
@@ -447,7 +447,7 @@ export function DocumentationPortal() {
                             </div>
 
                             {/* Document Body */}
-                            <div className="flex-1 overflow-y-auto p-8 relative">
+                            <div className="flex-1 overflow-y-auto p-8 md:p-12 relative bg-slate-950/30">
                                 {loadingContent ? (
                                     <div className="h-full flex items-center justify-center">
                                         <div className="text-center space-y-2">
@@ -469,17 +469,7 @@ export function DocumentationPortal() {
                                 ) : (
                                     <div
                                         ref={contentRef}
-                                        className="max-w-4xl mx-auto prose prose-invert max-w-none text-slate-200
-                                                   prose-headings:text-foreground prose-headings:font-bold prose-headings:tracking-tight
-                                                   prose-h1:text-2xl prose-h2:text-xl prose-h3:text-lg prose-h2:border-b prose-h2:border-border/20 prose-h2:pb-2
-                                                   prose-p:leading-relaxed prose-p:text-slate-300
-                                                   prose-a:text-blue-400 hover:prose-a:text-blue-300 prose-a:underline-offset-4
-                                                   prose-code:text-primary-foreground prose-code:bg-secondary/40 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:font-mono prose-code:text-xs
-                                                   prose-pre:bg-slate-950 prose-pre:border prose-pre:border-border/30 prose-pre:rounded-xl prose-pre:shadow-lg
-                                                   prose-table:border-collapse prose-table:w-full prose-table:border prose-table:border-border/20 prose-table:rounded-xl prose-table:overflow-hidden
-                                                   prose-th:bg-secondary/30 prose-th:p-3 prose-th:text-xs prose-th:font-semibold prose-th:text-foreground prose-th:border-b prose-th:border-border/30
-                                                   prose-td:p-3 prose-td:text-xs prose-td:border-b prose-td:border-border/10 prose-td:text-slate-300
-                                                   prose-blockquote:border-l-4 prose-blockquote:border-primary/60 prose-blockquote:bg-primary/5 prose-blockquote:py-1 prose-blockquote:px-4 prose-blockquote:rounded-r-lg"
+                                        className="max-w-4xl mx-auto doc-markdown"
                                         dangerouslySetInnerHTML={{ __html: renderedHtml }}
                                     />
                                 )}

@@ -277,3 +277,250 @@
     transition: background-color 0.45s ease, color 0.3s ease;
   }
 }
+
+/* ── Documentation Portal Markdown Styling ──────────────────────────────────── */
+
+.doc-markdown {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  color: #cbd5e1;
+  font-size: 1rem;
+  line-height: 1.8;
+  word-wrap: break-word;
+}
+
+/* Headings */
+.doc-markdown h1 {
+  font-size: 2.25rem;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: -0.03em;
+  line-height: 1.25;
+  margin-top: 2.5rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.doc-markdown h1:first-child {
+  margin-top: 0;
+}
+
+.doc-markdown h2 {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #38bdf8;
+  letter-spacing: -0.02em;
+  line-height: 1.35;
+  margin-top: 3rem;
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(56, 189, 248, 0.2);
+}
+
+.doc-markdown h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #f1f5f9;
+  letter-spacing: -0.01em;
+  line-height: 1.4;
+  margin-top: 2.25rem;
+  margin-bottom: 0.85rem;
+}
+
+.doc-markdown h4 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #e2e8f0;
+  margin-top: 1.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.doc-markdown h5,
+.doc-markdown h6 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #94a3b8;
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+
+/* Paragraphs & Text */
+.doc-markdown p {
+  margin-top: 0;
+  margin-bottom: 1.5rem;
+  line-height: 1.8;
+  color: #cbd5e1;
+}
+
+.doc-markdown strong,
+.doc-markdown b {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.doc-markdown em,
+.doc-markdown i {
+  font-style: italic;
+  color: #e2e8f0;
+}
+
+/* Lists */
+.doc-markdown ul {
+  list-style-type: disc !important;
+  margin-top: 0.5rem;
+  margin-bottom: 1.75rem;
+  padding-left: 1.75rem;
+}
+
+.doc-markdown ol {
+  list-style-type: decimal !important;
+  margin-top: 0.5rem;
+  margin-bottom: 1.75rem;
+  padding-left: 1.75rem;
+}
+
+.doc-markdown li {
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+  line-height: 1.75;
+  color: #cbd5e1;
+  padding-left: 0.25rem;
+}
+
+.doc-markdown li::marker {
+  color: #38bdf8;
+}
+
+.doc-markdown ol > li::marker {
+  font-weight: 600;
+  color: #38bdf8;
+}
+
+.doc-markdown ul ul,
+.doc-markdown ul ol,
+.doc-markdown ol ul,
+.doc-markdown ol ol {
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+  padding-left: 1.5rem;
+}
+
+/* Links */
+.doc-markdown a {
+  color: #38bdf8;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  transition: color 0.15s ease;
+}
+
+.doc-markdown a:hover {
+  color: #7dd3fc;
+}
+
+/* Inline Code */
+.doc-markdown :not(pre) > code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.875em;
+  color: #38bdf8;
+  background-color: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  padding: 0.2rem 0.45rem;
+  border-radius: 0.375rem;
+  font-weight: 500;
+  word-break: break-word;
+}
+
+/* Code Blocks */
+.doc-markdown pre {
+  margin-top: 1.75rem;
+  margin-bottom: 2rem;
+  padding: 1.25rem 1.5rem;
+  background-color: #030712;
+  border: 1px solid rgba(51, 65, 85, 0.8);
+  border-radius: 0.875rem;
+  overflow-x: auto;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+}
+
+.doc-markdown pre code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.875rem;
+  line-height: 1.7;
+  color: #e2e8f0;
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+}
+
+/* Blockquotes */
+.doc-markdown blockquote {
+  border-left: 4px solid #38bdf8;
+  background-color: rgba(56, 189, 248, 0.06);
+  padding: 1rem 1.5rem;
+  margin-top: 1.75rem;
+  margin-bottom: 1.75rem;
+  border-radius: 0 0.5rem 0.5rem 0;
+  color: #94a3b8;
+}
+
+.doc-markdown blockquote p {
+  margin: 0.25rem 0;
+}
+
+/* Tables */
+.doc-markdown table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin-top: 2rem;
+  margin-bottom: 2.5rem;
+  border: 1px solid rgba(51, 65, 85, 0.7);
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+.doc-markdown thead th {
+  background-color: rgba(15, 23, 42, 0.95);
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  text-align: left;
+  padding: 0.85rem 1.1rem;
+  border-bottom: 1px solid rgba(51, 65, 85, 0.8);
+}
+
+.doc-markdown tbody td {
+  padding: 0.85rem 1.1rem;
+  border-bottom: 1px solid rgba(51, 65, 85, 0.3);
+  font-size: 0.875rem;
+  color: #cbd5e1;
+  line-height: 1.6;
+}
+
+.doc-markdown tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.doc-markdown tbody tr:hover {
+  background-color: rgba(30, 41, 59, 0.4);
+}
+
+/* Horizontal Rule */
+.doc-markdown hr {
+  border: none;
+  border-top: 1px solid rgba(148, 163, 184, 0.2);
+  margin-top: 3rem;
+  margin-bottom: 3rem;
+}
+
+/* Images */
+.doc-markdown img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.75rem;
+  margin: 1.75rem auto;
+  display: block;
+  border: 1px solid rgba(51, 65, 85, 0.5);
+}
