@@ -64,9 +64,7 @@
 
 ## Current Limitations
 
-**Render free tier cold starts:** The backend spins down after 15 minutes of inactivity. First request takes 20-30 seconds. UptimeRobot pinging every 10 minutes mitigates this but doesn't eliminate it. Hiring Intel (the longest-running endpoint at 30–60s) now shows a "⏳ Still working…" amber message after 45 seconds so users don't think it has crashed.
-
-**No automated tests:** Zero test coverage. Every deployment is manual QA. This is the biggest technical debt item.
+**Render free tier cold starts:** The backend spins down after 15 minutes of inactivity. First request takes 20-30 seconds. UptimeRobot / cron-job.org pinging every 10 minutes mitigates this but doesn't eliminate it. Hiring Intel (the longest-running endpoint at 30–60s) now shows a "⏳ Still working…" amber message after 45 seconds so users don't think it has crashed.
 
 **No payment integration:** Credits are free (100 initial + 50/day). There's no way to purchase more credits yet. The credit system is fully built and ready for payment integration — it just needs a payment provider (Razorpay, Stripe) wired up.
 
@@ -79,7 +77,7 @@
 | Feature | Priority | Notes |
 |---------|----------|-------|
 | Payment integration | High | Razorpay or Stripe, credit top-up packages |
-| Automated test suite | High | pytest-asyncio, at minimum: auth, credits, admin |
+| Automated test suite | Done ✅ | 37 tests in `backend/tests/test_critical_paths.py` (100% passing) |
 | Token revocation on logout | Medium | Use Supabase Admin API to invalidate specific session |
 | Career Roadmaps | Medium | Personalized career growth planning |
 | Resume Template Generator | Medium | Generate polished resume templates |
@@ -91,41 +89,34 @@
 
 ---
 
-## Repository Structure (Final)
+## Repository Structure (Clean Monorepo)
 
 ```
 prsnl/
-├── backend/                    ← FastAPI backend
-│   ├── app/
-│   │   ├── main.py
-│   │   ├── api/v1/endpoints/
-│   │   ├── core/
-│   │   ├── db/
-│   │   ├── schemas/
-│   │   └── services/
-│   ├── tests/
-│   ├── pyproject.toml
-│   ├── requirements.txt
-│   └── uv.lock
-├── FRONTEND/                   ← React frontend
-│   ├── src/
-│   ├── public/
-│   ├── package.json
-│   └── vite.config.ts
-├── supabase/
-│   └── migrations/             ← all SQL migrations in order
-├── kareerist_sofar/            ← this documentation (local only, gitignored)
-├── README.md                   ← public-facing project README
-├── run.sh                      ← local dev launcher (Linux/WSL)
-└── .gitignore
+├── backend/                    ← FastAPI application, routers, services & 37 unit tests
+├── FRONTEND/                   ← React 18 + TypeScript + Vite frontend application
+├── supabase/                   ← PostgreSQL migrations & schemas
+├── kareerist_blog/             ← Standalone blog micro-frontend subproject
+├── docs/                       ← Centralized Documentation Hub
+│   ├── README.md               ← Navigation portal
+│   ├── specifications/         ← Master project spec & AI handoff
+│   ├── architecture/           ← 12 flowcharts & interactive HTML viewer
+│   ├── explanations/           ← Deep-dive code walkthroughs
+│   ├── history/                ← Development evolution (Chapters 1–12)
+│   ├── qa/                     ← 10-part QA audit & pentest reports
+│   └── security/               ← CSRF & security guides
+├── CHANGELOG.md                ← Release version notes
+├── README.md                   ← Public-facing project README
+├── run.sh                      ← Local dev launcher (Linux/WSL)
+└── .gitignore                  ← Clean ignore rules
 ```
 
 ---
 
 ## Key Numbers
 
-- **10 SQL migrations** applied to production (incl. `last_sign_in_at`, `resume_id` on interview_reports)
-- **15+ security/logic issues** found and fixed in the audit
+- **10 SQL migrations** applied to production
+- **20+ security/logic issues** found and fixed in the audits
 - **6 AI features** live
 - **100 free credits** on signup
 - **50 credits/day** after initial exhaustion
@@ -133,11 +124,32 @@ prsnl/
 - **45-minute** interview session TTL in Redis
 - **5MB** max resume upload size
 - **6 questions** per interview (2 theory, 2 MCQ, 2 code)
-- **0 automated tests** (biggest gap)
+- **37 automated tests** (100% passing in ~2s)
 
 ---
 
-## Recent Changes (May 24, 2026 — Session 2)
+## Recent Changes (September 6, 2026 — Session 3)
+
+### Bug Fixes (v1.0.3)
+- Deep Analysis & Hiring Intel: credit refund on 502 LLM failure
+- AuthModal: mobile touch-scroll background lock
+- ResumeAnalysis: 45s slow-load status indicator for Hiring Intel
+
+### Security Hardening (v1.0.4)
+- Stored XSS prevention on `UserAuth.full_name`
+- Voice interview Permissions-Policy allows `microphone=(self)`
+- Frontend production security headers in `vercel.json`
+- Multi-tenant query scoping on `get_analysis_history`
+- Audio upload MIME validation and 10MB file size limit
+- Masked internal OAuth exceptions on 401
+- Pydantic payload bounds on `HumanizeRequest` (50–5000 chars)
+- Hardened prompt sanitizer with NFKC normalization, comment stripping, and 3-pass loop
+- Added Category 8 tests in `test_critical_paths.py` (total 37 passing)
+- Monorepo documentation consolidation under `docs/` hub
+
+---
+
+## Older Changes (May 24, 2026 — Session 2)
 
 ### Admin
 - Added `last_sign_in_at` tracking — updates on every email + OAuth login

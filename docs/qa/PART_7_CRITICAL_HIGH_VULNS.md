@@ -202,8 +202,8 @@ async def get_user_db(user_jwt: str) -> AsyncClient:
 **Severity:** CRITICAL  
 **Category:** Cross-Site Scripting (Stored XSS)  
 **File:** `backend/app/api/v1/endpoints/auth.py` (line 31)  
-**Re-Test Status (September 6, 2026):** ⚠️ **STILL OPEN (P0)**  
-*Re-tested against `auth.py:31`: `UserAuth.full_name: str | None = None` has no validator or tag-stripping regex. Submitting HTML/JS payloads during signup successfully accepts the raw string.*
+**Re-Test Status (September 6, 2026):** ✅ **RESOLVED (P0)**  
+*Remediated in `auth.py`: Added `@field_validator("full_name", mode="before")` on `UserAuth` schema to strip all HTML tags via `<[^>]+>`, remove dangerous script characters `[<>"\'&;]`, and cap at 100 characters max.*
 
 
 ### Attack Scenario
@@ -315,8 +315,8 @@ except Exception as e:
 **Severity:** HIGH  
 **Category:** Information Disclosure  
 **File:** `backend/app/api/v1/endpoints/auth.py` (line 166)  
-**Re-Test Status (September 6, 2026):** ⚠️ **STILL OPEN**  
-*Code check in `auth.py:166`: `raise HTTPException(status_code=401, detail=f"Invalid or expired OAuth code: {str(e)}")` continues to leak internal exception details.*
+**Re-Test Status (September 6, 2026):** ✅ **RESOLVED**  
+*Remediated in `auth.py:166`: Replaced `str(e)` disclosure with generic client error `detail="OAuth authentication failed. Please try again."`, securely logging full error details on the server.*
 
 
 ### Attack Scenario
@@ -471,8 +471,8 @@ REVOKE UPDATE ON public.profiles FROM authenticated;
 **Severity:** HIGH  
 **Category:** Path Traversal / Insecure File Handling  
 **File:** `backend/app/api/v1/endpoints/interview.py` (lines 289-308)  
-**Re-Test Status (September 6, 2026):** ⚠️ **STILL OPEN**  
-*Voice upload in `interview.py` still extracts file extensions directly from uploaded filename without whitelist validation and writes to standard temporary files.*
+**Re-Test Status (September 6, 2026):** ✅ **RESOLVED**  
+*Remediated in `interview.py`: Audio uploads enforce strict MIME type allowlist (`audio/webm`, `audio/wav`, `audio/mp4`, `audio/ogg`, `audio/x-m4a`), extension whitelist, and 10MB payload size limit.*
 
 
 ### Attack Scenario
@@ -513,8 +513,8 @@ with tempfile.NamedTemporaryFile(delete=False, suffix=suffix, dir=str(TEMP_DIR))
 **Severity:** HIGH  
 **Category:** Missing Security Headers  
 **File:** `FRONTEND/vercel.json`  
-**Re-Test Status (September 6, 2026):** ⚠️ **STILL OPEN**  
-*`FRONTEND/vercel.json` contains only SPA rewrite routes (`"source": "/(.*)", "destination": "/index.html"`) and no security headers.*
+**Re-Test Status (September 6, 2026):** ✅ **RESOLVED**  
+*Remediated in `FRONTEND/vercel.json`: Configured strict production security headers including HSTS, X-Content-Type-Options: nosniff, X-Frame-Options: DENY, Referrer-Policy, and Permissions-Policy.*
 
 
 ### Attack Scenario

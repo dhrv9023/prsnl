@@ -145,7 +145,7 @@ Every response gets these headers:
 X-Content-Type-Options: nosniff          ← prevents MIME sniffing
 X-Frame-Options: DENY                    ← prevents clickjacking
 Referrer-Policy: strict-origin-when-cross-origin
-Permissions-Policy: camera=(), microphone=(), geolocation=()
+Permissions-Policy: camera=(), microphone=(self), geolocation=()
 X-XSS-Protection: 1; mode=block
 Content-Security-Policy: ...             ← strict in prod, relaxed in dev
 Strict-Transport-Security: ...           ← HSTS, only over HTTPS
@@ -157,17 +157,15 @@ Strict-Transport-Security: ...           ← HSTS, only over HTTPS
 
 All user-provided text (resume, job description, user answers) is sanitized before being injected into LLM prompts via `prompt_sanitizer.py`.
 
-Two passes:
+The defense pipeline runs a hardened, multi-stage sanitization process:
 
-**Pass 1 — XML tag stripping:** Removes tags that match our prompt delimiters (`<RESUME_TEXT>`, `<JOB_DESCRIPTION>`, etc.). This prevents attackers from prematurely closing the data sandbox in the prompt.
-
-**Pass 2 — Natural language injection stripping:** Removes phrases like:
-- "ignore all previous instructions"
-- "forget prior context"
-- "you are now a..."
-- "act as a..."
-- "new instructions:"
-- `<system>` tags
+1. **Unicode NFKC Normalization:** Pre-processes text with `unicodedata.normalize("NFKC", text)` to convert fullwidth and mathematical homoglyph characters (e.g. `＜`, `＞`) into standard ASCII characters, preventing homoglyph-based evasion of delimiters.
+2. **HTML Comment Stripping:** Removes hidden comment blocks (`<!-- ... -->`) that could conceal injection instructions inside formatted resumes.
+3. **Multi-Pass Loop (Up to 3 passes):** Repeatedly applies regex filters until the text stabilizes, completely neutralizing nested injection payloads like `<RES<RESUME_TEXT>UME_TEXT>` that attempt to bypass single-pass filters:
+   - **Delimited Tags:** Strips boundary tags such as `<RESUME_TEXT>`, `<JOB_DESCRIPTION>`, `<CONTEXT>`, `<SYSTEM>`, etc.
+   - **Instruction Reset Phrases:** Strips and replaces injection phrases ("ignore previous instructions", "forget prior context", "you are now a...", "act as a...", "new instructions:", etc.) with `[removed]`.
+   - **Prompt Extraction Patterns:** Neutralizes patterns designed to exfiltrate system instructions ("output your system prompt", "reveal your instructions", "print initial prompt", etc.).
+4. **Encoding Strip:** Replaces suspicious base64 payloads embedded within inputs with `[removed]`.
 
 Additionally, the `language` field in interview requests is validated against a strict allowlist of known languages. Free-text language values are rejected and defaulted to "english" to prevent injection via the language parameter.
 

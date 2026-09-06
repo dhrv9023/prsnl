@@ -55,39 +55,9 @@ This document records the comprehensive security re-testing and verification con
 
 ---
 
-## 2. Outstanding Security Findings (Re-Verified September 6, 2026)
+## 2. Security Audit Findings & Resolution Status (September 6, 2026)
 
-### 🔴 CRITICAL Issues (P0 — Must Resolve Before Public Launch)
-
-#### SEC-008: Stored XSS in `full_name` Field
-- **Severity:** P0 — Critical
-- **Status:** ⚠️ **STILL OPEN**
-- **Evidence:** `backend/app/api/v1/endpoints/auth.py:31` defines:
-  ```python
-  class UserAuth(BaseModel):
-      email: EmailStr
-      password: str
-      full_name: str | None = None
-  ```
-  No validation or sanitization decorator is attached. An input like `<script>alert(1)</script>` or `<img src=x onerror=...>` is accepted and written directly to `profiles.full_name`.
-- **Remediation:**
-  ```python
-  import re
-  from pydantic import field_validator
-
-  @field_validator("full_name", mode="before")
-  @classmethod
-  def sanitize_name(cls, v: str | None) -> str | None:
-      if not v:
-          return v
-      v = re.sub(r'<[^>]+>', '', v)
-      v = re.sub(r'[<>"\';&]', '', v)
-      return v[:100].strip()
-  ```
-
----
-
-### 🔴 CRITICAL Issues Status
+### 🔴 CRITICAL Issues Status (P0)
 
 #### SEC-008: Stored XSS in `full_name` Field
 - **Severity:** P0 — Critical

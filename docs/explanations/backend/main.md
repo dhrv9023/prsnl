@@ -29,7 +29,7 @@ A Starlette `BaseHTTPMiddleware` that adds security headers to every response:
 - `X-Content-Type-Options: nosniff` — prevents MIME sniffing
 - `X-Frame-Options: DENY` — prevents clickjacking
 - `Referrer-Policy` — limits referrer leakage
-- `Permissions-Policy` — disables camera/mic/geo
+- `Permissions-Policy` — camera=(), microphone=(self), geolocation=() (restricts camera/geo while delegating microphone to self origin for voice mock interviews)
 - `X-XSS-Protection` — legacy XSS filter
 - `Content-Security-Policy` — strict in production, relaxed in development
 - `Strict-Transport-Security` — HSTS only over HTTPS

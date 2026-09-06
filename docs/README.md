@@ -45,14 +45,17 @@ docs/
 
 ## 2. Security Documentation
 
+- **[Security Architecture & Defense Guide](file:///home/dhruv/Nextcloud/kareerist/prsnl/docs/security/README.md)** ⭐ **NEW**
+  Comprehensive multi-layered security overview, vulnerability mitigation matrix (SEC-008, SEC-015, SEC-019, VULN-009), and defense-in-depth architecture.
 - **[CSRF Protection Implementation](file:///home/dhruv/Nextcloud/kareerist/prsnl/docs/security/csrf_implementation.md)**
   Documentation of the double-submit cookie CSRF middleware, production deployment configurations, and local development testing methods.
-- **[Security Audit & Penetration Testing Reports](file:///home/dhruv/Nextcloud/kareerist/prsnl/docs/qa/)**
-  Complete 10-part audit evaluating threat posture, vulnerability remediations, and automated security verification.
 
 ---
 
 ## 3. Code Explanations
+
+- **[Complete Code Explanations Index](file:///home/dhruv/Nextcloud/kareerist/prsnl/docs/explanations/README.md)** ⭐ **NEW**
+  Master directory cataloging 90+ file-by-file technical manuals across Backend, Frontend, Database, and Blog.
 
 In-depth technical guides explaining key source files and subsystems:
 

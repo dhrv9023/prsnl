@@ -118,7 +118,9 @@ See VULN-008 fix in Part 7. The key is to either:
 
 **Severity:** MEDIUM  
 **Category:** Broken Access Control  
-**File:** `backend/app/api/v1/endpoints/ai_analysis.py` (lines 208-210)
+**File:** `backend/app/api/v1/endpoints/ai_analysis.py` (lines 208-210)  
+**Re-Test Status (September 6, 2026):** ✅ **RESOLVED**  
+*Remediated: Added `.eq("user_id", str(user.id))` to the database query in `ai_analysis.py:214` to enforce tenant isolation.*
 
 ### Attack Scenario
 ```python
@@ -170,7 +172,9 @@ if _DEV_BYPASS_ENABLED and request.headers.get("X-Dev-Bypass") == "1":
 
 **Severity:** MEDIUM (functional + security)  
 **Category:** Misconfigured Security Header  
-**File:** `backend/app/main.py` (line 54)
+**File:** `backend/app/main.py` (line 54)  
+**Re-Test Status (September 6, 2026):** ✅ **RESOLVED**  
+*Remediated: Updated header to `Permissions-Policy: camera=(), microphone=(self), geolocation=()` in `main.py:54`, allowing microphone capture for voice mock interviews.*
 
 ### Attack Scenario
 `Permissions-Policy: microphone=()` blocks ALL microphone access. The voice interview feature (`/submit_voice`) requires microphone access, making it non-functional when the backend's headers are applied.
@@ -186,7 +190,9 @@ response.headers["Permissions-Policy"] = "camera=(), microphone=(self), geolocat
 
 **Severity:** MEDIUM  
 **Category:** Malicious File Upload  
-**File:** `backend/app/api/v1/endpoints/interview.py` (lines 283-308)
+**File:** `backend/app/api/v1/endpoints/interview.py` (lines 283-308)  
+**Re-Test Status (September 6, 2026):** ✅ **RESOLVED**  
+*Remediated: Implemented `ALLOWED_AUDIO_TYPES` MIME validation, extension allowlist, and 10MB bounds in `interview.py`.*
 
 ### Attack Scenario
 The voice upload endpoint reads raw bytes and passes them directly to Groq Whisper without validating:

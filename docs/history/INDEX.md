@@ -97,5 +97,5 @@ In addition to the high-level architectural chapters, the codebase includes comp
 
 ---
 
-*Last Updated: May 27, 2026*
+*Last Updated: September 6, 2026*
 

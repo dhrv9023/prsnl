@@ -206,25 +206,68 @@ File was tracked by git but missing from disk. Removed from git tracking.
 
 ---
 
+---
+
+## September 6, 2026 Security Hardening Fixes (v1.0.4)
+
+### SEC-008 / VULN-004: Stored XSS via `full_name`
+**File:** `backend/app/api/v1/endpoints/auth.py`
+`full_name` was stored directly without stripping HTML or script tags.
+**Fix:** Added `@field_validator("full_name", mode="before")` stripping `<[^>]+>` and injection characters `[<>"\'&;]`, capped at 100 characters.
+
+### SEC-019 / VULN-016: Voice Interview Permissions-Policy Blocking Microphone
+**File:** `backend/app/main.py`
+`Permissions-Policy: camera=(), microphone=(), geolocation=()` blocked microphone capture in the browser.
+**Fix:** Changed to `microphone=(self)`.
+
+### VULN-010 / COMPAT-002: Missing Frontend Security Headers
+**File:** `FRONTEND/vercel.json`
+Vercel was not outputting HTTP security headers.
+**Fix:** Added `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy`, and `Strict-Transport-Security`.
+
+### SEC-015 / VULN-014: Analysis History Multi-Tenant Query Scoping
+**File:** `backend/app/api/v1/endpoints/ai_analysis.py`
+`get_analysis_history` queried only by `resume_id`.
+**Fix:** Added `.eq("user_id", str(user.id))` for defense-in-depth isolation.
+
+### VULN-009 / VULN-017: Voice Audio Upload Validation & Size Limits
+**File:** `backend/app/api/v1/endpoints/interview.py`
+`/submit_voice` did not validate MIME types or enforce upload limits.
+**Fix:** Added MIME validation (`ALLOWED_AUDIO_TYPES`), extension allowlist, and 10MB payload size limit.
+
+### SEC-026 / VULN-006: OAuth Exception Information Disclosure
+**File:** `backend/app/api/v1/endpoints/auth.py`
+Internal Supabase exception text was exposed to clients on 401.
+**Fix:** Masked with generic client error message while keeping server tracebacks.
+
+### AI-001 / AI-002: Prompt Sanitizer Hardening
+**File:** `backend/app/services/prompt_sanitizer.py`
+Prompt sanitizer was vulnerable to fullwidth homoglyphs and nested tags.
+**Fix:** Added Unicode NFKC normalization, HTML comment stripping, 3-pass loop, and prompt extraction filters.
+
+---
+
 ## Security Posture Summary (Current State)
 
 ### What's solid ✅
 - HttpOnly cookies — no JWTs in localStorage
-- CSRF double-submit protection (now actually working)
+- CSRF double-submit protection with cross-origin support
 - Atomic credit deduction via PostgreSQL `FOR UPDATE` row lock
+- Automatic credit refund on AI 502 failures
 - IP-based anti-farming for initial credit grants
-- Prompt injection sanitization on all AI inputs
-- Language allowlist validation
-- Admin server-side DB check (not just JWT)
+- Prompt injection sanitization with Unicode NFKC, 3-pass loop, and extraction filters
+- Voice interview upload validation (MIME, extension, 10MB limit)
+- Permissions policy permitting microphone for self origin only
+- Multi-tenant application-layer scoping on history queries
+- Admin server-side DB check (`is_admin`)
 - All credit RPCs locked to service_role only
 - Rate limiting via Redis (shared across workers)
-- Security headers on every response
-- Fail-fast startup validation for production misconfiguration
+- Security headers on both FastAPI backend and Vercel frontend
 - Sentry error monitoring
 - Full credit audit trail in `credit_transactions`
+- **37 automated unit tests** in `backend/tests/test_critical_paths.py` covering all critical paths and audit remediations
 
 ### What's post-MVP ⏳
-- Token revocation on logout (currently just clears cookies)
-- Automated test suite (zero tests currently)
-- Payment integration
-- DB-level resume count constraint
+- Token revocation on logout (currently clears cookies)
+- Payment integration (Razorpay / Stripe)
+- DB-level resume count constraint (currently app-layer 20 max)
