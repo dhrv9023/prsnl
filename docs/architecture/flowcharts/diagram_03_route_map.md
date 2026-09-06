@@ -1,96 +1,138 @@
 # Diagram 3: Complete API Route Map
 
-[← Back to Master Index](../../ARCHITECTURE_FLOWCHARTS.md)
+[← Back to Architecture Hub](../README.md) · [← Documentation Hub](../../README.md)
 
 ---
 
-```mermaid
-graph TD
-    classDef frontend fill:#1d4ed8,color:#fff,stroke:#1e40af
-    classDef backend fill:#15803d,color:#fff,stroke:#166534
-    classDef db fill:#ca8a04,color:#fff,stroke:#a16207
-    classDef auth fill:#dc2626,color:#fff,stroke:#b91c1c
-    classDef error fill:#ea580c,color:#fff,stroke:#c2410c
+## 🗺️ Visual Route Inventory (At a Glance)
 
-    APIRouter["FastAPI APIRouter<br/>prefix: /api/v1"]
-
-    subgraph AUTH_ROUTES["/auth - auth.py"]
-        A1["POST /signup<br/>🔓 public · 5/min<br/>body:{email,password,full_name}"]
-        A2["POST /login<br/>🔓 public · 5/min<br/>body:{email,password}"]
-        A3["POST /oauth/session<br/>🔓 public · 5/min<br/>body:{code,code_verifier}"]
-        A4["POST /refresh<br/>🔓 public · 5/min<br/>body:{refresh_token?}"]
-        A5["POST /logout<br/>🔒 session<br/>clears cookies"]
-        A6["GET /me<br/>🔒 JWT required<br/>triggers daily grant"]
-    end
-
-    subgraph RESUME_ROUTES["/resumes - resumes.py"]
-        R1["POST /upload<br/>🔒 JWT · 5/day<br/>Multipart PDF · max 5MB · max 20 resumes"]
-        R2["GET /<br/>🔒 JWT<br/>list user's resumes"]
-        R3["GET /{resume_id}<br/>🔒 JWT · user-scoped"]
-        R4["DELETE /{resume_id}<br/>🔒 JWT<br/>deletes storage + DB + cover letters"]
-    end
-
-    subgraph ANALYSIS_ROUTES["/analysis - ai_analysis.py"]
-        AN1["POST /match<br/>🔒 JWT · 5cr · 5/hr<br/>ATS score (general or JD-match)"]
-        AN2["POST /deep<br/>🔒 JWT · 15cr · 5/hr<br/>LLM deep resume critique"]
-        AN3["POST /hiring-intel<br/>🔒 JWT · 25cr · 5/hr<br/>9-section recruiter report"]
-        AN4["GET /history/{resume_id}<br/>🔒 JWT<br/>all past analyses for resume"]
-    end
-
-    subgraph INTERVIEW_ROUTES["/interview - interview.py"]
-        I1["POST /start<br/>🔒 JWT · 25cr · 5/hr<br/>generate 6 questions -> Redis"]
-        I2["POST /submit<br/>🔒 JWT · 15/min<br/>evaluate answer via LLM"]
-        I3["POST /submit_voice<br/>🔒 JWT · 15/min<br/>Whisper STT -> evaluate"]
-        I4["POST /end<br/>🔒 JWT<br/>compile report -> Supabase -> delete Redis"]
-        I5["POST /abandon<br/>🔒 JWT<br/>delete Redis session"]
-        I6["GET /session<br/>🔒 JWT<br/>check active session status"]
-        I7["GET /history<br/>🔒 JWT<br/>last 20 interview reports"]
-    end
-
-    subgraph COVER_ROUTES["/cover_letter - cover_letter.py"]
-        C1["POST /generate<br/>🔒 JWT · 10cr · 5/hr<br/>AI cover letter draft"]
-        C2["POST /generate-roast<br/>🔒 JWT · 10cr · 5/hr<br/>Savage cover letter"]
-        C3["POST /save_pdf<br/>🔒 JWT · 5/hr<br/>ReportLab PDF -> Storage"]
-        C4["POST /humanize<br/>🔒 JWT · 15cr · 5/hr<br/>AI humanizer"]
-        C5["GET /<br/>🔒 JWT<br/>list cover letters"]
-        C6["GET /{app_id}<br/>🔒 JWT<br/>get single cover letter"]
-    end
-
-    subgraph CREDIT_ROUTES["/credits - credits.py"]
-        CR1["GET /balance<br/>🔒 JWT<br/>remaining,granted,used,unlimited"]
-        CR2["GET /costs<br/>🔓 public<br/>feature costs map"]
-        CR3["POST /validate<br/>🔒 JWT<br/>can_use check without deducting"]
-        CR4["GET /history<br/>🔒 JWT<br/>last 50 credit transactions"]
-        CR5["POST /daily-grant<br/>🔒 JWT<br/>claim 50 daily credits (idempotent)"]
-    end
-
-    subgraph ADMIN_ROUTES["/admin - admin.py"]
-        AD1["GET /stats<br/>🔒 JWT + is_admin<br/>platform-wide stats"]
-        AD2["GET /users<br/>🔒 JWT + is_admin<br/>all user profiles"]
-        AD3["GET /users/{id}/activity<br/>🔒 JWT + is_admin<br/>full user activity"]
-        AD4["GET /users/{id}/credit-history<br/>🔒 JWT + is_admin"]
-        AD5["POST /users/{id}/grant-credits<br/>🔒 JWT + is_admin<br/>body:{amount,reason}"]
-        AD6["POST /users/{id}/set-unlimited<br/>🔒 JWT + is_admin<br/>body:{unlimited:bool}"]
-    end
-
-    subgraph UTIL_ROUTES["/utils - utils.py"]
-        U1["POST /hinglish<br/>🔒 JWT · 20/hr · FREE<br/>English->Hinglish LLM"]
-    end
-
-    subgraph SYSTEM_ROUTES["System routes - main.py"]
-        S1["GET /<br/>public · version info"]
-        S2["GET /health<br/>public · Redis+Supabase checks"]
-        S3["GET /ping<br/>public · keep-alive"]
-    end
-
-    APIRouter --> AUTH_ROUTES
-    APIRouter --> RESUME_ROUTES
-    APIRouter --> ANALYSIS_ROUTES
-    APIRouter --> INTERVIEW_ROUTES
-    APIRouter --> COVER_ROUTES
-    APIRouter --> CREDIT_ROUTES
-    APIRouter --> ADMIN_ROUTES
-    APIRouter --> UTIL_ROUTES
-    APIRouter --> SYSTEM_ROUTES
-    class AD6,A6,CR5,A2,I3,I2,C2,R1,AD3,I4,CR1,I1,I5,C6,AN4,CR3,S2,R4,A4,C3,C1,AN3,C4,S1,S3,APIRouter,AD2,A5,A3,CR4,AN1,AD4,AD5,AN2,A1,I7,C5,AD1,R3,I6,R2,U1,CR2 backend;
 ```
+/api/v1 (FastAPI Route Tree)
+├── /auth
+│   ├── POST /signup             (Public · 5/min · User registration + anti-farming)
+│   ├── POST /login              (Public · 5/min · Password authentication)
+│   ├── POST /oauth/session      (Public · 5/min · Google PKCE token exchange)
+│   ├── POST /refresh            (Public · 5/min · Cookie refresh)
+│   ├── POST /logout             (Session · Clear HttpOnly cookies)
+│   └── GET  /me                 (JWT Required · Profile + Daily 50 credits grant)
+├── /resumes
+│   ├── POST /upload             (JWT Required · 5/day · Max 5MB PDF · Magic byte validation)
+│   ├── GET  /                   (JWT Required · List user resumes)
+│   ├── GET  /{resume_id}        (JWT Required · Get resume parsed content & feedback)
+│   └── DELETE /{resume_id}      (JWT Required · Cascade deletes storage + analyses + letters)
+├── /analysis
+│   ├── POST /match              (JWT Required · 5 credits · 5/hr · ATS match score)
+│   ├── POST /deep               (JWT Required · 15 credits · 5/hr · LLM deep critique + 502 refund)
+│   ├── POST /hiring-intel       (JWT Required · 25 credits · 5/hr · 9-section recruiter report + 502 refund)
+│   └── GET  /history/{resume_id}(JWT Required · Isolated by user_id)
+├── /interview
+│   ├── POST /start              (JWT Required · 25 credits · 5/hr · Generates 6 Qs -> Redis)
+│   ├── POST /submit             (JWT Required · 15/min · Evaluates single answer)
+│   ├── POST /submit_voice       (JWT Required · 15/min · Max 10MB audio · Whisper STT)
+│   ├── POST /end                (JWT Required · Compiles final report -> PostgreSQL)
+│   ├── POST /abandon            (JWT Required · Clears active Redis session)
+│   ├── GET  /session            (JWT Required · Checks current question index)
+│   └── GET  /history            (JWT Required · Last 20 interview reports)
+├── /cover_letter
+│   ├── POST /generate           (JWT Required · 10 credits · 5/hr · Role-targeted draft)
+│   ├── POST /generate-roast     (JWT Required · 10 credits · 5/hr · Savage roast critique)
+│   ├── POST /humanize           (JWT Required · 15 credits · 5/hr · 50-5000 chars · Strips AI tone)
+│   ├── POST /save_pdf           (JWT Required · 5/hr · ReportLab PDF export)
+│   ├── GET  /                   (JWT Required · List user cover letters)
+│   └── GET  /{app_id}           (JWT Required · Fetch single cover letter)
+├── /credits
+│   ├── GET  /balance            (JWT Required · Remaining, granted, used, unlimited flag)
+│   └── GET  /history            (JWT Required · Last 50 transactions with pagination)
+├── /admin
+│   ├── GET  /stats              (Admin Only · Global users, resumes, credit totals)
+│   ├── GET  /users              (Admin Only · Searchable user list)
+│   ├── GET  /users/{id}/activity(Admin Only · Multi-tab user activity inspection)
+│   └── POST /users/{id}/grant-credits (Admin Only · Add/deduct credits)
+└── /health & /ping              (Public · System health checks · Not rate-limited)
+```
+
+---
+
+## 📊 Technical Flowchart (Mermaid)
+
+```mermaid
+flowchart LR
+    API["FastAPI App<br/>prefix: /api/v1"]
+
+    subgraph AUTH["/auth"]
+        A1["/signup"]
+        A2["/login"]
+        A3["/oauth/session"]
+        A4["/refresh"]
+        A5["/logout"]
+        A6["/me"]
+    end
+
+    subgraph RESUMES["/resumes"]
+        R1["POST /upload"]
+        R2["GET /"]
+        R3["GET /{id}"]
+        R4["DELETE /{id}"]
+    end
+
+    subgraph ANALYSIS["/analysis"]
+        AN1["POST /match (5cr)"]
+        AN2["POST /deep (15cr)"]
+        AN3["POST /hiring-intel (25cr)"]
+        AN4["GET /history/{id}"]
+    end
+
+    subgraph INTERVIEW["/interview"]
+        I1["POST /start (25cr)"]
+        I2["POST /submit"]
+        I3["POST /submit_voice (STT)"]
+        I4["POST /end"]
+        I5["GET /history"]
+    end
+
+    subgraph COVER["/cover_letter"]
+        C1["POST /generate (10cr)"]
+        C2["POST /generate-roast (10cr)"]
+        C3["POST /humanize (15cr)"]
+        C4["POST /save_pdf"]
+    end
+
+    subgraph CREDITS["/credits"]
+        CR1["GET /balance"]
+        CR2["GET /history"]
+    end
+
+    subgraph ADMIN["/admin"]
+        AD1["GET /stats"]
+        AD2["GET /users"]
+        AD3["GET /users/{id}/activity"]
+        AD4["POST /grant-credits"]
+    end
+
+    API --> AUTH
+    API --> RESUMES
+    API --> ANALYSIS
+    API --> INTERVIEW
+    API --> COVER
+    API --> CREDITS
+    API --> ADMIN
+```
+
+---
+
+## 🔒 Endpoint Security & Rate Limit Matrix
+
+| Route | Method | Auth Required | Rate Limit | Credit Cost | Key Validations |
+|---|---|---|---|---|---|
+| `/auth/signup` | POST | ❌ Public | 5 / min | Free | Password strength, full_name XSS sanitization |
+| `/auth/login` | POST | ❌ Public | 5 / min | Free | Email validation |
+| `/auth/oauth/session`| POST | ❌ Public | 5 / min | Free | PKCE code exchange, masked errors |
+| `/auth/me` | GET | ✅ JWT | 60 / min | Free | Checks and grants daily 50 credits |
+| `/resumes/upload` | POST | ✅ JWT | 5 / day | Free | PDF magic bytes (`%PDF-`), max 5MB, max 20 files |
+| `/analysis/match` | POST | ✅ JWT | 5 / hr | 5 credits | TF-IDF / HuggingFace embedding fallback |
+| `/analysis/deep` | POST | ✅ JWT | 5 / hr | 15 credits | Prompt sanitization, refund on 502 |
+| `/analysis/hiring-intel`| POST | ✅ JWT | 5 / hr | 25 credits | Prompt sanitization, refund on 502 |
+| `/interview/start` | POST | ✅ JWT | 5 / hr | 25 credits | 6 questions generated, 45-min TTL in Redis |
+| `/interview/submit_voice`| POST | ✅ JWT | 15 / min | Free in session | MIME check (`audio/*`), max 10MB, Whisper STT |
+| `/cover_letter/humanize`| POST | ✅ JWT | 5 / hr | 15 credits | Length bounds: 50 to 5,000 characters |
+| `/admin/*` | ANY | 🛡️ Admin Only| 30 / min | Free | `is_admin = true` required |

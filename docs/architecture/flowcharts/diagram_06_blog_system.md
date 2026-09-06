@@ -1,40 +1,61 @@
-# Diagram 6: Blog System
+# Diagram 6: Blog System Architecture
 
-[← Back to Master Index](../../ARCHITECTURE_FLOWCHARTS.md)
+[← Back to Architecture Hub](../README.md) · [← Documentation Hub](../../README.md)
 
 ---
 
-```mermaid
-graph TD
-    classDef frontend fill:#1d4ed8,color:#fff,stroke:#1e40af
-    classDef db fill:#ca8a04,color:#fff,stroke:#a16207
-    classDef external fill:#7c3aed,color:#fff,stroke:#6d28d9
+## 📰 Blog Micro-Frontend Architecture (At a Glance)
 
-    subgraph BLOG["kareerist_blog/ - Separate Vite+React App"]
-        BHome["Home Page<br/>Featured post hero + 3-col grid"]
-        BArticle["Article Reader Page<br/>Full content with bold+bullets rendering"]
-        BAdmin["Password-Protected Admin<br/>Ctrl+Shift+A -> login screen<br/>sessionStorage persistence"]
-        BCreate["Create Post Tab<br/>cover_image URL preview<br/>Category selector (10 categories)"]
-        BManage["Manage Posts Tab<br/>list + thumbnail + delete confirm"]
-    end
-
-    subgraph SUPABASE_BLOG["Supabase blog_posts table"]
-        BlogTable["blog_posts<br/>id, title, excerpt, content<br/>category, cover_image<br/>author, date, featured<br/>created_at"]
-        BlogRLS["RLS: anon READ<br/>anon WRITE (admin panel)<br/>no auth required"]
-    end
-
-    VERCEL_BLOG["Vercel<br/>kareerisit-blog.vercel.app<br/>Separate deployment"]
-    GITHUB_BLOG["github.com/dhrv9023/kareerisit_blog<br/>Separate repo"]
-
-    BHome -->|SELECT * FROM blog_posts<br/>ORDER BY date DESC| BlogTable
-    BArticle -->|SELECT * FROM blog_posts WHERE id=?| BlogTable
-    BAdmin -->|password check (hardcoded?)<br/>INSERT INTO blog_posts| BlogTable
-    BManage -->|DELETE FROM blog_posts WHERE id=?| BlogTable
-
-    subgraph SOFAR["kareerist_sofar/ - Development Journal"]
-        SF["15 Markdown chapters<br/>chapter_01 through chapter_12<br/>INDEX.md + UPDATES files<br/>Not deployed — local docs only"]
-    end
-    class BAdmin,BArticle,BHome,BManage,BCreate,SF frontend;
-    class BlogTable,BlogRLS db;
-    class VERCEL_BLOG,GITHUB_BLOG external;
 ```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          KAREERIST BLOG APPLICATION                         │
+│                    (Standalone Vite + React Micro-Frontend)                 │
+│                                                                             │
+│  ├── /                -> Article List Grid & Featured Post Hero             │
+│  ├── /article/:id     -> Markdown Reader & Social Sharing                   │
+│  └── /admin           -> Secret Admin Portal (Ctrl+Shift+A)                 │
+│                           • Create Post with Cover Preview                  │
+│                           • Manage / Edit / Delete Articles                 │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │ Direct Supabase JS Client (HTTPS)
+                                       ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         SUPABASE CMS (blog_posts)                           │
+│  • Columns: id, title, excerpt, content (markdown), category, cover_image   │
+│  • Public Read Policy: Any visitor can read published posts                 │
+│  • Admin Write Policy: Secured via password/session key                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 📊 Technical Flowchart (Mermaid)
+
+```mermaid
+flowchart TD
+    subgraph CLIENT["Blog Micro-Frontend (kareerist_blog/)"]
+        READER["Article Reader Page<br/>Full markdown parsing"]
+        FEED["Blog Feed Grid<br/>Featured hero + Category filter"]
+        ADMIN["Secret Admin Panel<br/>Triggered via key shortcut"]
+    end
+
+    subgraph CMS["Supabase Database"]
+        TABLE[("blog_posts table<br/>title · excerpt · content<br/>category · cover_image")]
+        STORAGE[("Cover Image Storage<br/>Public CDN links")]
+    end
+
+    FEED -->|SELECT * FROM blog_posts<br/>ORDER BY created_at DESC| TABLE
+    READER -->|SELECT * FROM blog_posts WHERE id = ?| TABLE
+    ADMIN -->|INSERT / UPDATE / DELETE| TABLE
+    ADMIN -.->|Upload Post Assets| STORAGE
+```
+
+---
+
+## 🔑 Subsystem Specifications
+
+| Component | Repository & Deployment | Technical Details |
+|---|---|---|
+| **Blog Application** | `kareerist_blog/` (Standalone repository) | React + Vite + Tailwind CSS. Deployed independently to Vercel. |
+| **CMS Storage** | Supabase `blog_posts` table | PostgreSQL database storing rich article text, category tags, author metadata, and cover URLs. |
+| **Admin Access** | In-app modal | Admin interface accessible by site administrators to compose, format, and publish articles without a full backend CMS. |

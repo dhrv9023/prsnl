@@ -17,7 +17,7 @@ Handles all authentication flows for the application including email/password si
 
 ### Signup Endpoint (`POST /signup`)
 
-Accepts email and password. Validates password against complexity rules (min 8 chars, at least one uppercase, one lowercase, one digit). Creates the user in Supabase Auth, then inserts a row in the `profiles` table. Checks the client's IP address to determine initial credit grant eligibility (prevents abuse from repeated signups on the same IP). Sets access and refresh tokens as HttpOnly cookies on success.
+Accepts email, password, and optional `full_name`. Validates password against complexity rules (min 8 chars, at least one uppercase, one lowercase, one digit). Validates `full_name` via `@field_validator("full_name", mode="before")` which strips all HTML tags (`<[^>]+>`) and dangerous injection characters (`[<>"\'&;]`), capping the length at 100 characters max to prevent stored XSS attacks (SEC-008 / VULN-004). Creates the user in Supabase Auth, then inserts a row in the `profiles` table. Checks the client's IP address to determine initial credit grant eligibility (prevents abuse from repeated signups on the same IP). Sets access and refresh tokens as HttpOnly cookies on success.
 
 ### Login Endpoint (`POST /login`)
 
@@ -31,7 +31,7 @@ The CSRF token must be included in subsequent state-changing requests as `X-CSRF
 
 ### OAuth PKCE Exchange (`POST /oauth/session`)
 
-Receives the authorization code and code_verifier from the OAuth callback. Uses the Supabase **anon client** (not the service role client) to exchange the code for tokens via PKCE flow. This is critical — the anon client must be used because the PKCE verifier is tied to the anon key's session. On success:
+Receives the authorization code and code_verifier from the OAuth callback. Uses the Supabase **anon client** (not the service role client) to exchange the code for tokens via PKCE flow. This is critical — the anon client must be used because the PKCE verifier is tied to the anon key's session. If the exchange fails, internal Supabase exception details are masked from the client error response (`HTTPException(401, detail="OAuth authentication failed. Please try again.")`) while complete tracebacks are logged server-side for security (SEC-026 / VULN-006). On success:
 1. Sets the resulting tokens as HttpOnly cookies.
 2. Generates and returns a CSRF token.
 3. Updates `last_sign_in_at` timestamp in the user's profile (added May 27, 2026) — non-fatal if this fails.

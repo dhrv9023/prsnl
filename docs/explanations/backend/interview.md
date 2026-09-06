@@ -46,19 +46,20 @@ Supports **multiple languages** — the evaluation prompt adapts to the user's s
 
 ### Submit Voice Answer (`POST /submit_voice`)
 
-**Added: May 22, 2026**
+**Added: May 22, 2026 · Hardened: Sep 6, 2026**
 
-Accepts voice recordings (webm/wav/mp4/ogg), transcribes them via Groq Whisper STT, then evaluates exactly like `/submit`:
+Accepts voice recordings (webm/wav/mp4/ogg/m4a), transcribes them via Groq Whisper STT, then evaluates exactly like `/submit`:
 1. Retrieve active session from Redis.
 2. Find the question by question_id (passed as form data).
 3. Reject code questions (must use text submission).
-4. Read audio bytes from UploadFile.
-5. Write to temp file and send to Groq Whisper API (`whisper-large-v3-turbo` model).
-6. Extract transcribed text.
-7. Handle silence/empty responses gracefully (score 0, feedback to speak clearly).
-8. Evaluate the transcript using the same LLM logic as `/submit` (respects roast mode and language).
-9. Attach `transcribed_answer` field so frontend can display what was heard.
-10. Store evaluation and transcript in Redis session.
+4. Validate audio MIME type (`ALLOWED_AUDIO_TYPES`: webm, wav, mp4, ogg, x-m4a) and check file extension allowlist (`ALLOWED_AUDIO_EXTENSIONS`).
+5. Enforce 10MB file size limit (`HTTPException(413)` if exceeded) to prevent resource exhaustion attacks (VULN-009 / VULN-017).
+6. Write to temp file and send to Groq Whisper API (`whisper-large-v3-turbo` model).
+7. Extract transcribed text.
+8. Handle silence/empty responses gracefully (score 0, feedback to speak clearly).
+9. Evaluate the transcript using the same LLM logic as `/submit` (respects roast mode and language).
+10. Attach `transcribed_answer` field so frontend can display what was heard.
+11. Store evaluation and transcript in Redis session.
 
 Rate limited to 15 requests/minute. Only valid for theory and MCQ questions.
 

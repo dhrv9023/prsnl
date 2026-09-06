@@ -22,10 +22,12 @@ docs/
 
 - **[Project Master Specification](file:///home/dhruv/Nextcloud/kareerist/prsnl/docs/specifications/kareerist_project_docs.md)**
   The comprehensive single-source specification covering technical architecture, database schemas, API routes, credit policies, AI pipelines, middleware stacks, and deployment configurations.
+- **[System Architecture Hub & Visual Flowchart Guide](file:///home/dhruv/Nextcloud/kareerist/prsnl/docs/architecture/README.md)** ⭐ **NEW**
+  The central visual portal containing high-contrast ASCII schematics, component interaction tables, and instructions for the interactive browser viewer.
 - **[Interactive Architecture Viewer](file:///home/dhruv/Nextcloud/kareerist/prsnl/docs/architecture/architecture_viewer.html)**
-  A standalone browser-based tool to visually explore system components, data flows, and subsystem relationships.
+  A standalone browser-based canvas (Miro style) to visually explore system components, data flows, and subsystem relationships.
 - **[System Architecture Flowcharts](file:///home/dhruv/Nextcloud/kareerist/prsnl/docs/architecture/flowcharts/)**
-  12 detailed Mermaid diagrams mapping the complete platform:
+  12 detailed diagrams with visual ASCII topology, refined Mermaid schematics, and execution lifecycle guides:
   - `diagram_01_system_overview.md`: High-level system topology
   - `diagram_02_auth_session.md`: Supabase auth & JWT cookie lifecycle
   - `diagram_03_route_map.md`: Complete API and frontend route map
@@ -75,6 +77,8 @@ In-depth technical guides explaining key source files and subsystems:
 
 Chronological sprint archives tracking how Kareerist evolved:
 
+- **[September 2026 Updates (v1.0.3 & v1.0.4)](file:///home/dhruv/Nextcloud/kareerist/prsnl/docs/history/UPDATES_SEP_2026.md)** ⭐ **LATEST**
+  Detailed release notes covering AI failure credit refunds, mobile scroll locks, slow-load indicators, security pentest remediations (stored XSS, permissions policy, MIME validation), and monorepo restructuring.
 - **[Project Genesis & Chapters 1–12](file:///home/dhruv/Nextcloud/kareerist/prsnl/docs/history/)**:
   - `chapter_01_project_genesis_and_stack.md`
   - `chapter_02_backend_architecture.md`

@@ -578,13 +578,14 @@ The design system is defined in `index.css` using CSS custom properties (HSL val
 ### Flow
 1. **Email signup**: POST to `/auth/signup` -> Supabase creates user -> backend grants 100 credits (IP-gated) -> sets HttpOnly cookies
 2. **Email login**: POST to `/auth/login` -> Supabase validates -> sets cookies
-3. **Google OAuth**: Supabase PKCE flow -> redirect to `/auth/callback` -> code exchanged for session -> `/auth/oauth/session` sets cookies
+3. **Google OAuth**: Supabase PKCE flow -> redirect to `/auth/callback` -> code exchanged for session -> `/auth/oauth/session` sets cookies (internal Supabase exceptions masked from client responses for security)
 4. **Session validation**: Every protected endpoint uses `CurrentUser` FastAPI dependency -> reads `access_token` from HttpOnly cookie -> validates with Supabase JWT
 5. **Token refresh**: `/auth/refresh` called when tokens expire (frontend `useAuth` hook handles this)
+6. **Input Sanitization**: `UserAuth.full_name` stripped of HTML tags (`<[^>]+>`) and dangerous injection characters (`[<>"\'&;]`), capped at 100 chars max to prevent stored XSS (SEC-008 / VULN-004)
 
 ### Cookie Setup
-- `access_token`: HttpOnly, Secure (prod), SameSite=None (prod) / Lax (dev)
-- `refresh_token`: HttpOnly, Secure (prod), SameSite=None (prod) / Lax (dev)
+- `access_token` (`__krs_sid`): HttpOnly, Secure (prod), SameSite=None (prod) / Lax (dev)
+- `refresh_token` (`__krs_rid`): HttpOnly, Secure (prod), SameSite=None (prod) / Lax (dev)
 - `__krs_xsrf`: JS-readable, used for CSRF double-submit pattern
 
 ### CSRF Protection
@@ -684,6 +685,12 @@ Frontend: refresh() re-fetches balance
 - `X-XSS-Protection: 1; mode=block`
 - `Content-Security-Policy` (strict in prod)
 - `Strict-Transport-Security` (HTTPS only, also applied via Vercel for frontend)
+
+### Application-Layer Security Controls (v1.0.4)
+- **Multi-Tenant Query Scoping:** `get_analysis_history` in `ai_analysis.py` explicitly enforces `.eq("user_id", str(user.id))` in queries for defense-in-depth data isolation (SEC-015 / VULN-014).
+- **Voice Audio Upload Guards:** `/interview/submit_voice` validates audio MIME types (`audio/webm`, `audio/wav`, `audio/mp4`, etc.), enforces extension allowlists, and rejects payloads exceeding 10MB (VULN-009 / VULN-017).
+- **Payload Size Bounds:** `HumanizeRequest.text` schema enforces `min_length=50, max_length=5000` to prevent empty requests or unbounded inputs causing LLM denial of service (P1-3 / VULN-020).
+- **Edge Security Headers:** `FRONTEND/vercel.json` deploys strict security headers (`X-Content-Type-Options`, `X-Frame-Options`, `Permissions-Policy`) directly from the edge.
 
 ### Rate Limiting (SlowAPI)
 - Per-user + per-IP limits on all expensive endpoints

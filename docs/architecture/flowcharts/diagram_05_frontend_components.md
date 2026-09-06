@@ -1,63 +1,85 @@
 # Diagram 5: Frontend Architecture & Component Tree
 
-[← Back to Master Index](../../ARCHITECTURE_FLOWCHARTS.md)
+[← Back to Architecture Hub](../README.md) · [← Documentation Hub](../../README.md)
 
 ---
 
-```mermaid
-graph TD
-    classDef frontend fill:#1d4ed8,color:#fff,stroke:#1e40af
-    classDef context fill:#0891b2,color:#fff,stroke:#0e7490
-    classDef page fill:#2563eb,color:#fff,stroke:#1d4ed8
-    classDef hook fill:#4f46e5,color:#fff,stroke:#4338ca
+## 💻 Frontend Component Hierarchy (At a Glance)
 
-    Main["main.tsx<br/>ReactDOM.createRoot"]
-
-    subgraph PROVIDERS["Provider Tree (App.tsx)"]
-        QCP["QueryClientProvider<br/>TanStack Query"]
-        TTP["TooltipProvider"]
-        BRP["BrowserRouter"]
-        AP["AuthProvider<br/>AuthContext + ColdStartBanner"]
-        CP["CreditProvider<br/>CreditContext"]
-    end
-
-    subgraph PAGES["Pages (lazy-loaded with lazyWithRetry)"]
-        PG1["/ -> Index.tsx<br/>Landing page"]
-        PG2["/dashboard -> DashboardPage.tsx<br/>GET /dashboard/summary<br/>GET /credits/balance"]
-        PG3["/resume-analysis -> ResumeAnalysis.tsx<br/>POST /resumes/upload<br/>POST /analysis/match|deep|hiring-intel"]
-        PG4["/interview -> AIInterview.tsx<br/>POST /interview/start|submit|submit_voice|end|abandon<br/>GET /interview/session"]
-        PG5["/cover-letter -> CoverLetter.tsx<br/>POST /cover_letter/generate|generate-roast|humanize|save_pdf"]
-        PG6["/credits -> CreditsPage.tsx<br/>GET /credits/balance|history|costs"]
-        PG7["/interview/history -> InterviewHistory.tsx<br/>GET /interview/history"]
-        PG8["/admin -> AdminPage.tsx<br/>GET /admin/stats|users<br/>POST /admin/users/{id}/grant-credits"]
-        PG9["/pricing -> Pricing.tsx<br/>static page"]
-        PG10["/contact -> Contact.tsx<br/>static page"]
-        PG11["/auth/callback -> AuthCallback.tsx<br/>OAuth PKCE exchange"]
-        PG12["/* -> NotFound.tsx"]
-    end
-
-    subgraph HOOKS["Hooks"]
-        H1["useAuth()<br/>useAuth.ts<br/>login|signup|logout<br/>oAuth|refresh"]
-        H2["useCreditContext()<br/>CreditContext.tsx<br/>balance|canUse|deductLocal|refresh"]
-        H3["useAuthContext()<br/>AuthContext.tsx<br/>user|isAdmin|isLoading"]
-    end
-
-    subgraph GLOBAL_COMPONENTS["Shared UI Components"]
-        NAV["Navbar.tsx<br/>Credit badge, auth state, theme toggle"]
-        CDISPLAY["CreditDisplay.tsx<br/>CreditCard|CreditCompact|FeatureCostTag<br/>InsufficientCreditsWarning"]
-        CBADGE["CreditBadge.tsx"]
-    end
-
-    Main --> PROVIDERS
-    PROVIDERS --> PAGES
-    AP --> H1
-    AP --> H3
-    CP --> H2
-    PAGES --> NAV
-    PAGES --> CDISPLAY
-    H2 --> CDISPLAY
-    class CDISPLAY,Main,CBADGE,NAV frontend;
-    class TTP,CP,BRP,AP,QCP context;
-    class PG3,PG5,PG9,PG6,PG7,PG4,PG11,PG2,PG1,PG10,PG8,PG12 page;
-    class H1,H2,H3 hook;
 ```
+main.tsx (ReactDOM.createRoot)
+ │
+ ▼
+App.tsx (Provider Wrapper Hierarchy)
+ ├─► QueryClientProvider (TanStack Query client caching)
+ ├─► TooltipProvider (Radix tooltip portal context)
+ ├─► BrowserRouter (React Router DOM v6)
+ ├─► AuthProvider (Manages user, session tokens, and ColdStartBanner)
+ └─► CreditProvider (Manages live balance, deductLocal(), and shortfall calculation)
+      │
+      ├─► Navbar (Global navigation, theme toggle, credit balance badge)
+      │
+      ├─► Page Routes (Lazy-loaded with lazyWithRetry error boundaries)
+      │    ├── /                     -> Index.tsx (Landing page, hero, feature marquee)
+      │    ├── /dashboard            -> DashboardPage.tsx (Recent resumes & credits)
+      │    ├── /resume-analysis      -> ResumeAnalysis.tsx (Upload, ATS score, deep critique)
+      │    ├── /interview            -> AIInterview.tsx (Mock interview, voice input STT)
+      │    ├── /cover-letter         -> CoverLetter.tsx (Role-targeted generator & humanizer)
+      │    ├── /credits              -> CreditsPage.tsx (History audit log & feature pricing)
+      │    ├── /interview/history    -> InterviewHistory.tsx (Past performance reports)
+      │    ├── /admin                -> AdminPage.tsx (User activity modal & stats)
+      │    ├── /pricing              -> Pricing.tsx (Plan tier comparison)
+      │    └── /auth/callback        -> AuthCallback.tsx (Google OAuth PKCE exchange)
+      │
+      └─► Global Overlays & Modals
+           ├── AuthModal.tsx (Sign-in/Sign-up with mobile scroll-lock)
+           └── Footer.tsx (Site links and social badges)
+```
+
+---
+
+## 📊 Technical Flowchart (Mermaid)
+
+```mermaid
+flowchart TD
+    MAIN["main.tsx"] --> APP["App.tsx"]
+    
+    subgraph PROVIDERS["Context & State Providers"]
+        APP --> QC["QueryClientProvider"]
+        QC --> ROUTER["BrowserRouter"]
+        ROUTER --> AUTH_P["AuthProvider<br/>(AuthContext)"]
+        AUTH_P --> CRED_P["CreditProvider<br/>(CreditContext)"]
+    end
+
+    subgraph LAYOUT["Global Layout"]
+        CRED_P --> NAV["Navbar.tsx<br/>CreditBadge · ThemeToggle"]
+        CRED_P --> MODAL["AuthModal.tsx<br/>Scroll-Locked"]
+    end
+
+    subgraph ROUTES["Lazy-Loaded Routes (lazyWithRetry)"]
+        CRED_P --> P_HOME["/ (Index.tsx)"]
+        CRED_P --> P_DASH["/dashboard (DashboardPage.tsx)"]
+        CRED_P --> P_RESUME["/resume-analysis (ResumeAnalysis.tsx)"]
+        CRED_P --> P_INTERVIEW["/interview (AIInterview.tsx)"]
+        CRED_P --> P_LETTER["/cover-letter (CoverLetter.tsx)"]
+        CRED_P --> P_ADMIN["/admin (AdminPage.tsx)"]
+    end
+
+    subgraph HOOKS["Custom React Hooks"]
+        AUTH_P -.-> U_AUTH["useAuth()"]
+        CRED_P -.-> U_CRED["useCreditContext()"]
+        P_RESUME -.-> U_TOAST["useToast()"]
+    end
+```
+
+---
+
+## 🧩 Key Component Responsibilities
+
+| Component | Path | Core Responsibilities |
+|---|---|---|
+| `AuthModal` | `components/ui/AuthModal.tsx` | Handles email/password authentication & Google OAuth. Locks body scroll on mobile (`overflow: hidden`) during mount. |
+| `ResumeAnalysis` | `pages/ResumeAnalysis.tsx` | Manages resume file upload, ATS score calculation, deep AI analysis, and hiring intelligence with 45s slow-load timer. |
+| `AIInterview` | `pages/AIInterview.tsx` | Conducts 6-question mock interviews with audio recording via MediaRecorder, Whisper speech-to-text, and question-by-question grading. |
+| `CreditContext` | `contexts/CreditContext.tsx` | Provides `credits`, `canUse()`, `deductLocal()` for optimistic deduction, and `refreshCredits()` for authoritative backend syncing. |
+| `Navbar` | `components/sections/Navbar.tsx` | Displays live credit balance with dynamic color indicators, user avatar, and navigation links. |

@@ -1,108 +1,115 @@
 # Diagram 2: Authentication & Session Flow
 
-[← Back to Master Index](../../ARCHITECTURE_FLOWCHARTS.md)
+[← Back to Architecture Hub](../README.md) · [← Documentation Hub](../../README.md)
 
 ---
 
-```mermaid
-graph TD
-    classDef frontend fill:#1d4ed8,color:#fff,stroke:#1e40af
-    classDef backend fill:#15803d,color:#fff,stroke:#166534
-    classDef db fill:#ca8a04,color:#fff,stroke:#a16207
-    classDef auth fill:#dc2626,color:#fff,stroke:#b91c1c
-    classDef error fill:#ea580c,color:#fff,stroke:#c2410c
-    classDef external fill:#7c3aed,color:#fff,stroke:#6d28d9
+## 🔐 Auth & Session Lifecycle (At a Glance)
 
-    subgraph SIGNUP_FLOW["1. Sign Up Flow"]
-        SignupForm["SignupForm<br/>useName+email+password<br/>client validation"]
-        SignupHandler["sign_up()<br/>auth.py:47"]
-        SupaAuth_SU["Supabase Auth<br/>creates auth.users row"]
-        ProfileRow["profiles row created<br/>remaining_credits=0<br/>total_credits_granted=0"]
-        IPCheck{IP already<br/>claimed?}
-        GrantCredits["grant_credits RPC<br/>+100 credits<br/>ip_credit_claims insert"]
-        NoGrant["0 credits granted<br/>anti-farming"]
-        AutoLogin["auto-login<br/>apiLogin()"]
-
-        SignupForm -->|"POST /api/v1/auth/signup<br/>{email,password,full_name}"| SignupHandler
-        SignupHandler -->|"supabase.auth.sign_up()"| SupaAuth_SU
-        SupaAuth_SU -->|"ON INSERT trigger<br/>handle_new_user()"| ProfileRow
-        SignupHandler -->|"grant_initial_credits()<br/>credits.py:84"| IPCheck
-        IPCheck -->|No| GrantCredits
-        IPCheck -->|Yes| NoGrant
-        SignupHandler -->|"200 {msg,user_id}"| AutoLogin
-    end
-
-    subgraph LOGIN_FLOW["2. Login & Google OAuth Flow"]
-        LoginForm["LoginForm<br/>email+password"]
-        LoginHandler["login()<br/>auth.py:83"]
-        GoogleBtn["Google Sign-In Button"]
-        GoogleOAuth["Google OAuth<br/>redirect to /auth/callback"]
-        AuthCallback["AuthCallback.tsx<br/>exchangeWithRetry()"]
-        OAuthHandler["oauth_exchange_session()<br/>auth.py:136"]
-        SupaAuth_LI["Supabase Auth<br/>verifies credentials"]
-        SetCookies_LI["set_session_cookies_and_cleanup()<br/>HttpOnly __krs_sid + __krs_rid<br/>JS-readable __krs_xsrf cookie"]
-        StoreTokens_LI["localStorage:<br/>__krs_access_token<br/>__krs_refresh_token"]
-        UpdateProfile["UPDATE profiles<br/>last_sign_in_at=now()"]
-        IPCheck_OA{IP already<br/>claimed?}
-        GrantCredits_OA["grant_credits RPC<br/>+100 credits<br/>ip_credit_claims insert"]
-        NoGrant_OA["0 credits granted<br/>anti-farming"]
-
-        LoginForm -->|"POST /api/v1/auth/login"| LoginHandler
-        LoginHandler -->|"supabase.auth.sign_in_with_password()"| SupaAuth_LI
-        
-        GoogleBtn -->|"supabase.auth.signInWithOAuth()<br/>PKCE flow"| GoogleOAuth
-        GoogleOAuth -->|"?code=xxx"| AuthCallback
-        AuthCallback -->|"POST /api/v1/auth/oauth/session<br/>{code, code_verifier}"| OAuthHandler
-        OAuthHandler -->|"anon.auth.exchange_code_for_session()"| SupaAuth_LI
-        OAuthHandler -->|"grant_initial_credits()"| IPCheck_OA
-        
-        IPCheck_OA -->|No| GrantCredits_OA
-        IPCheck_OA -->|Yes| NoGrant_OA
-        
-        SupaAuth_LI -->|"JWT access+refresh"| SetCookies_LI
-        SetCookies_LI -->|"Access: 4 days<br/>Refresh: 30 days"| StoreTokens_LI
-        LoginHandler -->|"200 {csrf_token, access_token}"| UpdateProfile
-    end
-
-    subgraph SESSION_FLOW["3. Session Check & Token Refresh"]
-        PageLoad["Page Load / useAuth mount"]
-        MeHandler["get_current_user_profile()<br/>auth.py:265"]
-        TokenVerify{Token<br/>valid?}
-        RefreshFlow["tryRefreshSession()<br/>POST /auth/refresh"]
-        FetchProfile["SELECT * FROM profiles<br/>grant_daily_credits()"]
-        CreditRefresh["CreditContext.fetchAll()<br/>GET /credits/balance<br/>GET /credits/costs"]
-        RefreshHandler["refresh_session()<br/>auth.py:216"]
-        SupaAuth_REF["Supabase Auth<br/>refresh session"]
-        SetCookies_REF["set_session_cookies_and_cleanup()"]
-        Logout_REF["clearStoredTokens()<br/>clearCsrfToken()<br/>user=null"]
-
-        PageLoad -->|"GET /api/v1/auth/me<br/>Bearer JWT header"| MeHandler
-        MeHandler -->|"get_current_user()<br/>dependencies.py:19"| TokenVerify
-        TokenVerify -->|No -> 401| RefreshFlow
-        TokenVerify -->|Yes| FetchProfile
-        FetchProfile -->|"200 {id,email,profile,is_admin<br/>daily_grant}"| CreditRefresh
-
-        RefreshFlow -->|"POST /api/v1/auth/refresh<br/>{refresh_token}"| RefreshHandler
-        RefreshHandler -->|"supabase.auth.refresh_session()"| SupaAuth_REF
-        SupaAuth_REF -->|"New JWT pair"| SetCookies_REF
-        RefreshHandler -->|"Fail -> 401"| Logout_REF
-    end
-
-    subgraph LOGOUT_FLOW["4. Logout Flow"]
-        LogoutBtn["Logout button"]
-        LogoutHandler["logout()<br/>auth.py:252"]
-        SupaAuth_LO["Supabase Auth<br/>sign_out()"]
-        ClearCookies["delete_cookie(__krs_sid,__krs_rid,__krs_xsrf)<br/>Cookies cleared"]
-
-        LogoutBtn -->|"POST /api/v1/auth/logout"| LogoutHandler
-        LogoutHandler -->|"supabase.auth.sign_out()"| SupaAuth_LO
-        SupaAuth_LO --> ClearCookies
-    end
-
-    class SignupForm,LoginForm,GoogleBtn,AuthCallback,PageLoad,LogoutBtn,AutoLogin,StoreTokens_LI,Logout_REF,CreditRefresh frontend;
-    class SignupHandler,LoginHandler,OAuthHandler,MeHandler,RefreshHandler,LogoutHandler,RefreshFlow backend;
-    class SupaAuth_SU,SupaAuth_LI,SupaAuth_REF,SupaAuth_LO,IPCheck,IPCheck_OA,TokenVerify auth;
-    class ProfileRow,GrantCredits,GrantCredits_OA,UpdateProfile,FetchProfile db;
-    class NoGrant,NoGrant_OA error;
-    class GoogleOAuth,SetCookies_LI,SetCookies_REF,ClearCookies external;
 ```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              1. SIGNUP FLOW                                 │
+│  User Input (Email, Password, Name)                                         │
+│       │                                                                     │
+│       ▼                                                                     │
+│  POST /api/v1/auth/signup                                                   │
+│       ├─► Pydantic Validation & Stored XSS Sanitization (HTML tags stripped)│
+│       ├─► Supabase Auth: creates auth.users record                          │
+│       ├─► DB Trigger: handle_new_user() creates profiles record             │
+│       └─► Anti-Farming: Check IP in ip_credit_claims -> Grant 100 credits   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                            2. LOGIN / OAUTH FLOW                            │
+│  Option A: Email/Password           Option B: Google OAuth (PKCE)           │
+│       │                                  │                                  │
+│       ▼                                  ▼                                  │
+│  POST /api/v1/auth/login            POST /api/v1/auth/oauth/session         │
+│  Supabase password verify           Exchange code + code_verifier           │
+│       │                                  │                                  │
+│       └──────────────────┬───────────────┘                                  │
+│                          ▼                                                  │
+│              Session Cookie Dispatch                                        │
+│              • Set HttpOnly __krs_sid (Access Token, 1h)                    │
+│              • Set HttpOnly __krs_rid (Refresh Token, 30d)                  │
+│              • Set JS-readable __krs_xsrf (CSRF double-submit token)        │
+│              • Return user profile + credit balance                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         3. AUTHENTICATED REQUESTS                           │
+│  Client sends credentials: "include" + X-CSRF-Token header                  │
+│       │                                                                     │
+│       ▼                                                                     │
+│  FastAPI Security Pipeline:                                                 │
+│  1. CSRFMiddleware checks header matches __krs_xsrf cookie                  │
+│  2. get_current_user reads __krs_sid cookie and verifies JWT                │
+│  3. If token expired, client calls POST /api/v1/auth/refresh                │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 📊 Technical Flowchart (Mermaid)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as User Browser
+    participant FE as React Frontend
+    participant BE as FastAPI Backend
+    participant SupaAuth as Supabase Auth
+    participant SupaDB as PostgreSQL DB
+
+    Note over User,SupaDB: Phase 1: Sign Up with Anti-Farming
+    User->>FE: Fill email, password, full name
+    FE->>BE: POST /api/v1/auth/signup
+    Note over BE: Sanitize full_name (Strip XSS & HTML)<br/>Validate password strength
+    BE->>SupaAuth: auth.sign_up(email, password)
+    SupaAuth-->>BE: User UUID created
+    SupaAuth->>SupaDB: DB Trigger: Insert profiles (0 credits)
+    BE->>SupaDB: Check ip_credit_claims for client IP
+    alt IP has not claimed credits
+        BE->>SupaDB: RPC grant_credits(user_id, 100)
+        BE->>SupaDB: Insert ip_credit_claims(ip, user_id)
+    else IP already claimed
+        Note over BE: Anti-Farming triggered: 0 credits granted
+    end
+    BE-->>FE: HTTP 200 {msg: "Registration successful"}
+
+    Note over User,SupaDB: Phase 2: Google OAuth Session Exchange
+    User->>FE: Click "Continue with Google"
+    FE->>SupaAuth: signInWithOAuth({provider: 'google'})
+    SupaAuth-->>User: Redirect to Google Consent -> /auth/callback?code=XYZ
+    FE->>BE: POST /api/v1/auth/oauth/session {code, code_verifier}
+    BE->>SupaAuth: exchange_code_for_session(code, code_verifier)
+    alt Code Valid
+        SupaAuth-->>BE: Access Token + Refresh Token
+        Note over BE: Set-Cookie: __krs_sid (HttpOnly, Secure)<br/>Set-Cookie: __krs_rid (HttpOnly, Secure)<br/>Set-Cookie: __krs_xsrf (JS readable)
+        BE-->>FE: HTTP 200 {user, profile, csrf_token}
+    else Code Invalid / Expired
+        Note over BE: Log detailed traceback server-side<br/>Mask client error
+        BE-->>FE: HTTP 401 "OAuth authentication failed."
+    end
+
+    Note over User,SupaDB: Phase 3: Daily Credit Check on Visit
+    FE->>BE: GET /api/v1/auth/me
+    BE->>SupaDB: Check last_daily_grant_date
+    alt Eligible for 50 Daily Credits
+        BE->>SupaDB: RPC grant_daily_credits(user_id, 50)
+        BE->>SupaDB: Record credit_transactions ('daily_grant')
+    end
+    BE-->>FE: HTTP 200 {user, credits, daily_grant_status}
+```
+
+---
+
+## 🛡️ Security Mechanisms
+
+| Mechanism | Implementation Details |
+|---|---|
+| **Stored XSS Prevention** | `UserAuth.full_name` stripped of HTML tags (`<[^>]+>`) and special characters (`[<>"\'&;]`), capped at 100 chars. |
+| **HttpOnly Cookie Tokens** | JWT access (`__krs_sid`) and refresh (`__krs_rid`) tokens are stored in HttpOnly cookies, immune to JavaScript theft. |
+| **CSRF Protection** | Double-submit pattern: backend sets JS-readable `__krs_xsrf` cookie. Frontend sends matching `X-CSRF-Token` header. |
+| **Exception Masking** | Supabase internal errors in OAuth exchange are sanitized to generic client messages while logged server-side. |
+| **Anti-Farming Protection** | `ip_credit_claims` enforces one initial 100-credit bonus per unique IP address. |

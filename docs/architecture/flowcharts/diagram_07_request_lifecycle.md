@@ -1,63 +1,109 @@
-# Diagram 7: Request Lifecycle (End-to-End: ATS Score Analysis)
+# Diagram 7: Request Lifecycle & Middleware Pipeline
 
-[← Back to Master Index](../../ARCHITECTURE_FLOWCHARTS.md)
+[← Back to Architecture Hub](../README.md) · [← Documentation Hub](../../README.md)
 
 ---
 
-```mermaid
-graph TD
-    classDef frontend fill:#1d4ed8,color:#fff,stroke:#1e40af
-    classDef backend fill:#15803d,color:#fff,stroke:#166534
-    classDef db fill:#ca8a04,color:#fff,stroke:#a16207
-    classDef auth fill:#dc2626,color:#fff,stroke:#b91c1c
-    classDef error fill:#ea580c,color:#fff,stroke:#c2410c
-    classDef external fill:#7c3aed,color:#fff,stroke:#6d28d9
+## 🔁 Request Pipeline & Security Gates (At a Glance)
 
-    Click["User clicks 'Analyze ATS Score'<br/>ResumeAnalysis.tsx"]
-    Click --> ClientVal{resume_id<br/>exists?}
-    ClientVal -->|No| ShowError["Show: Please upload resume first"]
-    ClientVal -->|Yes| DeductLocal["deductLocal('ats_score')<br/>optimistically -5 from UI"]
-    DeductLocal --> APICall["apiGetAtsScore(resume_id, jd?)<br/>POST /api/v1/analysis/match<br/>Headers: Authorization: Bearer {token}<br/>X-CSRF-Token: {csrf_token}"]
-
-    APICall --> MW1["RequestLoggerMiddleware<br/>log: method+path+status"]
-    MW1 --> MW2["CORSMiddleware<br/>check Origin header"]
-    MW2 --> MW3["CSRFMiddleware (prod only)<br/>cookie __krs_xsrf == header X-CSRF-Token?"]
-    MW3 -->|Mismatch -> 403| Err403("403 CSRF Mismatch")
-    MW3 -->|Pass| MW4["BodySizeLimitMiddleware<br/>Content-Length <= 1MB?"]
-    MW4 -->|Too large -> 413| Err413("413 Body Too Large")
-    MW4 -->|Pass| RateCheck["SlowAPI @limiter.limit<br/>5/hour per IP+userId<br/>Redis counter lookup"]
-    RateCheck -->|Exceeded -> 429| Err429("429 Rate Limit")
-    RateCheck -->|Pass| AuthDep["get_current_user()<br/>read __krs_sid cookie OR Authorization header<br/>supabase.auth.get_user(token)"]
-    AuthDep -->|Invalid -> 401| Err401("401 Session expired")
-    AuthDep -->|Valid user obj| CreditDep["require_credits('ats_score', 5)<br/>deduct_feature_credits()<br/>check is_unlimited flag<br/>call deduct_credits RPC"]
-    CreditDep -->|Insufficient -> 402| Err402("402 Insufficient Credits")
-    CreditDep -->|Deducted, remaining=N| RouteHandler["ats_score_calculator()<br/>ai_analysis.py:20"]
-
-    RouteHandler -->|SELECT parsed_content FROM resumes<br/>WHERE id=? AND user_id=?| ResumeDB[(resumes table)]
-    ResumeDB -->|Not found -> 404| Err404("404 Resume Not Found")
-    ResumeDB -->|resume_text| ATSEngine["ats_score(resume_text, jd?)<br/>math_engine.py<br/>jd provided? -> HuggingFace embeddings<br/>no jd? -> rule-based scoring"]
-
-    ATSEngine -->|with JD| HFApi["HuggingFace API<br/>feature-extraction<br/>cosine similarity"]
-    ATSEngine -->|no JD| RuleBased["ats_general_engine.py<br/>keyword density, sections,<br/>action verbs, quantification"]
-    HFApi --> ScoreResult["score: 0-100<br/>mode: jd_match|general"]
-    RuleBased --> ScoreResult
-
-    ScoreResult --> SaveAnalysis["INSERT INTO ai_analyses<br/>{resume_id, user_id, analysis_type,<br/>output_data:{score,mode,details}}"]
-    SaveAnalysis -->|DB fail (non-fatal)<br/>logger.warning| ReturnResult
-    SaveAnalysis --> ReturnResult["return match_result<br/>200 {score, mode, breakdown, ...}"]
-
-    ReturnResult --> FrontendState["ResumeAnalysis.tsx<br/>setAtsResult(data)<br/>refresh() CreditContext balance"]
-    FrontendState --> UIUpdate["Show score gauge<br/>Update credit display<br/>Remove loading spinner"]
-
-    RouteHandler -->|AI call returns None or raises| AIFailure["generate_X() = None<br/>(Groq timeout / JSON error)"]
-    AIFailure --> RefundCheck["refund_feature_credits()<br/>grant_credits RPC +15 or +25<br/>writes credit_transactions row<br/>feature='ai_failure_refund'"]
-    RefundCheck --> Err502["502 'credits refunded, try again'<br/>Frontend shows error toast<br/>refresh() corrects local balance"]
-    class UIUpdate,Click,FrontendState,APICall,DeductLocal frontend;
-    class AuthDep,ClientVal,MW3 auth;
-    class Err413,Err403,ShowError,Err404,Err401,Err402,Err429,Err502 error;
-    class MW1,RouteHandler,RateCheck,MW2,ATSEngine,ReturnResult,ScoreResult,RuleBased,MW4,AIFailure backend;
-    class RefundCheck,CreditDep,SaveAnalysis db;
-    class HFApi external;
+```
+Incoming Client HTTP Request (e.g. POST /api/v1/analysis/deep)
+ │
+ ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       GATE 1: MIDDLEWARE EXECUTION                          │
+│  1. RequestLoggerMiddleware: Assigns X-Request-ID, starts timer             │
+│  2. ProxyHeadersMiddleware: Trusts X-Forwarded-For from Render reverse proxy│
+│  3. CSRFMiddleware: Checks X-CSRF-Token matches __krs_xsrf cookie (prod)   │
+│  4. BodySizeLimitMiddleware: Rejects request body if > 1MB (413 Payload)    │
+│  5. SecurityHeadersMiddleware: Sets CSP, HSTS, Permissions-Policy (mic=self)│
+│  6. CORSMiddleware: Validates origin against allowlist                      │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │ Pass
+                                       ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       GATE 2: RATE LIMITING (SlowAPI)                       │
+│  • Looks up Redis counter for client IP & user key                          │
+│  • If requests > quota -> Aborts with HTTP 429 Too Many Requests            │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │ Pass
+                                       ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       GATE 3: AUTHENTICATION (JWT)                          │
+│  • Reads __krs_sid cookie or Authorization: Bearer <token>                  │
+│  • Validates JWT signature with Supabase Secret                             │
+│  • If expired / invalid -> Aborts with HTTP 401 Unauthorized                │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │ Pass
+                                       ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       GATE 4: CREDIT BALANCE CHECK                          │
+│  • Checks user.is_unlimited (Admin bypass)                                  │
+│  • Executes atomic PostgreSQL RPC deduct_credits(user_id, feature, cost)    │
+│  • If balance < cost -> Aborts with HTTP 402 Payment Required               │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │ Credits Deducted
+                                       ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       GATE 5: SERVICE LAYER EXECUTION                       │
+│  • Sanitizes user inputs via prompt_sanitizer.py (NFKC, comments, tags)     │
+│  • Executes external LLM / embedding with exponential retry                 │
+│  • Failure Guard: If LLM times out, calls refund_feature_credits() on DB    │
+│  • Persists analysis result to ai_analyses with user_id scoping             │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │ 
+                                       ▼
+Outgoing JSON Response (HTTP 200 OK + Remaining Credits Header)
 ```
 
-> **Sep 6, 2026:** The `AIFailure → RefundCheck` path was added to `/deep` and `/hiring-intel` endpoints. Previously `RefundCheck` was never called, causing users to lose credits on Groq failures.
+---
+
+## 📊 Technical Flowchart (Mermaid)
+
+```mermaid
+flowchart TD
+    Req["Incoming API Request<br/>fetch('/api/v1/...')"]
+    
+    subgraph MW["Middleware Pipeline"]
+        M1["RequestLogger<br/>Generate Req-ID"] --> M2["ProxyHeaders<br/>Trust Proxy"]
+        M2 --> M3{"CSRF Check<br/>Double-Submit"}
+        M3 -->|Mismatch| E403["403 CSRF Error"]
+        M3 -->|Valid| M4{"Body Size<br/>< 1MB?"}
+        M4 -->|Too Large| E413["413 Payload Too Large"]
+        M4 -->|Valid| M5["SecurityHeaders<br/>CSP · Permissions: mic=(self)"]
+    end
+
+    subgraph GUARDS["Application Security Gates"]
+        M5 --> G1{"Rate Limit<br/>SlowAPI + Redis"}
+        G1 -->|Exceeded| E429["429 Rate Limit"]
+        G1 -->|Allowed| G2{"JWT Auth<br/>Verify Session"}
+        G2 -->|Invalid| E401["401 Unauthorized"]
+        G2 -->|Valid| G3{"Credit Balance<br/>deduct_credits() RPC"}
+        G3 -->|Insufficient| E402["402 Payment Required"]
+    end
+
+    subgraph EXEC["Route Execution & AI Engine"]
+        G3 -->|Sufficient| SAN["prompt_sanitizer<br/>Strip homoglyphs & tags"]
+        SAN --> LLM{"Call Groq LLM<br/>with_ai_retry"}
+        LLM -->|Success| DB_SAVE["Save to PostgreSQL<br/>ai_analyses table"]
+        DB_SAVE --> RES["Return HTTP 200<br/>JSON Payload"]
+        
+        LLM -->|Failure / Timeout| REFUND["refund_feature_credits()<br/>Atomic DB restore"]
+        REFUND --> E502["502 Bad Gateway<br/>'Credits refunded'"]
+    end
+
+    Req --> M1
+```
+
+---
+
+## ⚡ Execution Gates Summary
+
+| Gate | Component | Failure Code | Action Taken |
+|---|---|---|---|
+| **1. CSRF** | `CSRFMiddleware` | 403 Forbidden | Verifies double-submit cookie `__krs_xsrf` against `X-CSRF-Token` header. |
+| **2. Size** | `BodySizeLimitMiddleware` | 413 Payload Too Large | Rejects any payload exceeding 1MB (upload endpoint permitted up to 5MB). |
+| **3. Rate** | `SlowAPI` + `Redis` | 429 Too Many Requests | Protects backend against burst abuse and denial of service. |
+| **4. Auth** | `get_current_user` | 401 Unauthorized | Validates cryptographic signature of session JWT cookie. |
+| **5. Credit** | `deduct_credits` RPC | 402 Payment Required | Atomically subtracts cost. Unlimited users bypass this check. |
+| **6. AI Guard**| `refund_feature_credits`| 502 Bad Gateway | Restores user credits if Groq API times out or fails JSON parsing. |

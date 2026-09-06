@@ -25,53 +25,63 @@ This folder documents everything about the Kareerist project — what it is, how
 
 ## Recent Updates
 
-### **[May 2026 Updates Summary](./UPDATES_MAY_2026.md)** ⭐ **NEW**
-Comprehensive summary of all changes made between May 22-24, 2026:
+### **[September 2026 Updates Summary (v1.0.3 & v1.0.4)](./UPDATES_SEP_2026.md)** ⭐ **LATEST**
+Comprehensive summary of all changes made in September 2026:
+- Credit refund fallback on AI failure (eliminated lost credits on Groq timeouts)
+- Mobile sign-in background scroll lock in AuthModal
+- Hiring Intel 45s slow-load UX status warning
+- Stored XSS sanitization on user profile full name
+- Voice interview audio MIME type validation and 10MB payload size limit
+- Permissions-Policy header update unblocking voice interview microphone
+- Production edge security headers via Vercel configuration
+- Prompt sanitizer hardening (NFKC normalization, comment stripping, 3-pass loop)
+- Test suite expansion to 37 passing unit tests
+- Monorepo documentation consolidation under `docs/` hub
+
+### **[May 2026 Updates Summary](./UPDATES_MAY_2026.md)**
+Comprehensive summary of changes made in May 2026:
 - Voice interview with Whisper STT
 - Text-to-speech for questions
 - Interview timer with auto-submit
 - Standalone blog system
 - Contact page with blog preview
 - CSRF protection for cross-origin setup
-- Critical bug fixes (CSRF, experience level, credit display, theme toggle)
-- Database migrations and permissions fixes
-
----
+- Critical bug fixes and database migrations
 
 ---
 
 ## Deep-Dive Code Explanations
 
-In addition to the high-level architectural chapters, the codebase includes comprehensive, line-by-line file manuals under `code_explanation/` for granular developer onboarding:
+In addition to the high-level architectural chapters, the codebase includes comprehensive, line-by-line file manuals under [`docs/explanations/`](../explanations/) for granular developer onboarding:
 
-### Backend Explanations (`code_explanation/backend/`)
-- **[main.py](../code_explanation/backend/main.md)** — FastAPI entry point, CORS, and double-submit CSRF middleware stack.
-- **[llm_client.py](../code_explanation/backend/llm_client.md)** — Groq Async client initialization, `llama-3.3-70b-versatile` details, and code-fence sanitizers.
-- **[resume_analyzer.py](../code_explanation/backend/resume_analyzer.md)** — Legacy analyzer stub and LLM output parsing helpers.
+### Backend Explanations (`docs/explanations/backend/`)
+- **[main.py](../explanations/backend/main.md)** — FastAPI entry point, CORS, and double-submit CSRF middleware stack.
+- **[llm_client.py](../explanations/backend/llm_client.md)** — Groq Async client initialization, `llama-3.3-70b-versatile` details, and code-fence sanitizers.
+- **[resume_analyzer.py](../explanations/backend/resume_analyzer.md)** — Legacy analyzer stub and LLM output parsing helpers.
 
-### Frontend Explanations (`code_explanation/frontend/`)
-- **[Contact Page](../code_explanation/frontend/Contact.md)** — Form state, simulated submission timer, dynamic Supabase blog fetching, and accordion FAQ.
-- **[Pricing Module](../code_explanation/frontend/Pricing.md)** — Dynamic pricing tier plans, staggered scroll entrance animations, and beta overlays.
-- **[NotFound Fallback](../code_explanation/frontend/NotFound.md)** — Wildcard React routing catch-all page.
-- **[use-toast Hook](../code_explanation/frontend/use-toast.md)** — Shadcn UI notification emitter and listener queue broadcaster.
-- **Landing Sections:** **[Hero banner](../code_explanation/frontend/Hero.md)** (animated paths) | **[Dashboard preview](../code_explanation/frontend/Dashboard.md)** (telemetry animation meters) | **[Features grid](../code_explanation/frontend/Features.md)** (pillars matrix) | **[Value Narrative](../code_explanation/frontend/ValueNarrative.md)** (core philosophy) | **[Final CTA](../code_explanation/frontend/FinalCTA.md)** (auth redirection) | **[Feature Marquee](../code_explanation/frontend/FeatureMarquee.md)** (CSS infinite slide).
+### Frontend Explanations (`docs/explanations/frontend/`)
+- **[Contact Page](../explanations/frontend/Contact.md)** — Form state, simulated submission timer, dynamic Supabase blog fetching, and accordion FAQ.
+- **[Pricing Module](../explanations/frontend/Pricing.md)** — Dynamic pricing tier plans, staggered scroll entrance animations, and beta overlays.
+- **[NotFound Fallback](../explanations/frontend/NotFound.md)** — Wildcard React routing catch-all page.
+- **[use-toast Hook](../explanations/frontend/use-toast.md)** — Shadcn UI notification emitter and listener queue broadcaster.
+- **Landing Sections:** **[Hero banner](../explanations/frontend/Hero.md)** | **[Dashboard preview](../explanations/frontend/Dashboard.md)** | **[Features grid](../explanations/frontend/Features.md)** | **[Value Narrative](../explanations/frontend/ValueNarrative.md)** | **[Final CTA](../explanations/frontend/FinalCTA.md)** | **[Feature Marquee](../explanations/frontend/FeatureMarquee.md)**.
 
-### Database Migration Explanations (`code_explanation/database/`)
-- **[Profiles Auth Sync](../code_explanation/database/20260202140000_profiles_auth_sync.md)** — Triggers and sync handlers linking `auth.users` to `public.profiles`.
-- **[Interview Reports persistence](../code_explanation/database/20260515000002_interview_reports.md)** — DB schema and user-view RLS.
-- **[Daily Credit Grants](../code_explanation/database/20260517000001_daily_credits.md)** — UTC unique date constraint logs.
-- **[Daily Grant Total Fix](../code_explanation/database/20260522000001_fix_daily_grant_total.md)** — Secure `grant_credits` RPC overrides and permissions revocations.
-- **[Admin Credit Stats RPC](../code_explanation/database/20260522000003_admin_credit_stats_rpc.md)** — Optimized global JSONB aggregation query.
-- **[Comprehensive Hotfix](../code_explanation/database/20260523000000_comprehensive_fix.md)** — RLS insertion policies and profile gaps backfill.
-- **[Add Sign-In Tracker](../code_explanation/database/20260524000001_add_last_sign_in_at.md)** — timezone-aware login timestamp log.
-- **[Add Resume-to-Interview Link](../code_explanation/database/20260524000002_add_resume_id_to_interview_reports.md)** — Foreign key history filter.
+### Database Migration Explanations (`docs/explanations/database/`)
+- **[Profiles Auth Sync](../explanations/database/20260202140000_profiles_auth_sync.md)** — Triggers and sync handlers linking `auth.users` to `public.profiles`.
+- **[Interview Reports persistence](../explanations/database/20260515000002_interview_reports.md)** — DB schema and user-view RLS.
+- **[Daily Credit Grants](../explanations/database/20260517000001_daily_credits.md)** — UTC unique date constraint logs.
+- **[Daily Grant Total Fix](../explanations/database/20260522000001_fix_daily_grant_total.md)** — Secure `grant_credits` RPC overrides and permissions revocations.
+- **[Admin Credit Stats RPC](../explanations/database/20260522000003_admin_credit_stats_rpc.md)** — Optimized global JSONB aggregation query.
+- **[Comprehensive Hotfix](../explanations/database/20260523000000_comprehensive_fix.md)** — RLS insertion policies and profile gaps backfill.
+- **[Add Sign-In Tracker](../explanations/database/20260524000001_add_last_sign_in_at.md)** — timezone-aware login timestamp log.
+- **[Add Resume-to-Interview Link](../explanations/database/20260524000002_add_resume_id_to_interview_reports.md)** — Foreign key history filter.
 
-### Standalone Blog Explanations (`code_explanation/blog/`)
-- **[Architectural Overview](../code_explanation/blog/overview.md)** — Modular design and cross-origin integration details.
-- **[App Viewport](../code_explanation/blog/App.md)** — Custom markdown parser grid, featured layout, and hidden dashboard hotkey.
-- **[Admin Dashboard](../code_explanation/blog/Admin.md)** — Session auth, cover image Unsplash generator, and CRUD editors.
-- **[Supabase API client](../code_explanation/blog/supabase.md)** — Connection details and typed interfaces.
-- **[Database installer](../code_explanation/blog/supabase_migration.md)** — SQL schemas, RLS write policies, and 5 seed career articles.
+### Standalone Blog Explanations (`docs/explanations/blog/`)
+- **[Architectural Overview](../explanations/blog/overview.md)** — Modular design and cross-origin integration details.
+- **[App Viewport](../explanations/blog/App.md)** — Custom markdown parser grid, featured layout, and hidden dashboard hotkey.
+- **[Admin Dashboard](../explanations/blog/Admin.md)** — Session auth, cover image Unsplash generator, and CRUD editors.
+- **[Supabase API client](../explanations/blog/supabase.md)** — Connection details and typed interfaces.
+- **[Database installer](../explanations/blog/supabase_migration.md)** — SQL schemas, RLS write policies, and 5 seed career articles.
 
 ---
 

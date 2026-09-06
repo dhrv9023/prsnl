@@ -46,7 +46,7 @@ The premium analysis tier. Generates a comprehensive hiring intelligence report 
 
 ### History Endpoint (`GET /history/{resume_id}`)
 
-Returns all past analyses for a given resume, ordered by creation date (newest first). Allows users to track how their resume has improved over time. No credit cost — it's just a database read.
+Returns all past analyses for a given resume, ordered by creation date (newest first). Allows users to track how their resume has improved over time. No credit cost — it's just a database read. Enforces defense-in-depth tenant isolation by explicitly filtering with `.eq("resume_id", resume_id).eq("user_id", str(user.id))` in addition to Supabase Row Level Security (SEC-015 / VULN-014).
 
 ### Credit Refund on Failure
 

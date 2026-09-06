@@ -1,45 +1,85 @@
-# Diagram 11: State Management Flow
+# Diagram 11: State Management & React Context Architecture
 
-[← Back to Master Index](../../ARCHITECTURE_FLOWCHARTS.md)
+[← Back to Architecture Hub](../README.md) · [← Documentation Hub](../../README.md)
 
 ---
 
-```mermaid
-graph TD
-    classDef context fill:#0891b2,color:#fff,stroke:#0e7490
-    classDef local fill:#1d4ed8,color:#fff,stroke:#1e40af
-    classDef persist fill:#ca8a04,color:#fff,stroke:#a16207
+## 🧠 State Flow Architecture (At a Glance)
 
-    subgraph GLOBAL_STATE["Global State (React Context)"]
-        AUTH_STATE["AuthContext<br/>• user: {id, email} | null<br/>• isAdmin: bool<br/>• isLoading: bool<br/>• isSubmitting: bool<br/>• error: string<br/>Initialized: useAuth() on mount via GET /auth/me<br/>Persists: across navigation<br/>Resets: on logout or 401"]
-
-        CREDIT_STATE["CreditContext<br/>• balance: {remaining, total_granted, used, is_unlimited, low_credits}<br/>• featureCosts: {feature: {cost, label}}<br/>• isLoading: bool<br/>Initialized: on auth.isAuthenticated -> fetchAll()<br/>Updated: refresh() after feature use<br/>Optimistic: deductLocal(feature) -> -cost immediately<br/>Persists: across navigation<br/>Resets: on logout"]
-    end
-
-    subgraph LOCAL_STATE["Local State (useState per page)"]
-        LS1["ResumeAnalysis.tsx<br/>• resumeFile, uploadedResumes<br/>• atsResult, deepResult, intelResult<br/>• activeTab, isLoading flags"]
-        LS2["AIInterview.tsx<br/>• phase: setup|active|complete<br/>• questions, currentQuestion<br/>• evaluations, report<br/>• isRecording, audioBlob"]
-        LS3["CoverLetter.tsx<br/>• generatedContent, applicationId<br/>• isHumanized, editedContent<br/>• pdfUrl"]
-        LS4["AdminPage.tsx<br/>• stats, users, selectedUser<br/>• searchQuery, activeTab"]
-    end
-
-    subgraph PERSIST["Persistence (survives page refresh)"]
-        LS["localStorage<br/>• __krs_access_token<br/>• __krs_refresh_token"]
-        SS["sessionStorage<br/>• __krs_csrf (CSRF token)<br/>• chunk-reload (chunk error flag)"]
-        REDIS["Redis (server-side)<br/>• interview:session:{uid}<br/>TTL: 45 min"]
-    end
-
-    subgraph SERVER_STATE["Server State (TanStack Query)"]
-        SQ["QueryClient (App.tsx)<br/>Used by: DashboardPage only<br/>GET /dashboard/summary<br/>default stale/cache config"]
-    end
-
-    AUTH_STATE -->|isAuthenticated change| CREDIT_STATE
-    AUTH_STATE -->|tokens| LS
-    AUTH_STATE -->|csrf token| SS
-    CREDIT_STATE -->|deductLocal()| LS1
-    CREDIT_STATE -->|deductLocal()| LS2
-    CREDIT_STATE -->|deductLocal()| LS3
-    class AUTH_STATE,SQ,CREDIT_STATE context;
-    class LS4,LS1,LS3,LS2 local;
-    class REDIS,SS,LS persist;
 ```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           GLOBAL REACT CONTEXTS                             │
+│                                                                             │
+│  ┌─────────────────────────────┐           ┌─────────────────────────────┐  │
+│  │         AuthContext         │           │        CreditContext        │  │
+│  │ • user: {id, email} | null  │──────────►│ • balance: remaining, used  │  │
+│  │ • isAdmin: boolean          │  Triggers │ • canUse(feature): boolean  │  │
+│  │ • isLoading: boolean        │  balance  │ • deductLocal(feature)      │  │
+│  │ • ColdStartBanner (>4s)     │  fetch    │ • refreshCredits(): backend │  │
+│  └─────────────────────────────┘           └─────────────────────────────┘  │
+│                                                           │                 │
+│                                                           │ Real-Time Sync  │
+│                                                           ▼                 │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │                           PAGE LOCAL STATE                            │  │
+│  │ • ResumeAnalysis: ATS result, deep analysis, 45s slow intel timer     │  │
+│  │ • AIInterview: MediaRecorder audio blobs, question array, report      │  │
+│  │ • CoverLetter: Draft editor, humanizer text buffer, PDF preview       │  │
+│  │ • AdminPage: Search query, activity modal tab selection               │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │ Persistence
+                                       ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                            PERSISTENCE LAYERS                               │
+│  • HttpOnly Cookies: __krs_sid (Session JWT), __krs_rid (Refresh Token)     │
+│  • Browser sessionStorage: __krs_xsrf (CSRF token for double-submit)        │
+│  • Redis Cache (Server): interview:session:{uid} (45-min TTL)               │
+│  • PostgreSQL DB: Profiles, Resumes, Analyses, Credit Transactions          │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 📊 Technical Flowchart (Mermaid)
+
+```mermaid
+flowchart TD
+    subgraph GLOBAL["Global Contexts (App.tsx)"]
+        AUTH["AuthContext<br/>user, login, logout, cold-start"]
+        CRED["CreditContext<br/>balance, canUse(), deductLocal(), refresh()"]
+        ROAST["RoastModeContext<br/>roast toggles across tools"]
+        
+        AUTH -->|When authenticated| CRED
+    end
+
+    subgraph LOCAL["Page-Level State (useState)"]
+        P_RESUME["ResumeAnalysis.tsx<br/>• atsResult, deepResult<br/>• intelSlowWarning timer"]
+        P_INTERVIEW["AIInterview.tsx<br/>• questions, currentStep<br/>• MediaRecorder audio stream"]
+        P_LETTER["CoverLetter.tsx<br/>• letterText, isHumanized"]
+        
+        CRED -.->|deductLocal() optimistic| P_RESUME
+        CRED -.->|deductLocal() optimistic| P_INTERVIEW
+        CRED -.->|deductLocal() optimistic| P_LETTER
+    end
+
+    subgraph SYNC["Backend Reconciliation"]
+        BE_RPC["FastAPI / PostgreSQL<br/>Authoritative Balance"]
+        P_RESUME -->|refreshCredits()| BE_RPC
+        P_INTERVIEW -->|refreshCredits()| BE_RPC
+        P_LETTER -->|refreshCredits()| BE_RPC
+        BE_RPC -->|Update balance| CRED
+    end
+```
+
+---
+
+## 🔄 State Lifecycle Reference
+
+| Context / State | Lifetime | Scope | Primary Triggers |
+|---|---|---|---|
+| **`AuthContext`** | Mount until Logout | Global | `GET /auth/me`, Google OAuth PKCE callback, explicit logout. |
+| **`CreditContext`** | Mount until Logout | Global | `AuthContext` sign-in event, `deductLocal()` optimistic subtraction, `refreshCredits()` API sync. |
+| **`RoastModeContext`** | Session | Global | Header toggle switch enabling spicy cover letter roast mode. |
+| **`ResumeAnalysis`** | Route Navigation | Local Page | Resume upload, analyze button click, 45-second slow warning timer. |
+| **`AIInterview`** | Route / Session | Local + Redis | Question submission, voice audio transcription, interview finish. |

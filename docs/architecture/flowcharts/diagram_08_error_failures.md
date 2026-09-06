@@ -1,45 +1,96 @@
-# Diagram 8: Error Handling & Failure Flow
+# Diagram 8: Error Handling & Failure Recovery
 
-[← Back to Master Index](../../ARCHITECTURE_FLOWCHARTS.md)
+[← Back to Architecture Hub](../README.md) · [← Documentation Hub](../../README.md)
 
 ---
 
-```mermaid
-graph TD
-    classDef backend fill:#15803d,color:#fff,stroke:#166534
-    classDef error fill:#ea580c,color:#fff,stroke:#c2410c
-    classDef external fill:#7c3aed,color:#fff,stroke:#6d28d9
-    classDef frontend fill:#1d4ed8,color:#fff,stroke:#1e40af
+## 🛠️ Error Propagation & Recovery (At a Glance)
 
-    subgraph BACKEND_ERRORS["Backend Error Handling"]
-        E1["Network/DB Timeout<br/>-> Supabase returns HTML (Cloudflare WAF)<br/>_is_transient_supabase_error()<br/>Retry 3x with 1.5s, 3s backoff"]
-        E2["Supabase RPC fails<br/>deduct_credits throws<br/>-> HTTPException(500)"]
-        E3["AI API fails (Groq)<br/>-> refund_feature_credits()<br/>-> HTTPException(502)"]
-        E4["Auth token invalid<br/>supabase.auth.get_user() throws<br/>-> HTTPException(401)"]
-        E5["Rate limit exceeded<br/>SlowAPI -> HTTPException(429)"]
-        E6["Validation error<br/>Pydantic -> HTTPException(422)"]
-        E7["Admin non-fatal errors<br/>logger.warning, return -1 for stat"]
-        E8["Sentry capture<br/>all unhandled 5xx<br/>10% trace sample"]
-    end
-
-    subgraph FRONTEND_ERRORS["Frontend Error Handling"]
-        FE1["401 received<br/>-> tryRefreshSession()<br/>if refresh fails -> clearStoredTokens()<br/>user sees login page"]
-        FE2["402 received<br/>-> show InsufficientCreditsWarning<br/>deductLocal already applied<br/>-> refresh() restores true balance"]
-        FE3["429 received<br/>-> throw new Error(detail)<br/>-> toast.error shown"]
-        FE4["Network failure<br/>fetch() throws<br/>-> catch block -> toast.error"]
-        FE5["Chunk load failure<br/>lazyWithRetry()<br/>reload once via sessionStorage flag"]
-        FE6["Cold start (>4s load)<br/>ColdStartBanner shown<br/>'Waking up the server...'"]
-        FE7["No Error Boundaries<br/> unhandled render crash<br/>shows blank white page"]
-    end
-
-    subgraph RETRY_LOGIC["Retry Logic"]
-        R1["_rpc_with_retry()<br/>3 attempts<br/>1.5s -> 3s backoff<br/>for Cloudflare WAF blocks<br/>on: grant_credits, deduct_credits"]
-        R2["with_ai_retry()<br/>tenacity library<br/>for Groq LLM calls"]
-        R3["tryRefreshSession()<br/>single attempt<br/>no retry on refresh fail"]
-        R4["lazyWithRetry()<br/>1 page reload<br/>for stale Vite chunks"]
-    end
-    class E1,E3,FE7,E2,E7,E4,E6,E5 error;
-    class E8 external;
-    class FE4,FE5,FE2,FE6,R4,R3,FE1,FE3 frontend;
-    class R1,R2 backend;
 ```
+┌─────────────────────────┐
+│     CLIENT ACTION       │
+│  User triggers feature  │
+└────────────┬────────────┘
+             │
+             ▼
+┌─────────────────────────┐      HTTP 401 Session Expired
+│   FASTAPI API GATEWAY   ├───────────────────────────────────► Frontend tryRefreshSession()
+│   Validates JWT token   │                                     • Success: Retry original request
+└────────────┬────────────┘                                     • Fail: Clear state -> redirect to login
+             │
+             ▼
+┌─────────────────────────┐      HTTP 402 Insufficient Balance
+│  ATOMIC CREDIT DEDUCT   ├───────────────────────────────────► Frontend InsufficientCreditsWarning
+│  deduct_credits() RPC   │                                     • Re-fetch balance from server
+└────────────┬────────────┘                                     • Show upgrade / daily grant info
+             │
+             ▼
+┌─────────────────────────┐      LLM Timeout / Groq Error
+│     AI SERVICE CALL     ├───────────────────────────────────► AUTOMATIC CREDIT REFUND
+│   Groq LLM / Whisper    │                                     1. Backend calls refund_feature_credits()
+└────────────┬────────────┘                                     2. Inserts 'ai_failure_refund' in audit log
+             │                                                  3. Returns HTTP 502 Bad Gateway
+             ▼                                                  4. Frontend displays user-friendly toast:
+┌─────────────────────────┐                                        "AI failed — credits refunded. Try again."
+│ SUCCESSFUL 200 RESPONSE │
+│ Data saved & delivered  │
+└─────────────────────────┘
+```
+
+---
+
+## 📊 Technical Flowchart (Mermaid)
+
+```mermaid
+flowchart TD
+    subgraph TRIGGERS["Failure Scenarios"]
+        F_AUTH["Expired / Missing JWT"]
+        F_CRED["Insufficient Credit Balance"]
+        F_AI["Groq LLM Timeout / 502 Error"]
+        F_CHUNK["Stale Frontend Vite Chunks"]
+        F_RATE["Excessive Request Burst"]
+    end
+
+    subgraph BACKEND_RECOVERY["Backend Defense & Recovery"]
+        B_AUTH["HTTP 401 Unauthorized"]
+        B_CRED["HTTP 402 Payment Required"]
+        B_REFUND["refund_feature_credits() RPC<br/>• Restores deducted credits<br/>• Records 'ai_failure_refund' in DB<br/>• Returns HTTP 502"]
+        B_RATE["HTTP 429 Too Many Requests<br/>SlowAPI rate limiter"]
+        
+        F_AUTH --> B_AUTH
+        F_CRED --> B_CRED
+        F_AI --> B_REFUND
+        F_RATE --> B_RATE
+    end
+
+    subgraph FRONTEND_HANDLING["Frontend UX & State Recovery"]
+        FE_REFRESH["tryRefreshSession()<br/>POST /api/v1/auth/refresh"]
+        FE_CRED_WARN["Show Credit Warning Dialog<br/>Refresh balance in CreditContext"]
+        FE_REFUND_TOAST["Show Error Toast<br/>'AI failed — credits refunded'<br/>refreshCredits() syncs balance"]
+        FE_RELOAD["lazyWithRetry()<br/>Auto-reloads page once"]
+        FE_RATE_TOAST["Show Slow Down Toast<br/>Retry after countdown"]
+        
+        B_AUTH --> FE_REFRESH
+        B_CRED --> FE_CRED_WARN
+        B_REFUND --> FE_REFUND_TOAST
+        F_CHUNK --> FE_RELOAD
+        B_RATE --> FE_RATE_TOAST
+    end
+
+    subgraph TELEMETRY["Monitoring & Alerts"]
+        SENTRY["Sentry SDK<br/>Captures 5xx and uncaught exceptions"]
+        B_REFUND -.->|Log Alert| SENTRY
+    end
+```
+
+---
+
+## 🔄 Failure Recovery Strategies
+
+| Failure Type | Trigger Condition | Automated Recovery Flow | User Experience |
+|---|---|---|---|
+| **AI LLM Failure** | Groq times out (>45s) or returns malformed response | Backend calls `refund_feature_credits()` to restore balance atomically, logs transaction as `ai_failure_refund`, raises 502. | Error toast: *"Deep analysis failed — your credits have been refunded. Please try again."* No credits lost. |
+| **Token Expiry** | Access JWT expires (1h) | Frontend intercepts 401, calls `tryRefreshSession()` with refresh token cookie. | Seamless automatic refresh. If refresh token is expired, prompts sign-in. |
+| **Chunk Loading** | New deployment updates JS bundle hashes | `lazyWithRetry()` catches dynamic `import()` failures and forces a clean page reload once. | Seamless refresh to the latest app version instead of a broken white screen. |
+| **Cold Start** | Render backend sleeps after inactivity | `AuthContext` starts 4s timer; if loading exceeds 4s, renders `ColdStartBanner`. | Informative amber banner: *"Waking up server (15–30s)..."* |
+| **Slow LLM Call** | Hiring Intel takes 30–60s on complex resumes | `ResumeAnalysis.tsx` triggers 45s timer displaying amber status indicator. | Status message: *"⏳ Still working — Hiring Intel is thorough (30–60s). Hang tight..."* |
