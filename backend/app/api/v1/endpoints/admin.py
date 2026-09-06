@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, status
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 from app.api.dependencies import CurrentUser
 from app.db.supabase import get_db
@@ -567,4 +568,24 @@ async def get_admin_doc_content(path: str, user: CurrentUser):
         "size": target.stat().st_size,
         "content": content,
     }
+
+
+@router.get("/docs/viewer", response_class=HTMLResponse)
+async def get_admin_architecture_viewer(user: CurrentUser):
+    """
+    Admin: returns the interactive Miro architecture viewer HTML canvas.
+    """
+    await _require_admin(user)
+    docs_dir = _find_docs_dir()
+    target = (docs_dir / "architecture" / "architecture_viewer.html").resolve()
+    if not target.is_file():
+        raise HTTPException(status_code=404, detail="Architecture viewer not found.")
+
+    try:
+        content = target.read_text(encoding="utf-8", errors="ignore")
+        return HTMLResponse(content=content, media_type="text/html")
+    except Exception as e:
+        logger.error("Failed to read architecture viewer: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to load architecture viewer.")
+
 

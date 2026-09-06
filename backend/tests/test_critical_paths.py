@@ -639,4 +639,20 @@ class TestAdminDocs:
             assert any("admin.py" in d.get("code_target", "") for d in result["docs"])
             assert any(d.get("directory") for d in result["docs"])
 
+    def test_docs_viewer_returns_html_canvas(self):
+        """Admin users can load the interactive architecture viewer HTML canvas."""
+        import asyncio
+        from app.api.v1.endpoints.admin import get_admin_architecture_viewer
+        from unittest.mock import MagicMock
+
+        mock_user = MagicMock()
+        mock_user.id = "admin-123"
+
+        with patch("app.api.v1.endpoints.admin._require_admin", return_value={"is_admin": True}):
+            res = asyncio.run(get_admin_architecture_viewer(user=mock_user))
+            assert res.status_code == 200
+            assert "text/html" in res.media_type
+            assert "Kareerist Miro Architecture Canvas" in res.body.decode("utf-8")
+
+
 

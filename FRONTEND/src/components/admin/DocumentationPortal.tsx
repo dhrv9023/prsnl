@@ -40,6 +40,10 @@ export function DocumentationPortal() {
     const [viewMode, setViewMode] = useState<"visual" | "raw">("visual");
     const [copied, setCopied] = useState(false);
     const [copiedPath, setCopiedPath] = useState(false);
+
+    // Flowchart visual mode toggles
+    const [showDiagramCode, setShowDiagramCode] = useState(false);
+    const [embedCanvas, setEmbedCanvas] = useState(false);
     
     // Collapsible Category states
     const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({
@@ -140,19 +144,28 @@ export function DocumentationPortal() {
                 setLoadingContent(false);
             }
         }
+        setShowDiagramCode(false);
+        setEmbedCanvas(false);
         fetchDoc();
     }, [selectedDoc]);
 
-    // Parse Markdown to HTML
+    // Parse Markdown to HTML (suppressing raw diagram code dumps when viewing flowcharts unless explicitly toggled)
     const renderedHtml = useMemo(() => {
         if (!content || viewMode !== "visual") return "";
         try {
-            return marked.parse(content) as string;
+            let processed = content;
+            if (selectedDoc?.is_flowchart && !showDiagramCode) {
+                // Strip raw Mermaid code blocks so the user doesn't see lines of code for diagrams
+                processed = processed.replace(/```mermaid[\s\S]*?```/gi, "");
+                // Strip raw ASCII box diagrams
+                processed = processed.replace(/```[\s\S]*?┌[\s\S]*?```/gi, "");
+            }
+            return marked.parse(processed) as string;
         } catch (e) {
             console.error("Markdown parse error:", e);
             return `<pre class="p-4 text-red-400 bg-red-950/20 border border-red-900 rounded-lg">Error rendering markdown</pre>`;
         }
-    }, [content, viewMode]);
+    }, [content, viewMode, selectedDoc, showDiagramCode]);
 
     // Post-process HTML to render Mermaid code blocks into SVG
     useEffect(() => {
@@ -342,24 +355,36 @@ export function DocumentationPortal() {
                     </div>
                 </div>
 
-                {/* Search Bar */}
-                <div className="relative w-72">
-                    <Search className="w-3.5 h-3.5 text-muted-foreground/50 absolute left-3 top-2.5" />
-                    <input
-                        type="text"
-                        placeholder="Search all documentation..."
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        className="w-full h-8 pl-8 pr-8 rounded-lg bg-secondary/20 border border-border/30 text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/50 transition-colors"
-                    />
-                    {search && (
-                        <button
-                            onClick={() => setSearch("")}
-                            className="absolute right-2.5 top-2 text-muted-foreground hover:text-foreground"
-                        >
-                            <X className="w-3.5 h-3.5" />
-                        </button>
-                    )}
+                {/* Search Bar & Canvas Quick Action */}
+                <div className="flex items-center gap-2.5">
+                    <button
+                        onClick={() => window.open("/api/v1/admin/docs/viewer", "_blank")}
+                        className="h-8 px-3 rounded-lg border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 text-xs font-semibold text-blue-400 flex items-center gap-1.5 transition-colors shadow-sm"
+                        title="Open interactive Miro Architecture Canvas (.html) in a new tab"
+                    >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">Open Flowchart Canvas (.html)</span>
+                        <span className="sm:hidden">Canvas</span>
+                    </button>
+
+                    <div className="relative w-64">
+                        <Search className="w-3.5 h-3.5 text-muted-foreground/50 absolute left-3 top-2.5" />
+                        <input
+                            type="text"
+                            placeholder="Search documentation..."
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            className="w-full h-8 pl-8 pr-8 rounded-lg bg-secondary/20 border border-border/30 text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/50 transition-colors"
+                        />
+                        {search && (
+                            <button
+                                onClick={() => setSearch("")}
+                                className="absolute right-2.5 top-2 text-muted-foreground hover:text-foreground"
+                            >
+                                <X className="w-3.5 h-3.5" />
+                            </button>
+                        )}
+                    </div>
                 </div>
             </div>
 
@@ -528,8 +553,21 @@ export function DocumentationPortal() {
                                     )}
                                 </div>
 
-                                {/* Controls: Visual/Raw Mode, Copy */}
+                                {/* Controls: Visual/Raw Mode, Copy, and Canvas Button */}
                                 <div className="flex items-center gap-2 flex-shrink-0">
+                                    {/* Open Flowchart Canvas Button */}
+                                    {selectedDoc.is_flowchart && (
+                                        <button
+                                            onClick={() => window.open("/api/v1/admin/docs/viewer", "_blank")}
+                                            className="h-8 px-3 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-xs font-semibold text-white shadow-sm flex items-center gap-1.5 transition-all transform active:scale-95"
+                                            title="Open interactive Miro architecture canvas (.html) in new tab"
+                                        >
+                                            <ExternalLink className="w-3.5 h-3.5" />
+                                            <span className="hidden sm:inline">Open Flowchart Canvas (.html)</span>
+                                            <span className="sm:hidden">Canvas (.html)</span>
+                                        </button>
+                                    )}
+
                                     {/* Mode Toggle */}
                                     <div className="flex items-center p-0.5 bg-secondary/30 border border-border/30 rounded-lg">
                                         <button
@@ -666,6 +704,79 @@ export function DocumentationPortal() {
                                                         </span>
                                                     ))}
                                                 </div>
+                                            </div>
+                                        )}
+
+                                        {/* Visual Flowchart Canvas Hero Card */}
+                                        {selectedDoc.is_flowchart && (
+                                            <div className="p-6 rounded-2xl bg-gradient-to-br from-blue-950/60 via-slate-900 to-indigo-950/40 border border-blue-800/40 shadow-xl space-y-4">
+                                                <div className="flex flex-wrap items-center justify-between gap-3">
+                                                    <div className="space-y-1">
+                                                        <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                                                            <LayoutGrid className="w-3.5 h-3.5" />
+                                                            <span>Visual Interactive Architecture Canvas</span>
+                                                        </div>
+                                                        <h3 className="text-base font-bold text-white tracking-tight">
+                                                            Interactive Visual Flowchart Available (.html)
+                                                        </h3>
+                                                        <p className="text-xs text-slate-300 max-w-xl">
+                                                            To keep this page clean and readable, raw diagram syntax code is hidden. You can explore this architecture diagram visually with zoom, pan, search, and node inspection in the dedicated Miro-style canvas.
+                                                        </p>
+                                                    </div>
+
+                                                    <div className="flex flex-wrap items-center gap-2">
+                                                        <button
+                                                            onClick={() => window.open("/api/v1/admin/docs/viewer", "_blank")}
+                                                            className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs shadow-lg shadow-blue-600/30 flex items-center gap-2 transition-all hover:scale-105 active:scale-95"
+                                                            title="Launch full Miro-style visual architecture canvas in a new window"
+                                                        >
+                                                            <ExternalLink className="w-4 h-4" />
+                                                            <span>Open Flowchart Canvas (.html)</span>
+                                                        </button>
+
+                                                        <button
+                                                            onClick={() => setEmbedCanvas(!embedCanvas)}
+                                                            className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 flex items-center gap-1.5 transition-colors"
+                                                            title="Toggle embedded interactive canvas preview on this page"
+                                                        >
+                                                            <Eye className="w-3.5 h-3.5 text-slate-400" />
+                                                            <span>{embedCanvas ? "Hide Canvas Preview" : "Preview Canvas Here"}</span>
+                                                        </button>
+
+                                                        <button
+                                                            onClick={() => setShowDiagramCode(!showDiagramCode)}
+                                                            className="px-3 py-2 rounded-xl bg-slate-800/60 hover:bg-slate-700 text-slate-400 hover:text-slate-200 text-xs font-mono border border-slate-700/60 flex items-center gap-1.5 transition-colors"
+                                                            title="Toggle raw Mermaid syntax code on/off"
+                                                        >
+                                                            <Code className="w-3.5 h-3.5" />
+                                                            <span>{showDiagramCode ? "Hide Diagram Code" : "Show Diagram Code"}</span>
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                {/* Embedded Canvas Frame if toggled */}
+                                                {embedCanvas && (
+                                                    <div className="mt-4 rounded-xl border border-blue-800/50 bg-slate-950 overflow-hidden shadow-2xl">
+                                                        <div className="px-4 py-2 bg-slate-900/80 border-b border-slate-800 flex items-center justify-between text-xs text-slate-400">
+                                                            <span className="font-mono flex items-center gap-2">
+                                                                <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                                                                Interactive Miro Architecture Canvas (architecture_viewer.html)
+                                                            </span>
+                                                            <button
+                                                                onClick={() => window.open("/api/v1/admin/docs/viewer", "_blank")}
+                                                                className="text-blue-400 hover:text-blue-300 font-medium flex items-center gap-1 text-[11px]"
+                                                            >
+                                                                <span>Open in full tab</span>
+                                                                <ExternalLink className="w-3 h-3" />
+                                                            </button>
+                                                        </div>
+                                                        <iframe
+                                                            src="/api/v1/admin/docs/viewer"
+                                                            title="Interactive Architecture Viewer"
+                                                            className="w-full h-[600px] border-none bg-slate-950"
+                                                        />
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
 
