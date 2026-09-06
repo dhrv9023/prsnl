@@ -9,7 +9,7 @@ import {
     Copy, Check, ExternalLink, RefreshCw, Loader2,
     Code, Eye, Folder, Layers, Shield, Cpu, Database,
     GitBranch, History, Terminal, X, ArrowLeft, FileCode,
-    FolderTree, LayoutGrid
+    FolderTree, LayoutGrid, Maximize2, Minimize2
 } from "lucide-react";
 import { marked } from "marked";
 import mermaid from "mermaid";
@@ -44,6 +44,18 @@ export function DocumentationPortal() {
     // Flowchart visual mode toggles
     const [showDiagramCode, setShowDiagramCode] = useState(false);
     const [embedCanvas, setEmbedCanvas] = useState(false);
+    const [isFullscreen, setIsFullscreen] = useState(false);
+
+    // Escape listener to exit fullscreen
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === "Escape" && isFullscreen) {
+                setIsFullscreen(false);
+            }
+        };
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [isFullscreen]);
     
     // Collapsible Category states
     const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({
@@ -153,6 +165,25 @@ export function DocumentationPortal() {
     const renderedHtml = useMemo(() => {
         if (!content || viewMode !== "visual") return "";
         try {
+            if (selectedDoc?.path.endsWith(".html")) {
+                return `
+                    <div class="p-8 rounded-2xl bg-gradient-to-br from-blue-950/70 via-slate-900 to-indigo-950/60 border border-blue-800/50 shadow-2xl text-center space-y-4 my-6">
+                        <div class="w-12 h-12 rounded-2xl bg-blue-500/20 border border-blue-500/40 flex items-center justify-center mx-auto text-blue-400">
+                            <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h7v7H3z"/><path d="M14 3h7v7h-7z"/><path d="M14 14h7v7h-7z"/><path d="M3 14h7v7H3z"/></svg>
+                        </div>
+                        <h3 class="text-xl font-bold text-white tracking-tight">Interactive Visual Architecture Canvas (.html)</h3>
+                        <p class="text-sm text-slate-300 max-w-lg mx-auto">
+                            This document is an interactive Miro-style canvas application featuring all 12 system architecture diagrams with full zoom, pan, search, and node inspection.
+                        </p>
+                        <div class="pt-3 flex flex-wrap items-center justify-center gap-3">
+                            <a href="/architecture_viewer.html" target="_blank" rel="noreferrer" class="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm shadow-xl shadow-blue-600/30 transition-all hover:scale-105 active:scale-95 no-underline">
+                                Launch Full Architecture Canvas ↗
+                            </a>
+                        </div>
+                    </div>
+                `;
+            }
+
             let processed = content;
             if (selectedDoc?.is_flowchart && !showDiagramCode) {
                 // Strip raw Mermaid code blocks so the user doesn't see lines of code for diagrams
@@ -335,9 +366,13 @@ export function DocumentationPortal() {
     }
 
     return (
-        <div className="rounded-2xl border border-border/30 bg-card/40 backdrop-blur-md overflow-hidden shadow-2xl flex flex-col h-[820px]">
+        <div className={`border border-border/30 bg-card/40 backdrop-blur-md overflow-hidden shadow-2xl flex flex-col transition-all duration-300 ${
+            isFullscreen 
+                ? "fixed inset-0 z-50 rounded-none border-0 h-screen w-screen bg-background" 
+                : "rounded-2xl h-[calc(100vh-210px)] min-h-[750px] w-full"
+        }`}>
             {/* Top Toolbar */}
-            <div className="flex flex-wrap items-center justify-between gap-4 px-6 py-4 border-b border-border/20 bg-secondary/10">
+            <div className="flex flex-wrap items-center justify-between gap-4 px-6 py-4 border-b border-border/20 bg-secondary/10 flex-shrink-0">
                 <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-xl bg-blue-500/15 border border-blue-500/25 flex items-center justify-center text-blue-400">
                         <BookOpen className="w-4 h-4" />
@@ -355,10 +390,10 @@ export function DocumentationPortal() {
                     </div>
                 </div>
 
-                {/* Search Bar & Canvas Quick Action */}
+                {/* Search Bar, Canvas Quick Action & Fullscreen */}
                 <div className="flex items-center gap-2.5">
                     <button
-                        onClick={() => window.open("/api/v1/admin/docs/viewer", "_blank")}
+                        onClick={() => window.open("/architecture_viewer.html", "_blank")}
                         className="h-8 px-3 rounded-lg border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 text-xs font-semibold text-blue-400 flex items-center gap-1.5 transition-colors shadow-sm"
                         title="Open interactive Miro Architecture Canvas (.html) in a new tab"
                     >
@@ -385,13 +420,35 @@ export function DocumentationPortal() {
                             </button>
                         )}
                     </div>
+
+                    <button
+                        onClick={() => setIsFullscreen(!isFullscreen)}
+                        className={`h-8 px-2.5 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition-colors ${
+                            isFullscreen
+                                ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                                : "border-border/30 bg-secondary/20 hover:bg-secondary/40 text-muted-foreground hover:text-foreground"
+                        }`}
+                        title={isFullscreen ? "Exit Fullscreen (Esc)" : "Expand to Full Space (Fullscreen)"}
+                    >
+                        {isFullscreen ? (
+                            <>
+                                <Minimize2 className="w-3.5 h-3.5" />
+                                <span className="hidden md:inline">Exit Fullscreen</span>
+                            </>
+                        ) : (
+                            <>
+                                <Maximize2 className="w-3.5 h-3.5" />
+                                <span className="hidden md:inline">Full Space</span>
+                            </>
+                        )}
+                    </button>
                 </div>
             </div>
 
             {/* Main Content Layout (Sidebar + Reader) */}
             <div className="flex-1 flex overflow-hidden">
                 {/* ── Left Sidebar (Tree / Explorer) ────────────────────────────── */}
-                <aside className="w-80 border-r border-border/20 bg-secondary/5 flex flex-col h-full flex-shrink-0">
+                <aside className="w-80 lg:w-96 border-r border-border/20 bg-secondary/5 flex flex-col h-full flex-shrink-0">
                     <div className="p-2.5 border-b border-border/10 space-y-2">
                         <div className="flex items-center justify-between text-[11px] font-mono text-muted-foreground/60 uppercase tracking-wider px-1">
                             <span>Explorer</span>
@@ -558,7 +615,7 @@ export function DocumentationPortal() {
                                     {/* Open Flowchart Canvas Button */}
                                     {selectedDoc.is_flowchart && (
                                         <button
-                                            onClick={() => window.open("/api/v1/admin/docs/viewer", "_blank")}
+                                            onClick={() => window.open("/architecture_viewer.html", "_blank")}
                                             className="h-8 px-3 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-xs font-semibold text-white shadow-sm flex items-center gap-1.5 transition-all transform active:scale-95"
                                             title="Open interactive Miro architecture canvas (.html) in new tab"
                                         >
@@ -637,7 +694,7 @@ export function DocumentationPortal() {
                                         </pre>
                                     </div>
                                 ) : (
-                                    <div className="max-w-4xl mx-auto space-y-6">
+                                    <div className="w-full max-w-5xl xl:max-w-6xl 2xl:max-w-7xl mx-auto px-4 lg:px-8 space-y-6">
                                         {/* Source Code Association Card */}
                                         {selectedDoc.code_target && (
                                             <div className="p-5 rounded-2xl bg-slate-900/90 border border-slate-800 shadow-xl">
@@ -726,7 +783,7 @@ export function DocumentationPortal() {
 
                                                     <div className="flex flex-wrap items-center gap-2">
                                                         <button
-                                                            onClick={() => window.open("/api/v1/admin/docs/viewer", "_blank")}
+                                                            onClick={() => window.open("/architecture_viewer.html", "_blank")}
                                                             className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs shadow-lg shadow-blue-600/30 flex items-center gap-2 transition-all hover:scale-105 active:scale-95"
                                                             title="Launch full Miro-style visual architecture canvas in a new window"
                                                         >
@@ -763,7 +820,7 @@ export function DocumentationPortal() {
                                                                 Interactive Miro Architecture Canvas (architecture_viewer.html)
                                                             </span>
                                                             <button
-                                                                onClick={() => window.open("/api/v1/admin/docs/viewer", "_blank")}
+                                                                onClick={() => window.open("/architecture_viewer.html", "_blank")}
                                                                 className="text-blue-400 hover:text-blue-300 font-medium flex items-center gap-1 text-[11px]"
                                                             >
                                                                 <span>Open in full tab</span>
@@ -771,9 +828,9 @@ export function DocumentationPortal() {
                                                             </button>
                                                         </div>
                                                         <iframe
-                                                            src="/api/v1/admin/docs/viewer"
+                                                            src="/architecture_viewer.html"
                                                             title="Interactive Architecture Viewer"
-                                                            className="w-full h-[600px] border-none bg-slate-950"
+                                                            className="w-full h-[650px] lg:h-[750px] border-none bg-slate-950"
                                                         />
                                                     </div>
                                                 )}

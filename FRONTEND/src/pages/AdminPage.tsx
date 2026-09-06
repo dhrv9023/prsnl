@@ -582,8 +582,8 @@ export default function AdminPage() {
                 <UserActivityModal user={activityUser} onClose={() => setActivityUser(null)} />
             )}
 
-            <main className="pt-24 pb-16">
-                <div className="container max-w-6xl space-y-6">
+            <main className={activeTab === "documentation" ? "pt-20 pb-6 px-3 sm:px-6" : "pt-24 pb-16"}>
+                <div className={activeTab === "documentation" ? "w-full max-w-[1920px] mx-auto space-y-4" : "container max-w-6xl space-y-6"}>
 
                     {/* Header */}
                     <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">

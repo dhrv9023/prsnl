@@ -1,0 +1,2014 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kareerist Miro Architecture Canvas</title>
+  
+  <!-- CDNs -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    /* Miro dotted grid background */
+    .miro-grid {
+      background-image: radial-gradient(rgba(148, 163, 184, 0.15) 1.5px, transparent 1.5px);
+      background-size: 24px 24px;
+    }
+    .light .miro-grid {
+      background-image: radial-gradient(rgba(100, 116, 139, 0.15) 1.5px, transparent 1.5px);
+      background-size: 24px 24px;
+    }
+    /* Mermaid SVG overrides */
+    .searched-node-highlight {
+      fill: none;
+      stroke: #3b82f6;
+      stroke-width: 4px;
+      stroke-dasharray: 6;
+      animation: dash 2s linear infinite, pulse 1.5s ease-in-out infinite;
+    }
+    .issue-node-highlight {
+      fill: none;
+      stroke: #f59e0b;
+      stroke-width: 4px;
+      stroke-dasharray: 6;
+      animation: dash 2s linear infinite, pulse 1.5s ease-in-out infinite;
+    }
+    @keyframes dash {
+      to {
+        stroke-dashoffset: -20;
+      }
+    }
+    @keyframes pulse {
+      0%, 100% {
+        opacity: 0.4;
+      }
+      50% {
+        opacity: 1;
+      }
+    }
+    /* Smooth transitions */
+    .canvas-transition {
+      transition: transform 0.15s ease-out;
+    }
+    .grabbing {
+      cursor: grabbing !important;
+    }
+    .node {
+      cursor: pointer;
+    }
+    .node:hover {
+      filter: brightness(1.15);
+    }
+    /* Mermaid Flowchart Enhancements - Generous Spacing & High Legibility */
+    .node rect, .node circle, .node polygon, .node path {
+      rx: 10px !important;
+      ry: 10px !important;
+      stroke-width: 2px !important;
+      filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.45));
+    }
+    .node .label {
+      padding: 14px 20px !important;
+      font-size: 14px !important;
+      line-height: 1.55 !important;
+    }
+    .cluster rect {
+      rx: 16px !important;
+      ry: 16px !important;
+      stroke-width: 2px !important;
+      stroke-dasharray: 4 !important;
+    }
+    .cluster .nodeLabel {
+      font-size: 13px !important;
+      font-weight: 700 !important;
+      letter-spacing: 0.05em !important;
+      text-transform: uppercase !important;
+      padding: 6px 12px !important;
+    }
+    .edgeLabel {
+      background-color: #0b1329 !important;
+      color: #93c5fd !important;
+      padding: 6px 12px !important;
+      border-radius: 8px !important;
+      font-size: 12px !important;
+      font-weight: 600 !important;
+      border: 1px solid rgba(59, 130, 246, 0.35) !important;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4) !important;
+    }
+    .edgePath path {
+      stroke-width: 2.2px !important;
+    }
+  </style>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            border: 'hsl(var(--border))',
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-slate-900 dark:bg-slate-950 text-slate-100 dark:text-slate-100 h-screen overflow-hidden flex flex-col transition-colors duration-200">
+
+  <!-- Header -->
+  <header class="flex items-center justify-between px-6 py-4 bg-slate-950 border-b border-slate-800 z-10">
+    <div class="flex items-center gap-3">
+      <div class="flex items-center justify-center w-10 h-10 rounded-lg bg-blue-600/20 text-blue-400 border border-blue-500/30">
+        <i data-lucide="layout" class="w-5 h-5"></i>
+      </div>
+      <div>
+        <h1 class="text-lg font-bold tracking-tight bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
+          Kareerist Miro Architecture Canvas
+        </h1>
+        <p class="text-xs text-slate-400">Interactive live code map & developer explorer</p>
+      </div>
+    </div>
+
+    <!-- Tab switcher -->
+    <div class="flex items-center gap-1 bg-slate-900 border border-slate-800 rounded-lg p-1">
+            <button id="tab-canvas-btn" onclick="switchTab('canvas')" class="flex items-center gap-2 px-4 py-1.5 text-xs font-semibold rounded-md transition-all bg-blue-600 text-white shadow">
+        <i data-lucide="network" class="w-3.5 h-3.5"></i>
+        Interactive Flowchart
+      </button>
+      <button id="tab-schematic-btn" onclick="switchTab('schematic')" class="flex items-center gap-2 px-4 py-1.5 text-xs font-semibold rounded-md transition-all text-slate-400 hover:text-slate-200">
+        <i data-lucide="terminal" class="w-3.5 h-3.5"></i>
+        ASCII Box Schematic
+      </button>
+      <button id="tab-scorecard-btn" onclick="switchTab('scorecard')" class="flex items-center gap-2 px-4 py-1.5 text-xs font-semibold rounded-md transition-all text-slate-400 hover:text-slate-200">
+        <i data-lucide="book-open" class="w-3.5 h-3.5"></i>
+        Scorecard Audit
+      </button>
+      <button id="tab-issues-btn" onclick="switchTab('issues')" class="flex items-center gap-2 px-4 py-1.5 text-xs font-semibold rounded-md transition-all text-slate-400 hover:text-slate-200">
+        <i data-lucide="shield-alert" class="w-3.5 h-3.5"></i>
+        Critical Issues (<span id="issues-count">10</span>)
+      </button>
+    </div>
+
+    <!-- Dark Mode + Back Link -->
+    <div class="flex items-center gap-3">
+      <button onclick="toggleDarkMode()" class="p-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg text-slate-400 hover:text-slate-100 transition-colors">
+        <i id="theme-icon" data-lucide="sun" class="w-4 h-4"></i>
+      </button>
+      <div class="text-xs text-slate-500 font-medium">Standalone Developer Mode</div>
+    </div>
+  </header>
+
+  <!-- Main View Workspace -->
+  <div class="flex flex-1 overflow-hidden relative">
+    
+    <!-- Sidebar: Canvas List -->
+    <aside id="canvas-sidebar" class="w-80 bg-slate-950 border-r border-slate-800 flex flex-col h-full z-10">
+      <div class="p-4 border-b border-slate-800">
+        <form onsubmit="handleSearch(event)" class="relative">
+          <input id="search-input" type="text" placeholder="Search node (e.g. Supabase)..." class="w-full pl-9 pr-4 py-2 text-xs bg-slate-900 border border-slate-800 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors" />
+          <i data-lucide="search" class="absolute left-3 top-2.5 w-3.5 h-3.5 text-slate-500"></i>
+        </form>
+      </div>
+
+      <div id="diagram-list" class="flex-1 overflow-y-auto p-4 space-y-2">
+        <!-- JS populated -->
+      </div>
+    </aside>
+
+    <!-- Canvas Panel -->
+    <main id="main-content" class="flex-1 h-full relative overflow-hidden bg-slate-900">
+      
+      <!-- Canvas Wrapper -->
+      <div id="canvas-container" class="w-full h-full cursor-grab relative select-none overflow-hidden miro-grid" 
+           onmousedown="onMouseDown(event)" 
+           onmousemove="onMouseMove(event)" 
+           onmouseup="onMouseUp()" 
+           onmouseleave="onMouseUp()"
+           onwheel="onWheel(event)">
+        
+        <!-- Mermaid compiled SVG container (unconstrained, natural scaling) -->
+        <div id="mermaid-render-area" class="absolute pointer-events-auto" style="min-width: max-content; min-height: max-content; padding: 60px;"></div>
+
+        <!-- Floating Canvas controls -->
+        <div class="absolute bottom-6 right-6 flex items-center gap-1.5 bg-slate-950/90 border border-slate-800 backdrop-blur-md rounded-xl p-1.5 shadow-2xl z-10">
+          <button onclick="zoomIn()" title="Zoom In" class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-100 hover:bg-slate-900 transition-colors">
+            <i data-lucide="zoom-in" class="w-4 h-4"></i>
+          </button>
+          <button onclick="zoomOut()" title="Zoom Out" class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-100 hover:bg-slate-900 transition-colors">
+            <i data-lucide="zoom-out" class="w-4 h-4"></i>
+          </button>
+          <button onclick="resetView()" title="Actual Size (100%)" class="px-2.5 h-8 rounded-lg flex items-center justify-center text-xs font-bold text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 transition-colors">
+            100%
+          </button>
+          <button onclick="fitView()" title="Fit Diagram to Canvas" class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-100 hover:bg-slate-900 transition-colors">
+            <i data-lucide="maximize-2" class="w-4 h-4"></i>
+          </button>
+          <div class="h-5 w-px bg-slate-800 mx-1"></div>
+          <span id="zoom-label" class="text-[11px] font-mono font-bold text-slate-400 px-1.5">100%</span>
+        </div>
+
+        <!-- Active Diagram Details banner -->
+        <div class="absolute top-6 left-6 max-w-sm bg-slate-950/85 border border-slate-800 backdrop-blur-md rounded-xl p-4 shadow-xl pointer-events-none z-10">
+          <span id="diagram-badge" class="text-[10px] font-bold text-blue-400 uppercase tracking-widest">Active Diagram 1</span>
+          <h3 id="diagram-title" class="text-sm font-extrabold text-slate-100 mt-1">System Overview</h3>
+          <p id="diagram-desc" class="text-xs text-slate-400 mt-1 leading-relaxed">Global stack overview and data flow boundaries.</p>
+        </div>
+
+        <!-- Node Detail Drawer -->
+        <div id="node-drawer" class="hidden absolute top-6 right-6 w-80 bg-slate-950 border border-slate-800 rounded-2xl shadow-2xl p-5 z-20">
+          <div class="flex justify-between items-start">
+            <span class="text-[10px] bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded font-bold border border-blue-500/20">Selected Component</span>
+            <button onclick="dismissDrawer()" class="text-xs text-slate-500 hover:text-slate-300">Dismiss</button>
+          </div>
+          <h4 id="node-title" class="text-sm font-extrabold text-slate-100 mt-3">Browser</h4>
+          <p id="node-desc" class="text-xs text-slate-400 mt-2 leading-relaxed border-t border-slate-900 pt-3">
+            Client Browser: Runs the React 18 + Vite Single Page Application.
+          </p>
+          <div class="bg-slate-900/60 rounded-xl p-3 mt-4 border border-slate-800/40">
+            <div class="flex gap-2 items-center text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+              <i data-lucide="file-text" class="w-3 h-3 text-slate-500"></i>
+              Audited Code References
+            </div>
+            <ul class="text-[11px] text-slate-500 mt-2 space-y-1.5">
+              <li>• Scoped inside `/backend/app/` logic</li>
+              <li>• Direct dependency in `requirements.txt`</li>
+              <li>• Covered by service-layer unit tests</li>
+            </ul>
+          </div>
+        </div>
+
+      </div>
+
+            <!-- Schematic View (Text Box Architecture) -->
+      <div id="schematic-view" class="hidden w-full h-full overflow-y-auto p-8 max-w-5xl mx-auto space-y-4">
+        <div class="flex items-center justify-between bg-slate-950 border border-slate-800 rounded-2xl p-5 shadow-xl">
+          <div>
+            <div class="flex items-center gap-2">
+              <span id="schematic-badge" class="text-[10px] font-bold text-blue-400 uppercase tracking-widest">Diagram 1</span>
+              <span class="text-xs text-slate-500">• High-Contrast Text Box Schematic</span>
+            </div>
+            <h2 id="schematic-title" class="text-lg font-bold tracking-tight text-slate-100 mt-1">Master System Overview</h2>
+            <p id="schematic-desc" class="text-xs text-slate-400 mt-0.5">Tiered architecture model with explicit boundary mapping.</p>
+          </div>
+          <button onclick="copySchematic()" class="flex items-center gap-2 px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-md">
+            <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+            <span id="copy-btn-text">Copy Diagram</span>
+          </button>
+        </div>
+
+        <div class="bg-slate-950 border border-slate-800 rounded-2xl p-6 shadow-xl overflow-x-auto">
+          <pre id="schematic-code" class="font-mono text-xs text-blue-300 leading-relaxed select-all whitespace-pre"></pre>
+        </div>
+      </div>
+
+      <!-- Scorecard View (hidden initially) -->
+      <div id="scorecard-view" class="hidden w-full h-full overflow-y-auto p-8 max-w-4xl mx-auto space-y-6">
+        <div class="bg-slate-950 border border-slate-800 rounded-2xl p-6 shadow-xl">
+          <h2 class="text-lg font-bold tracking-tight text-slate-100 flex items-center gap-2">
+            <i data-lucide="book-open" class="w-5 h-5 text-blue-400"></i>
+            Codebase Security & Architecture Scorecard
+          </h2>
+          <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+            Evaluated health scores based on security audit audits, performance bottlenecks, test validation, and environment maturity.
+          </p>
+        </div>
+
+        <div id="scorecard-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <!-- Issues View (hidden initially) -->
+      <div id="issues-view" class="hidden w-full h-full overflow-y-auto p-8 max-w-4xl mx-auto space-y-6">
+        <div class="bg-slate-950 border border-slate-800 rounded-2xl p-6 shadow-xl">
+          <h2 class="text-lg font-bold tracking-tight text-slate-100 flex items-center gap-2">
+            <i data-lucide="shield-alert" class="w-5 h-5 text-amber-500"></i>
+            Top 10 Critical Vulnerabilities & Architectural Issues
+          </h2>
+          <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+            Interactive report detailing high-risk concerns discovered in the codebase audit. Click **"Locate in Diagram"** to open and center the affected components.
+          </p>
+        </div>
+
+        <div id="issues-list" class="space-y-4">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+    </main>
+
+  </div>
+
+  <script>
+    // --- DATABASE ---
+    const scorecardData = [
+      { dimension: "Security", score: 7, justification: "HttpOnly cookies, CSRF, RLS, IP anti-farming, atomic DB ops. Gap: localStorage token fallback, anon blog writes, WITH CHECK (true) on INSERT policies." },
+      { dimension: "Scalability", score: 4, justification: "Render free tier cold-starts, Supabase free-tier DB pauses, Groq 6000 req/day cap, no horizontal scaling, HuggingFace HTTP call per ATS request." },
+      { dimension: "Maintainability", score: 7, justification: "Clean service layer, good separation of concerns, well-named files. Gap: no ProtectedRoute abstraction, duplicated auth-check logic across pages." },
+      { dimension: "Test Coverage", score: 3, justification: "22 backend unit tests (~15% coverage). Zero frontend tests, no e2e, no integration tests against real DB." },
+      { dimension: "Error Handling", score: 6, justification: "Good retry logic for Cloudflare WAF, Sentry monitoring, AI refund on failure. Gap: no React Error Boundaries, silent credit failures, DB insert non-fatal after AI calls." },
+      { dimension: "Documentation", score: 8, justification: "Excellent - CHANGELOG, CSRF_IMPLEMENTATION.md, 15 chapters, inline docstrings throughout." },
+      { dimension: "Performance", score: 5, justification: "No caching of AI results, HuggingFace embedding call on every ATS request, no CDN for API, dashboard fetches all analyses (capped at 50)." },
+      { dimension: "DevOps Maturity", score: 3, justification: "No CI/CD, no staging, manual DB migrations, Render free-tier limitations, keep-alive cron is a workaround not a fix." }
+    ];
+
+    const criticalIssuesData = [
+      {
+        id: "#1",
+        severity: "CRITICAL",
+        title: "Supabase DB hibernation returns 0 credits on balance fetch",
+        location: "credits.py:31-38 (balance endpoint fallback)",
+        risk: "Users see 0 credits and are locked out of all features when DB pauses.",
+        fix: "Add error detection - if res.data is None due to DB error, return 503 instead of {remaining:0}.",
+        nodeQuery: "database",
+        diagramId: 1
+      },
+      {
+        id: "#2",
+        severity: "CRITICAL",
+        title: "Blog admin panel has no real authentication",
+        location: "kareerist_blog/src/ (admin panel)",
+        risk: "Hardcoded password visible in JS bundle. Anyone can publish/delete blog posts.",
+        fix: "Move admin auth to Supabase Auth with role check. Remove password from client JS.",
+        nodeQuery: "BAdmin",
+        diagramId: 6
+      },
+      {
+        id: "#3",
+        severity: "CRITICAL",
+        title: "blog_posts RLS allows anonymous WRITE",
+        location: "kareerist_blog/supabase_migration.sql",
+        risk: "Anyone can spam/inject content into the public blog without any account.",
+        fix: "Require authenticated + is_admin flag on INSERT/DELETE policies.",
+        nodeQuery: "BlogRLS",
+        diagramId: 6
+      },
+      {
+        id: "#4",
+        severity: "HIGH",
+        title: "INSERT RLS policies use WITH CHECK (true) for user data",
+        location: "20260515000001_audit_fixes.sql, 20260523000000_comprehensive_fix.sql",
+        risk: "Authenticated user can insert rows with arbitrary user_id (impersonation in DB).",
+        fix: "Change to WITH CHECK (user_id = auth.uid()) on all INSERT policies.",
+        nodeQuery: "profiles",
+        diagramId: 4
+      },
+      {
+        id: "#5",
+        severity: "HIGH",
+        title: "No React Error Boundaries",
+        location: "FRONTEND/src/App.tsx - no ErrorBoundary wrapper",
+        risk: "Any unhandled JS error in a page component crashes the entire app (blank white screen).",
+        fix: "Add <ErrorBoundary fallback={<ErrorPage/>}> around each lazy-loaded route.",
+        nodeQuery: "App.tsx",
+        diagramId: 5
+      },
+      {
+        id: "#6",
+        severity: "HIGH",
+        title: "Access token cookie outlives Supabase JWT",
+        location: "config.py:34 AUTH_ACCESS_MAX_AGE_SECONDS = 4 days",
+        risk: "Old/stale JWT in cookie sent to backend, auth.get_user() fails → 401 loop.",
+        fix: "Set AUTH_ACCESS_MAX_AGE_SECONDS to match Supabase JWT expiry (3600s).",
+        nodeQuery: "cookies",
+        diagramId: 2
+      },
+      {
+        id: "#7",
+        severity: "HIGH",
+        title: "localStorage stores JWT tokens (XSS risk)",
+        location: "api.ts:77-116 (__krs_access_token, __krs_refresh_token)",
+        risk: "XSS attack can steal tokens. HttpOnly cookies are already set - localStorage is redundant.",
+        fix: "Remove localStorage token storage entirely. Rely solely on HttpOnly cookies.",
+        nodeQuery: "localStorage",
+        diagramId: 2
+      },
+      {
+        id: "#8",
+        severity: "MEDIUM",
+        title: "Render backend spins down after 15 min - keep-alive is fragile",
+        location: "main.py /ping + cron-job.org",
+        risk: "If cron fails, cold start returns 503 for ~30s on first request.",
+        fix: "Upgrade to Render Starter ($7/mo) always-on or run keep-alive client-side.",
+        nodeQuery: "Render",
+        diagramId: 9
+      },
+      {
+        id: "#9",
+        severity: "MEDIUM",
+        title: "No centralized ProtectedRoute component",
+        location: "FRONTEND/src/App.tsx - all 12 routes unprotected at router level",
+        risk: "Auth redirect logic duplicated in each page. Easy to forget on new pages.",
+        fix: "Create <ProtectedRoute> and <AdminRoute> wrappers in App.tsx routing.",
+        nodeQuery: "App.tsx",
+        diagramId: 5
+      },
+      {
+        id: "#10",
+        severity: "MEDIUM",
+        title: "Unused packages installed in backend",
+        location: "requirements.txt - gTTS, google-genai, fpdf2",
+        risk: "google-genai is a large package (~50MB), increases cold start time on Render.",
+        fix: "Remove unused packages. Audit with: pip list | grep -E 'gtts|google-genai|fpdf2'",
+        nodeQuery: "google-genai",
+        diagramId: 12
+      }
+    ];
+
+    const diagramsData = [
+      {
+        id: 1,
+        title: "Master System Overview",
+        description: "Tiered cloud topology: User Browser ➔ Vercel CDN ➔ Render FastAPI ➔ Supabase, Upstash & AI Services.",
+        code: `flowchart TD
+    classDef client fill:#0f172a,stroke:#38bdf8,stroke-width:2px,color:#f8fafc
+    classDef edge fill:#1e1b4b,stroke:#818cf8,stroke-width:2px,color:#f8fafc
+    classDef backend fill:#064e3b,stroke:#34d399,stroke-width:2px,color:#f8fafc
+    classDef supa fill:#451a03,stroke:#fbbf24,stroke-width:2px,color:#f8fafc
+    classDef redis fill:#14532d,stroke:#4ade80,stroke-width:2px,color:#f8fafc
+    classDef ai fill:#3b0764,stroke:#c084fc,stroke-width:2px,color:#f8fafc
+    classDef mon fill:#4c0519,stroke:#fb7185,stroke-width:2px,color:#f8fafc
+
+    subgraph TIER1["Tier 1: Client Application Layer"]
+        BROWSER["<b>User Web Browser</b><br/>Desktop (Chrome · Firefox · Safari) & Mobile Browsers<br/><i>Renders Single Page Application</i>"]:::client
+    end
+
+    subgraph TIER2["Tier 2: Edge Delivery & Static Hosting (Vercel CDN)"]
+        SPA["<b>React 18 Single Page Application</b><br/>TypeScript · Vite · TailwindCSS · Shadcn UI<br/><i>Client State: AuthContext · CreditContext · RoastMode</i>"]:::edge
+    end
+
+    subgraph TIER3["Tier 3: Core API Services & Security (Render PaaS)"]
+        direction TB
+        MW["<b>FastAPI Middleware Stack</b><br/>RequestLogger ➔ ProxyHeaders ➔ CSRF ➔ BodySizeLimit ➔ SecurityHeaders"]:::backend
+        API["<b>FastAPI 0.128 Application Server</b><br/>Python 3.13 · SlowAPI Rate Limiting · Pydantic v2 Models<br/><i>Routers: /auth · /resumes · /analysis · /interview · /credits · /admin</i>"]:::backend
+        MW --> API
+    end
+
+    subgraph TIER4["Tier 4: Cloud Data, Cache & External AI Inference Services"]
+        direction LR
+
+        subgraph COL_DATA["Database & Storage (Supabase)"]
+            direction TB
+            AUTH["<b>Supabase Auth Service</b><br/>JWT HS256 & Google PKCE OAuth"]:::supa
+            DB[("<b>PostgreSQL 15 Database</b><br/>9 User Tables · RLS Policies<br/>Atomic Credit RPC Functions")]:::supa
+            STORE["<b>Supabase Storage</b><br/>Encrypted Resume PDFs Bucket"]:::supa
+        end
+
+        subgraph COL_CACHE["Session & Rate Cache"]
+            direction TB
+            REDIS[("<b>Upstash Redis</b><br/>45-min Mock Interview State<br/>SlowAPI IP Rate Counters")]:::redis
+        end
+
+        subgraph COL_AI["AI Inference Cloud"]
+            direction TB
+            GROQ["<b>Groq Cloud LPU Engine</b><br/>• Llama 3.3 70B (Critique & Letters)<br/>• Whisper v3 Turbo (Speech STT)"]:::ai
+            HF["<b>HuggingFace Hub API</b><br/>• sentence-transformers embeddings"]:::ai
+        end
+
+        subgraph COL_OBS["Telemetry"]
+            direction TB
+            SENTRY["<b>Sentry APM</b><br/>Error Tracking & Tracing"]:::mon
+        end
+    end
+
+    BROWSER -->|1. HTTPS / WSS Requests| SPA
+    SPA -->|2. REST API Calls to /api/v1<br/>HttpOnly Cookie + CSRF Header| MW
+    API -->|3. Validate JWT & OAuth| AUTH
+    API -->|4. SQL Queries & Atomic Deductions| DB
+    API -->|5. Store / Fetch Encrypted PDFs| STORE
+    API -->|6. Interview State & Sliding Window| REDIS
+    API -->|7. LLM Prompts & Audio STT| GROQ
+    API -->|8. Cosine Similarity Calculation| HF
+    API -.->|9. Uncaught Exceptions| SENTRY`,
+        ascii: `┌─────────────────────────────────────────────────────────────────────────────┐
+│                             1. USER BROWSER                                 │
+│  • React 18 SPA (TypeScript + Vite)                                         │
+│  • Manages AuthContext, CreditContext & RoastModeContext                    │
+│  • Interacts via Fetch with HttpOnly Session Cookies + CSRF Header          │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │ HTTPS
+                                       ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         2. EDGE CDN & PROXY LAYER                           │
+│  • Vercel Edge CDN: Serves static assets, fonts, icons                     │
+│  • Security: Strict-Transport-Security, nosniff, DENY, microphone=(self)   │
+│  • API Proxy in Dev: Vite proxy /api -> http://localhost:8000               │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │ REST / JSON
+                                       ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         3. FASTAPI BACKEND SERVICE                          │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │ Middlewares: Logger -> ProxyHeaders -> CSRF -> BodyLimit -> SecHeaders │  │
+│  └───────────────────────────────────┬───────────────────────────────────┘  │
+│                                      ▼                                       │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │ Route Pipeline: RateLimit (SlowAPI) -> Auth (JWT) -> Credit Guard     │  │
+│  └───────────────────────────────────┬───────────────────────────────────┘  │
+│                                      ▼                                       │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │ Service Logic: Prompt Sanitizer, ATS Scorer, Groq LLM, Whisper STT    │  │
+│  └───────────────────────────────────┬───────────────────────────────────┘  │
+└──────────────┬───────────────────────┼───────────────────────┬──────────────┘
+               │                       │                       │
+               ▼                       ▼                       ▼
+┌───────────────────────────┐ ┌───────────────────┐ ┌─────────────────────────┐
+│     SUPABASE PLATFORM     │ │   UPSTASH REDIS   │ │       AI ENGINES        │
+│ • Auth: PKCE & JWT Verify │ │ • Session State   │ │ • Groq Cloud (Qwen)     │
+│ • PostgreSQL 15 DB + RLS  │ │   (45-min TTL)    │ │ • Groq Whisper STT      │
+│ • Atomic Credit RPCs      │ │ • Rate Limit      │ │ • HuggingFace MPNet     │
+│ • Resumes Storage Bucket  │ │   Counters        │ │   Embeddings            │
+└───────────────────────────┘ └───────────────────┘ └─────────────────────────┘`
+      },
+      {
+        id: 2,
+        title: "Authentication & Session Flow",
+        description: "Three-phase sequence: Registration with anti-farming, Google OAuth PKCE exchange, and token refresh.",
+        code: `sequenceDiagram
+    autonumber
+    actor User as User Browser
+    participant FE as React Frontend (Vercel)
+    participant BE as FastAPI Backend (Render)
+    participant SupaAuth as Supabase Auth
+    participant SupaDB as PostgreSQL DB (Supabase)
+
+    Note over User,SupaDB: Phase 1: Sign Up with Anti-Farming & Stored XSS Prevention
+    User->>FE: Fill signup form (email, password, full_name)
+    FE->>BE: POST /api/v1/auth/signup
+    Note over BE: Pydantic UserAuth: sanitize full_name (strip HTML tags)<br/>Validate password complexity
+    BE->>SupaAuth: auth.sign_up(email, password)
+    SupaAuth-->>BE: User UUID created
+    SupaAuth->>SupaDB: DB Trigger: Insert public.profiles (0 credits)
+    BE->>SupaDB: Check ip_credit_claims for client IP
+    alt IP has not claimed initial bonus
+        BE->>SupaDB: Atomic RPC: grant_credits(user_id, 100)
+        BE->>SupaDB: Insert ip_credit_claims(ip, user_id)
+    else IP already claimed
+        Note over BE: Anti-Farming enforced: 0 credits granted
+    end
+    BE-->>FE: HTTP 200 {msg: "Registration successful", user_id}
+
+    Note over User,SupaDB: Phase 2: Google OAuth Session Exchange (PKCE)
+    User->>FE: Click "Continue with Google"
+    FE->>SupaAuth: signInWithOAuth({provider: 'google'})
+    SupaAuth-->>User: Redirect to Google Consent ➔ /auth/callback?code=XYZ
+    FE->>BE: POST /api/v1/auth/oauth/session {code, code_verifier}
+    BE->>SupaAuth: exchange_code_for_session(code, code_verifier)
+    alt Code Valid
+        SupaAuth-->>BE: Access Token + Refresh Token
+        Note over BE: Set-Cookie: __krs_sid (HttpOnly, Secure, 4d)<br/>Set-Cookie: __krs_rid (HttpOnly, Secure, 30d)<br/>Set-Cookie: __krs_xsrf (JS-readable CSRF)
+        BE->>SupaDB: UPDATE profiles SET last_sign_in_at = NOW()
+        BE-->>FE: HTTP 200 {user, profile, csrf_token}
+    else Code Invalid / Expired
+        Note over BE: Log stack trace server-side only<br/>Mask client response to prevent leakage
+        BE-->>FE: HTTP 401 "OAuth authentication failed. Please try again."
+    end
+
+    Note over User,SupaDB: Phase 3: Session Check & Token Refresh
+    FE->>BE: GET /api/v1/auth/me
+    alt Session Cookie Valid
+        BE->>SupaDB: Check last_daily_grant_date
+        alt Eligible for Daily 50 Credits
+            BE->>SupaDB: Atomic RPC: grant_daily_credits(user_id, 50)
+            BE->>SupaDB: Insert credit_transactions ('daily_grant')
+        end
+        BE-->>FE: HTTP 200 {user, profile, daily_grant_applied}
+    else Session Cookie Expired
+        FE->>BE: POST /api/v1/auth/refresh (sends __krs_rid)
+        BE->>SupaAuth: refresh_session()
+        BE-->>FE: New HttpOnly Cookies (__krs_sid, __krs_rid)
+    end`,
+        ascii: `┌─────────────────────────────────────────────────────────────────────────────┐
+│                              1. SIGNUP FLOW                                 │
+│  User Input (Email, Password, Name)                                         │
+│       │                                                                     │
+│       ▼                                                                     │
+│  POST /api/v1/auth/signup                                                   │
+│       ├─► Pydantic Validation & Stored XSS Sanitization (HTML tags stripped)│
+│       ├─► Supabase Auth: creates auth.users record                          │
+│       ├─► DB Trigger: handle_new_user() creates profiles record             │
+│       └─► Anti-Farming: Check IP in ip_credit_claims -> Grant 100 credits   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                            2. LOGIN / OAUTH FLOW                            │
+│  Option A: Email/Password           Option B: Google OAuth (PKCE)           │
+│       │                                  │                                  │
+│       ▼                                  ▼                                  │
+│  POST /api/v1/auth/login            POST /api/v1/auth/oauth/session         │
+│  Supabase password verify           Exchange code + code_verifier           │
+│       │                                  │                                  │
+│       └──────────────────┬───────────────┘                                  │
+│                          ▼                                                  │
+│              Session Cookie Dispatch                                        │
+│              • Set HttpOnly __krs_sid (Access Token, 1h)                    │
+│              • Set HttpOnly __krs_rid (Refresh Token, 30d)                  │
+│              • Set JS-readable __krs_xsrf (CSRF double-submit token)        │
+│              • Return user profile + credit balance                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         3. AUTHENTICATED REQUESTS                           │
+│  Client sends credentials: "include" + X-CSRF-Token header                  │
+│       │                                                                     │
+│       ▼                                                                     │
+│  FastAPI Security Pipeline:                                                 │
+│  1. CSRFMiddleware checks header matches __krs_xsrf cookie                  │
+│  2. get_current_user reads __krs_sid cookie and verifies JWT                │
+│  3. If token expired, client calls POST /api/v1/auth/refresh                │
+└─────────────────────────────────────────────────────────────────────────────┘`
+      },
+      {
+        id: 3,
+        title: "Complete API Route Map",
+        description: "Categorized inventory of all FastAPI endpoints, credit costs, rate limits, and permission requirements.",
+        code: `flowchart TD
+    classDef auth fill:#0f172a,stroke:#38bdf8,stroke-width:1.5px,color:#f8fafc
+    classDef resume fill:#1e1b4b,stroke:#818cf8,stroke-width:1.5px,color:#f8fafc
+    classDef ai fill:#3b0764,stroke:#c084fc,stroke-width:1.5px,color:#f8fafc
+    classDef interview fill:#064e3b,stroke:#34d399,stroke-width:1.5px,color:#f8fafc
+    classDef billing fill:#451a03,stroke:#fbbf24,stroke-width:1.5px,color:#f8fafc
+    classDef admin fill:#4c0519,stroke:#fb7185,stroke-width:1.5px,color:#f8fafc
+    classDef system fill:#334155,stroke:#94a3b8,stroke-width:1.5px,color:#f8fafc
+
+    API["<b>FastAPI APIRouter</b><br/>Base Prefix: <code>/api/v1</code>"]
+
+    subgraph G1["Auth & Resume Routers"]
+        direction TB
+        R_AUTH["<b>/auth (auth.py)</b><br/>• POST /signup (Public · 5/m · Stored XSS sanitized)<br/>• POST /login (Public · 5/m · HttpOnly cookies)<br/>• POST /oauth/session (Public · Masked errors)<br/>• POST /refresh (Public · Cookie refresh)<br/>• POST /logout (Clears cookies)<br/>• GET /me (JWT · Triggers 50 cr daily grant)"]:::auth
+        R_RESUMES["<b>/resumes (resumes.py)</b><br/>• POST /upload (JWT · Max 5MB · %PDF- magic bytes)<br/>• GET / (JWT · List user's resumes)<br/>• GET /{id} (JWT · Scoped to user_id)<br/>• DELETE /{id} (JWT · Cascade cleanup)"]:::resume
+    end
+
+    subgraph G2["AI Career Intelligence"]
+        direction TB
+        R_ANALYSIS["<b>/analysis (ai_analysis.py)</b><br/>• POST /match (5 cr · 5/hr · ATS Cosine match)<br/>• POST /deep (15 cr · 5/hr · Deep critique + 502 refund)<br/>• POST /hiring-intel (25 cr · 5/hr · 9-sec report + 502 refund)<br/>• GET /history/{id} (JWT · Scoped by user_id)"]:::ai
+        R_COVER["<b>/cover_letter (cover_letter.py)</b><br/>• POST /generate (10 cr · Role-targeted draft)<br/>• POST /generate-roast (10 cr · Savage roast mode)<br/>• POST /humanize (15 cr · 50-5000 chars bounded)<br/>• POST /save_pdf (5 cr · ReportLab export)<br/>• GET / & GET /{app_id} (JWT)"]:::ai
+    end
+
+    subgraph G3["AI Mock Interview Engine"]
+        direction TB
+        R_INTERVIEW["<b>/interview (interview.py)</b><br/>• POST /start (25 cr · Generates 6 Qs ➔ Redis)<br/>• POST /submit (JWT · 15/m · Evaluates single answer)<br/>• POST /submit_voice (JWT · 10MB audio · Whisper STT)<br/>• POST /end (Compile report ➔ PostgreSQL)<br/>• POST /abandon (Clears active Redis session)<br/>• GET /session (Active question status)<br/>• GET /history (Last 20 reports)"]:::interview
+    end
+
+    subgraph G4["Billing, Admin & System"]
+        direction TB
+        R_CREDITS["<b>/credits (credits.py)</b><br/>• GET /balance (JWT · Remaining & Granted)<br/>• GET /costs (Public costs mapping)<br/>• POST /validate (Pre-flight balance check)<br/>• GET /history (Last 50 ledger entries)<br/>• POST /daily-grant (50 credits UTC idempotent)"]:::billing
+        R_ADMIN["<b>/admin (admin.py)</b><br/>• GET /stats (is_admin · Platform metrics)<br/>• GET /users (is_admin · Sorted by last sign-in)<br/>• GET /users/{id}/activity (is_admin · Full logs)<br/>• POST /users/{id}/grant-credits<br/>• POST /users/{id}/set-unlimited"]:::admin
+        R_SYSTEM["<b>System & Health (main.py)</b><br/>• GET / (Platform metadata)<br/>• GET /health (Supabase + Redis health)<br/>• GET /ping (Keep-alive 200 OK)"]:::system
+    end
+
+    API --> G1
+    API --> G2
+    API --> G3
+    API --> G4`,
+        ascii: `/api/v1 (FastAPI Route Tree)
+├── /auth
+│   ├── POST /signup             (Public · 5/min · User registration + anti-farming)
+│   ├── POST /login              (Public · 5/min · Password authentication)
+│   ├── POST /oauth/session      (Public · 5/min · Google PKCE token exchange)
+│   ├── POST /refresh            (Public · 5/min · Cookie refresh)
+│   ├── POST /logout             (Session · Clear HttpOnly cookies)
+│   └── GET  /me                 (JWT Required · Profile + Daily 50 credits grant)
+├── /resumes
+│   ├── POST /upload             (JWT Required · 5/day · Max 5MB PDF · Magic byte validation)
+│   ├── GET  /                   (JWT Required · List user resumes)
+│   ├── GET  /{resume_id}        (JWT Required · Get resume parsed content & feedback)
+│   └── DELETE /{resume_id}      (JWT Required · Cascade deletes storage + analyses + letters)
+├── /analysis
+│   ├── POST /match              (JWT Required · 5 credits · 5/hr · ATS match score)
+│   ├── POST /deep               (JWT Required · 15 credits · 5/hr · LLM deep critique + 502 refund)
+│   ├── POST /hiring-intel       (JWT Required · 25 credits · 5/hr · 9-section recruiter report + 502 refund)
+│   └── GET  /history/{resume_id}(JWT Required · Isolated by user_id)
+├── /interview
+│   ├── POST /start              (JWT Required · 25 credits · 5/hr · Generates 6 Qs -> Redis)
+│   ├── POST /submit             (JWT Required · 15/min · Evaluates single answer)
+│   ├── POST /submit_voice       (JWT Required · 15/min · Max 10MB audio · Whisper STT)
+│   ├── POST /end                (JWT Required · Compiles final report -> PostgreSQL)
+│   ├── POST /abandon            (JWT Required · Clears active Redis session)
+│   ├── GET  /session            (JWT Required · Checks current question index)
+│   └── GET  /history            (JWT Required · Last 20 interview reports)
+├── /cover_letter
+│   ├── POST /generate           (JWT Required · 10 credits · 5/hr · Role-targeted draft)
+│   ├── POST /generate-roast     (JWT Required · 10 credits · 5/hr · Savage roast critique)
+│   ├── POST /humanize           (JWT Required · 15 credits · 5/hr · 50-5000 chars · Strips AI tone)
+│   ├── POST /save_pdf           (JWT Required · 5/hr · ReportLab PDF export)
+│   ├── GET  /                   (JWT Required · List user cover letters)
+│   └── GET  /{app_id}           (JWT Required · Fetch single cover letter)
+├── /credits
+│   ├── GET  /balance            (JWT Required · Remaining, granted, used, unlimited flag)
+│   └── GET  /history            (JWT Required · Last 50 transactions with pagination)
+├── /admin
+│   ├── GET  /stats              (Admin Only · Global users, resumes, credit totals)
+│   ├── GET  /users              (Admin Only · Searchable user list)
+│   ├── GET  /users/{id}/activity(Admin Only · Multi-tab user activity inspection)
+│   └── POST /users/{id}/grant-credits (Admin Only · Add/deduct credits)
+└── /health & /ping              (Public · System health checks · Not rate-limited)`
+      },
+      {
+        id: 4,
+        title: "Database Schema & Entity Model",
+        description: "Relational mapping across all 9 PostgreSQL tables in Supabase with foreign keys and RLS policies.",
+        code: `erDiagram
+    PROFILES {
+        uuid id PK
+        text email
+        text full_name
+        int remaining_credits
+        int total_credits_granted
+        boolean is_admin
+        boolean is_unlimited
+        timestamptz last_sign_in_at
+        timestamptz created_at
+    }
+
+    RESUMES {
+        uuid id PK
+        uuid user_id FK
+        text file_name
+        text file_url
+        text raw_text
+        int file_size
+        timestamptz created_at
+    }
+
+    AI_ANALYSES {
+        uuid id PK
+        uuid resume_id FK
+        uuid user_id FK
+        text analysis_type
+        jsonb output_data
+        timestamptz created_at
+    }
+
+    JOB_APPLICATIONS {
+        uuid id PK
+        uuid user_id FK
+        uuid resume_id FK
+        text company_name
+        text job_title
+        text cover_letter_text
+        text pdf_url
+        timestamptz created_at
+    }
+
+    INTERVIEW_REPORTS {
+        uuid id PK
+        uuid user_id FK
+        uuid resume_id FK
+        text target_role
+        int overall_score
+        jsonb questions_data
+        timestamptz created_at
+    }
+
+    CREDIT_TRANSACTIONS {
+        uuid id PK
+        uuid user_id FK
+        int amount
+        text transaction_type
+        text feature
+        text description
+        timestamptz created_at
+    }
+
+    DAILY_CREDIT_GRANTS {
+        uuid id PK
+        uuid user_id FK
+        date grant_date UK
+        int amount
+        timestamptz created_at
+    }
+
+    IP_CREDIT_CLAIMS {
+        uuid id PK
+        text ip_address UK
+        uuid user_id FK
+        int credits_granted
+        timestamptz claimed_at
+    }
+
+    BLOG_POSTS {
+        uuid id PK
+        text title
+        text slug UK
+        text excerpt
+        text content
+        text category
+        text cover_image
+        boolean featured
+        timestamptz published_at
+    }
+
+    PROFILES ||--o{ RESUMES : "owns"
+    PROFILES ||--o{ AI_ANALYSES : "requests"
+    PROFILES ||--o{ JOB_APPLICATIONS : "creates"
+    PROFILES ||--o{ INTERVIEW_REPORTS : "completes"
+    PROFILES ||--o{ CREDIT_TRANSACTIONS : "ledger"
+    PROFILES ||--o{ DAILY_CREDIT_GRANTS : "claims"
+    PROFILES ||--o{ IP_CREDIT_CLAIMS : "registered_from"
+    RESUMES ||--o{ AI_ANALYSES : "analyzed_in"
+    RESUMES ||--o{ JOB_APPLICATIONS : "source_for"
+    RESUMES ||--o{ INTERVIEW_REPORTS : "referenced_in"`,
+        ascii: `┌───────────────────────────────┐
+       │          AUTH.USERS           │
+       │  (Managed by Supabase Auth)   │
+       └──────────────┬────────────────┘
+                      │ 1:1 (Trigger: handle_new_user)
+                      ▼
+       ┌───────────────────────────────┐
+       │           PROFILES            │
+       │  id (PK, UUID = auth.users)   │
+       │  email, full_name, credits    │
+       │  is_unlimited, is_admin       │
+       └──────┬───────────────┬────────┘
+              │ 1:N           │ 1:N
+              ▼               ▼
+┌────────────────────────┐  ┌─────────────────────────┐
+│        RESUMES         │  │   CREDIT_TRANSACTIONS   │
+│ id (PK), user_id (FK)  │  │ id (PK), user_id (FK)   │
+│ file_url, text_content │  │ amount, balance_after   │
+│ parsed_content (JSONB) │  │ feature, reason         │
+└──────┬──────────────┬──┘  └─────────────────────────┘
+       │ 1:N          │ 1:N
+       ▼              ▼
+┌──────────────┐  ┌────────────────────────┐
+│ AI_ANALYSES  │  │    JOB_APPLICATIONS    │
+│ id (PK)      │  │ id (PK), user_id (FK)  │
+│ resume_id(FK)│  │ resume_id (FK)         │
+│ user_id (FK) │  │ company, title, JD     │
+│ output(JSONB)│  │ cover_letter_content   │
+└──────────────┘  └────────────────────────┘
+       ▲
+       │ 1:N (Optional Link)
+┌──────┴───────────────┐  ┌───────────────────────────┐
+│  INTERVIEW_REPORTS   │  │    DAILY_CREDIT_GRANTS    │
+│ id (PK), user_id(FK) │  │ id (PK), user_id (FK)     │
+│ resume_id (FK, Null) │  │ grant_date, amount        │
+│ total_score, report  │  │ (Unique user_id + date)   │
+└──────────────────────┘  └───────────────────────────┘`
+      },
+      {
+        id: 5,
+        title: "Frontend Architecture & Component Tree",
+        description: "React 18 single-page application structure: provider hierarchy, global UI shell, and lazy-loaded routes.",
+        code: `flowchart TD
+    classDef root fill:#0f172a,stroke:#38bdf8,stroke-width:2px,color:#f8fafc
+    classDef provider fill:#1e1b4b,stroke:#818cf8,stroke-width:2px,color:#f8fafc
+    classDef page fill:#064e3b,stroke:#34d399,stroke-width:2px,color:#f8fafc
+    classDef comp fill:#451a03,stroke:#fbbf24,stroke-width:2px,color:#f8fafc
+
+    ROOT["<b>main.tsx</b><br/>ReactDOM.createRoot()"]:::root
+    APP["<b>App.tsx</b><br/>Master Application Shell"]:::root
+    
+    subgraph PROVIDERS["Application Context Providers"]
+        direction TB
+        QCP["QueryClientProvider (TanStack Query)"]:::provider
+        BRP["BrowserRouter (react-router-dom v6)"]:::provider
+        AUTH_CTX["AuthProvider (AuthContext + useAuth)"]:::provider
+        CREDIT_CTX["CreditProvider (CreditContext + canUse)"]:::provider
+        ROAST_CTX["RoastModeProvider (RoastContext)"]:::provider
+        TOOLTIP["TooltipProvider (Radix UI)"]:::provider
+    end
+
+    subgraph GLOBAL_UI["Global Navigation & Overlays"]
+        direction TB
+        NAV["Navbar.tsx (CreditBadge, AuthModal Trigger)"]:::comp
+        FOOTER["Footer.tsx (Navigation & Legal)"]:::comp
+        MODAL["AuthModal.tsx (Touch Scroll Background Lock)"]:::comp
+    end
+
+    subgraph PAGES["Lazy-Loaded Application Pages"]
+        direction TB
+        P_LANDING["/ ➔ Index.tsx (Hero, Features, Pricing)"]:::page
+        P_DASH["/dashboard ➔ DashboardPage.tsx"]:::page
+        P_ANALYSIS["/resume-analysis ➔ ResumeAnalysis.tsx (45s status indicator)"]:::page
+        P_INTERVIEW["/interview ➔ AIInterview.tsx (Voice STT recording)"]:::page
+        P_COVER["/cover-letter ➔ CoverLetter.tsx"]:::page
+        P_CREDITS["/credits ➔ CreditsPage.tsx"]:::page
+        P_HISTORY["/interview/history ➔ InterviewHistory.tsx"]:::page
+        P_ADMIN["/admin ➔ AdminPage.tsx (Admin Only)"]:::page
+    end
+
+    ROOT --> APP --> PROVIDERS
+    PROVIDERS --> GLOBAL_UI
+    PROVIDERS --> PAGES`,
+        ascii: `main.tsx (ReactDOM.createRoot)
+ │
+ ▼
+App.tsx (Provider Wrapper Hierarchy)
+ ├─► QueryClientProvider (TanStack Query client caching)
+ ├─► TooltipProvider (Radix tooltip portal context)
+ ├─► BrowserRouter (React Router DOM v6)
+ ├─► AuthProvider (Manages user, session tokens, and ColdStartBanner)
+ └─► CreditProvider (Manages live balance, deductLocal(), and shortfall calculation)
+      │
+      ├─► Navbar (Global navigation, theme toggle, credit balance badge)
+      │
+      ├─► Page Routes (Lazy-loaded with lazyWithRetry error boundaries)
+      │    ├── /                     -> Index.tsx (Landing page, hero, feature marquee)
+      │    ├── /dashboard            -> DashboardPage.tsx (Recent resumes & credits)
+      │    ├── /resume-analysis      -> ResumeAnalysis.tsx (Upload, ATS score, deep critique)
+      │    ├── /interview            -> AIInterview.tsx (Mock interview, voice input STT)
+      │    ├── /cover-letter         -> CoverLetter.tsx (Role-targeted generator & humanizer)
+      │    ├── /credits              -> CreditsPage.tsx (History audit log & feature pricing)
+      │    ├── /interview/history    -> InterviewHistory.tsx (Past performance reports)
+      │    ├── /admin                -> AdminPage.tsx (User activity modal & stats)
+      │    ├── /pricing              -> Pricing.tsx (Plan tier comparison)
+      │    └── /auth/callback        -> AuthCallback.tsx (Google OAuth PKCE exchange)
+      │
+      └─► Global Overlays & Modals
+           ├── AuthModal.tsx (Sign-in/Sign-up with mobile scroll-lock)
+           └── Footer.tsx (Site links and social badges)`
+      },
+      {
+        id: 6,
+        title: "Blog System Architecture",
+        description: "Decoupled architecture: independent blog micro-frontend, Supabase storage, and main app integration.",
+        code: `flowchart LR
+    classDef client fill:#0f172a,stroke:#38bdf8,stroke-width:2px,color:#f8fafc
+    classDef vercel fill:#1e1b4b,stroke:#818cf8,stroke-width:2px,color:#f8fafc
+    classDef supa fill:#451a03,stroke:#fbbf24,stroke-width:2px,color:#f8fafc
+    classDef main fill:#064e3b,stroke:#34d399,stroke-width:2px,color:#f8fafc
+
+    subgraph READER["Blog Micro-Frontend (kareerist_blog/)"]
+        direction TB
+        V_BLOG["<b>Vercel Edge Deployment</b><br/><code>kareerisit-blog.vercel.app</code>"]:::vercel
+        P_HOME["Home Grid (Hero + Recent Articles)"]:::client
+        P_VIEW["Article Reader (Markdown Parser)"]:::client
+        P_ADMIN["Admin Portal (Ctrl+Shift+A Dialog)"]:::client
+        V_BLOG --> P_HOME
+        V_BLOG --> P_VIEW
+        V_BLOG --> P_ADMIN
+    end
+
+    subgraph DB["Supabase Cloud"]
+        TABLE[("<b>blog_posts Table</b><br/>title · slug · excerpt · content<br/>category · cover_image · featured")]:::supa
+    end
+
+    subgraph APP_MAIN["Main Kareerist Platform"]
+        CONTACT["Contact.tsx Page<br/>(Embedded 3-card blog preview)"]:::main
+    end
+
+    P_HOME -->|Read Published Posts| TABLE
+    P_VIEW -->|Fetch Single Post| TABLE
+    P_ADMIN -->|Create / Edit / Delete Post| TABLE
+    CONTACT -->|Fetch Recent Articles| TABLE`,
+        ascii: `┌─────────────────────────────────────────────────────────────────────────────┐
+│                          KAREERIST BLOG APPLICATION                         │
+│                    (Standalone Vite + React Micro-Frontend)                 │
+│                                                                             │
+│  ├── /                -> Article List Grid & Featured Post Hero             │
+│  ├── /article/:id     -> Markdown Reader & Social Sharing                   │
+│  └── /admin           -> Secret Admin Portal (Ctrl+Shift+A)                 │
+│                           • Create Post with Cover Preview                  │
+│                           • Manage / Edit / Delete Articles                 │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │ Direct Supabase JS Client (HTTPS)
+                                       ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         SUPABASE CMS (blog_posts)                           │
+│  • Columns: id, title, excerpt, content (markdown), category, cover_image   │
+│  • Public Read Policy: Any visitor can read published posts                 │
+│  • Admin Write Policy: Secured via password/session key                     │
+└─────────────────────────────────────────────────────────────────────────────┘`
+      },
+      {
+        id: 7,
+        title: "Request Lifecycle & Middleware Pipeline",
+        description: "End-to-end request trace: RequestLogger ➔ ProxyHeaders ➔ CSRF ➔ BodySizeLimit ➔ SecurityHeaders ➔ Service.",
+        code: `flowchart TD
+    classDef client fill:#0f172a,stroke:#38bdf8,stroke-width:2px,color:#f8fafc
+    classDef mw fill:#1e1b4b,stroke:#818cf8,stroke-width:2px,color:#f8fafc
+    classDef gate fill:#3b0764,stroke:#c084fc,stroke-width:2px,color:#f8fafc
+    classDef exec fill:#064e3b,stroke:#34d399,stroke-width:2px,color:#f8fafc
+    classDef err fill:#4c0519,stroke:#fb7185,stroke-width:2px,color:#f8fafc
+
+    REQ["<b>1. Client Request Dispatch</b><br/>React fetch() ➔ credentials: include<br/><i>Headers: X-CSRF-Token · Cookies: __krs_sid, __krs_xsrf</i>"]:::client
+
+    subgraph MW_CHAIN["2. Middleware Pipeline"]
+        direction TB
+        MW_LOG["RequestLogger: Generate X-Request-ID & timer"]:::mw
+        MW_PROXY["ProxyHeaders: Trust X-Forwarded-For"]:::mw
+        MW_CSRF["CSRFMiddleware: Validate token HMAC"]:::mw
+        MW_SIZE["BodySizeLimit: Reject payload > 1MB"]:::mw
+        MW_SEC["SecurityHeaders: CSP, HSTS, mic=(self)"]:::mw
+        MW_LOG --> MW_PROXY --> MW_CSRF --> MW_SIZE --> MW_SEC
+    end
+
+    subgraph GATES["3. Security & Gateway Validation"]
+        direction TB
+        G_RATE{"Gate 1: Rate Limit<br/>SlowAPI + Redis"}:::gate
+        G_AUTH{"Gate 2: Authentication<br/>JWT verify in __krs_sid"}:::gate
+        G_CREDIT{"Gate 3: Credit Guard<br/>deduct_credits() RPC"}:::gate
+        
+        G_RATE -->|Within Quota| G_AUTH
+        G_AUTH -->|Valid Token| G_CREDIT
+    end
+
+    subgraph EXEC["4. Route Execution & Response"]
+        direction TB
+        ROUTER["Route Handler Executes<br/><i>prompt_sanitizer ➔ Groq / HuggingFace</i>"]:::exec
+        SUCCESS["200 OK Response<br/><i>JSON payload delivered to client</i>"]:::exec
+        REFUND["Failure Recovery (HTTP 502)<br/><i>refund_feature_credits() RPC restores balance</i>"]:::err
+        
+        ROUTER -->|Success| SUCCESS
+        ROUTER -->|AI Upstream Timeout| REFUND
+    end
+
+    REQ --> MW_CHAIN --> GATES
+    G_RATE -->|Exceeded| E429["HTTP 429 Too Many Requests"]:::err
+    G_AUTH -->|Invalid / Expired| E401["HTTP 401 Unauthorized"]:::err
+    G_CREDIT -->|Insufficient Credits| E402["HTTP 402 Payment Required"]:::err
+    G_CREDIT -->|Credits Deducted| EXEC`,
+        ascii: `Incoming Client HTTP Request (e.g. POST /api/v1/analysis/deep)
+ │
+ ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       GATE 1: MIDDLEWARE EXECUTION                          │
+│  1. RequestLoggerMiddleware: Assigns X-Request-ID, starts timer             │
+│  2. ProxyHeadersMiddleware: Trusts X-Forwarded-For from Render reverse proxy│
+│  3. CSRFMiddleware: Checks X-CSRF-Token matches __krs_xsrf cookie (prod)   │
+│  4. BodySizeLimitMiddleware: Rejects request body if > 1MB (413 Payload)    │
+│  5. SecurityHeadersMiddleware: Sets CSP, HSTS, Permissions-Policy (mic=self)│
+│  6. CORSMiddleware: Validates origin against allowlist                      │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │ Pass
+                                       ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       GATE 2: RATE LIMITING (SlowAPI)                       │
+│  • Looks up Redis counter for client IP & user key                          │
+│  • If requests > quota -> Aborts with HTTP 429 Too Many Requests            │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │ Pass
+                                       ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       GATE 3: AUTHENTICATION (JWT)                          │
+│  • Reads __krs_sid cookie or Authorization: Bearer <token>                  │
+│  • Validates JWT signature with Supabase Secret                             │
+│  • If expired / invalid -> Aborts with HTTP 401 Unauthorized                │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │ Pass
+                                       ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       GATE 4: CREDIT BALANCE CHECK                          │
+│  • Checks user.is_unlimited (Admin bypass)                                  │
+│  • Executes atomic PostgreSQL RPC deduct_credits(user_id, feature, cost)    │
+│  • If balance < cost -> Aborts with HTTP 402 Payment Required               │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │ Credits Deducted
+                                       ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       GATE 5: SERVICE LAYER EXECUTION                       │
+│  • Sanitizes user inputs via prompt_sanitizer.py (NFKC, comments, tags)     │
+│  • Executes external LLM / embedding with exponential retry                 │
+│  • Failure Guard: If LLM times out, calls refund_feature_credits() on DB    │
+│  • Persists analysis result to ai_analyses with user_id scoping             │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │ 
+                                       ▼
+Outgoing JSON Response (HTTP 200 OK + Remaining Credits Header)`
+      },
+      {
+        id: 8,
+        title: "Error Handling & Failure Recovery",
+        description: "System resilience: Cloudflare WAF retries, Groq 502 automatic credit refunds, and Vite chunk reloads.",
+        code: `flowchart TD
+    classDef backend fill:#064e3b,stroke:#34d399,stroke-width:2px,color:#f8fafc
+    classDef client fill:#0f172a,stroke:#38bdf8,stroke-width:2px,color:#f8fafc
+    classDef retry fill:#3b0764,stroke:#c084fc,stroke-width:2px,color:#f8fafc
+    classDef err fill:#4c0519,stroke:#fb7185,stroke-width:2px,color:#f8fafc
+
+    subgraph BE_ERR["1. Backend Error Handling & Recovery"]
+        direction TB
+        E_DB["Cloudflare / Supabase Timeout<br/><i>_is_transient_supabase_error()</i>"]:::err
+        E_AI["Groq LLM 502 Timeout<br/><i>refund_feature_credits() restores user balance</i>"]:::err
+        E_VAL["Pydantic ValidationError<br/><i>HTTP 422 with exact field schema</i>"]:::err
+        E_TRACE["Unhandled Server Exception<br/><i>Sentry capture_exception + generic 500</i>"]:::err
+    end
+
+    subgraph FE_ERR["2. Frontend Client Resilience"]
+        direction TB
+        F_401["401 Unauthorized<br/><i>tryRefreshSession() exchanges __krs_rid</i>"]:::client
+        F_402["402 Payment Required<br/><i>InsufficientCreditsWarning dialog</i>"]:::client
+        F_CHUNK["Vite Stale Chunk Error<br/><i>lazyWithRetry() auto-reloads page once</i>"]:::client
+        F_SLOW["45s Slow-Load Warning<br/><i>Amber notification during heavy AI runs</i>"]:::client
+    end
+
+    subgraph RETRIES["3. Automated Retry Mechanics"]
+        direction TB
+        R_WAF["_rpc_with_retry()<br/>3 attempts with 1.5s / 3.0s backoff"]:::retry
+        R_AI["with_ai_retry()<br/>Tenacity retry on Groq connection drop"]:::retry
+        R_TOKEN["tryRefreshSession()<br/>Silent token refresh without user logout"]:::retry
+    end
+
+    E_DB --> R_WAF
+    E_AI --> FE_ERR
+    F_401 --> R_TOKEN`,
+        ascii: `┌─────────────────────────┐
+│     CLIENT ACTION       │
+│  User triggers feature  │
+└────────────┬────────────┘
+             │
+             ▼
+┌─────────────────────────┐      HTTP 401 Session Expired
+│   FASTAPI API GATEWAY   ├───────────────────────────────────► Frontend tryRefreshSession()
+│   Validates JWT token   │                                     • Success: Retry original request
+└────────────┬────────────┘                                     • Fail: Clear state -> redirect to login
+             │
+             ▼
+┌─────────────────────────┐      HTTP 402 Insufficient Balance
+│  ATOMIC CREDIT DEDUCT   ├───────────────────────────────────► Frontend InsufficientCreditsWarning
+│  deduct_credits() RPC   │                                     • Re-fetch balance from server
+└────────────┬────────────┘                                     • Show upgrade / daily grant info
+             │
+             ▼
+┌─────────────────────────┐      LLM Timeout / Groq Error
+│     AI SERVICE CALL     ├───────────────────────────────────► AUTOMATIC CREDIT REFUND
+│   Groq LLM / Whisper    │                                     1. Backend calls refund_feature_credits()
+└────────────┬────────────┘                                     2. Inserts 'ai_failure_refund' in audit log
+             │                                                  3. Returns HTTP 502 Bad Gateway
+             ▼                                                  4. Frontend displays user-friendly toast:
+┌─────────────────────────┐                                        "AI failed — credits refunded. Try again."
+│ SUCCESSFUL 200 RESPONSE │
+│ Data saved & delivered  │
+└─────────────────────────┘`
+      },
+      {
+        id: 9,
+        title: "Production Deployment & Topology",
+        description: "Development parity: local WSL scripts vs. automated production deployment across Vercel, Render & Supabase.",
+        code: `flowchart TD
+    classDef local fill:#0f172a,stroke:#38bdf8,stroke-width:2px,color:#f8fafc
+    classDef edge fill:#1e1b4b,stroke:#818cf8,stroke-width:2px,color:#f8fafc
+    classDef app fill:#064e3b,stroke:#34d399,stroke-width:2px,color:#f8fafc
+    classDef cloud fill:#451a03,stroke:#fbbf24,stroke-width:2px,color:#f8fafc
+    classDef cron fill:#3b0764,stroke:#c084fc,stroke-width:2px,color:#f8fafc
+
+    subgraph LOCAL_DEV["Local Development (bash run.sh)"]
+        direction TB
+        DEV_FE["Vite Dev Server (Port 8080)<br/><i>Vite Proxy /api ➔ WSL_IP:8000</i>"]:::local
+        DEV_BE["Uvicorn FastAPI (Port 8000)<br/><i>Python 3.13 in .venv</i>"]:::local
+        DEV_REDIS["Local Redis Server (Port 6379)"]:::local
+        DEV_FE <--> DEV_BE <--> DEV_REDIS
+    end
+
+    subgraph CI_CD["GitHub CI/CD Deployment Flow"]
+        direction TB
+        GIT["git push origin main"]:::edge
+        V_DEPLOY["Vercel Build & Deploy<br/><i>npm run build ➔ Edge CDN</i>"]:::edge
+        R_DEPLOY["Render Web Service Build<br/><i>pip install ➔ Uvicorn Server</i>"]:::app
+        GIT --> V_DEPLOY
+        GIT --> R_DEPLOY
+    end
+
+    subgraph PROD_HOSTING["Production Cloud Infrastructure"]
+        direction TB
+        P_VERCEL["Vercel CDN<br/><code>kareerist2026.vercel.app</code>"]:::edge
+        P_RENDER["Render Free Tier<br/><code>prsnl.onrender.com</code>"]:::app
+        P_SUPA["Supabase Managed Cloud<br/>PostgreSQL 15 · Auth · Storage"]:::cloud
+        P_UPSTASH["Upstash Redis<br/>Serverless rediss:// instance"]:::cloud
+        P_CRON["cron-job.org<br/>Keep-alive GET /ping every 10 min"]:::cron
+        
+        P_CRON -->|Prevent Sleep| P_RENDER
+        P_VERCEL -->|Cross-Origin REST| P_RENDER
+        P_RENDER --> P_SUPA
+        P_RENDER --> P_UPSTASH
+    end`,
+        ascii: `┌─────────────────────────────────────────────────────────────────────────────┐
+│                          GLOBAL EDGE CDN (Vercel)                           │
+│  • React 18 + Vite Production Bundle                                        │
+│  • Automated CI/CD on git push to main                                      │
+│  • Custom security headers via FRONTEND/vercel.json                         │
+│  • Client-side routing rewrite: /(.*) -> /index.html                        │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │ HTTPS Cross-Origin API Calls
+                                       ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         WEB SERVICE (Render Free Tier)                      │
+│  • Python 3.13 + FastAPI + Uvicorn                                          │
+│  • Working Directory: backend/                                              │
+│  • Start Command: uvicorn app.main:app --host 0.0.0.0 --port $PORT          │
+│  • Cold Start Prevention: cron-job.org pings /ping every 10 minutes         │
+└──────────────┬───────────────────────┬───────────────────────┬──────────────┘
+               │                       │                       │
+               ▼                       ▼                       ▼
+┌───────────────────────────┐ ┌───────────────────┐ ┌─────────────────────────┐
+│     SUPABASE (Managed)    │ │   UPSTASH REDIS   │ │    EXTERNAL SERVICES    │
+│ • PostgreSQL 15 Database  │ │ • Serverless      │ │ • Groq Cloud (Qwen)     │
+│ • Supabase Auth Service   │ │   In-Memory Cache │ │ • Groq Whisper (STT)    │
+│ • PDF Storage Buckets     │ │ • SSL rediss://   │ │ • Sentry Error Tracking │
+└───────────────────────────┘ └───────────────────┘ └─────────────────────────┘`
+      },
+      {
+        id: 10,
+        title: "Automated QA & Testing Suite",
+        description: "Test architecture: 37 automated tests across 8 categories with 100% pass rate in ~2.0s.",
+        code: `flowchart TD
+    classDef pass fill:#064e3b,stroke:#34d399,stroke-width:2px,color:#f8fafc
+    classDef conf fill:#1e1b4b,stroke:#818cf8,stroke-width:2px,color:#f8fafc
+    classDef total fill:#0f172a,stroke:#38bdf8,stroke-width:2px,color:#f8fafc
+
+    SUITE["<b>pytest backend/tests/</b><br/>37 Automated Tests · 100% Pass Rate (~2.0s)"]:::total
+
+    subgraph RUNNER["Execution Framework"]
+        CONF["pytest.ini + conftest.py<br/><i>asyncio_mode = auto · FastAPI TestClient</i>"]:::conf
+    end
+
+    subgraph SUITES["8 Critical Test Categories"]
+        direction TB
+        C1["Cat 1: ATS General Scorer (8 tests)<br/><i>Breakdown, 0-100 bounds, contact checks</i>"]:::pass
+        C2["Cat 2: ATS JD Matching (3 tests)<br/><i>Embedding cosine similarity & rule fallback</i>"]:::pass
+        C3["Cat 3: Credit Concurrency (6 tests)<br/><i>Atomic deductions, insufficient 402, bypass</i>"]:::pass
+        C4["Cat 4: Auth & Session (5 tests)<br/><i>Login, invalid email, cookie guards, logout</i>"]:::pass
+        C5["Cat 5: Resume Upload (3 tests)<br/><i>MIME checks, %PDF- magic bytes, size limits</i>"]:::pass
+        C6["Cat 6: Security Headers (3 tests)<br/><i>CSP, HSTS, frame-ancestors, /health</i>"]:::pass
+        C7["Cat 7: Request Logger (5 tests)<br/><i>Unique X-Request-ID, duration, JSON logs</i>"]:::pass
+        C8["Cat 8: Audit Remediations (4 tests)<br/><i>Stored XSS sanitizer, mic header, prompt tests</i>"]:::pass
+    end
+
+    SUITE --> RUNNER --> SUITES`,
+        ascii: `pytest backend/tests/ -v (Total: 37 tests · 100% passing)
+ │
+ ├── 1. TestATSGeneralScorer (8 tests)
+ │   ├── test_good_resume_scores_above_50
+ │   ├── test_poor_resume_scores_below_40
+ │   ├── test_empty_resume_returns_low_score
+ │   ├── test_score_is_always_integer
+ │   ├── test_score_never_exceeds_100
+ │   ├── test_breakdown_keys_present
+ │   ├── test_contact_info_detection
+ │   └── test_note_field_present_in_general_mode
+ │
+ ├── 2. TestATSWithJD (3 tests)
+ │   ├── test_falls_back_to_general_when_embedding_fails
+ │   ├── test_no_jd_uses_general_scorer
+ │   └── test_with_jd_uses_embedding_mode
+ │
+ ├── 3. TestCreditSystem (6 tests)
+ │   ├── test_insufficient_credits_raises_402
+ │   ├── test_unlimited_user_skips_rpc
+ │   ├── test_successful_deduction_returns_remaining
+ │   ├── test_low_credits_flag_set_below_threshold
+ │   ├── test_user_not_found_raises_404
+ │   └── test_feature_costs_all_defined
+ │
+ ├── 4. TestAuthEndpoints (5 tests)
+ │   ├── test_login_wrong_password_returns_401
+ │   ├── test_login_missing_fields_returns_422
+ │   ├── test_login_invalid_email_format_returns_422
+ │   ├── test_me_without_cookie_returns_401
+ │   └── test_logout_always_succeeds
+ │
+ ├── 5. TestResumeUpload (3 tests)
+ │   ├── test_non_pdf_rejected
+ │   ├── test_fake_pdf_magic_bytes_rejected
+ │   └── test_upload_without_auth_returns_401
+ │
+ ├── 6. TestSecurityHeaders (3 tests)
+ │   ├── test_security_headers_present_on_all_responses
+ │   ├── test_csp_blocks_frame_ancestors
+ │   └── test_health_endpoint_returns_ok
+ │
+ ├── 7. TestRequestLogger (5 tests)
+ │   ├── test_request_id_header_in_response
+ │   ├── test_request_id_is_unique_per_request
+ │   ├── test_log_emitted_for_api_request
+ │   ├── test_health_path_not_logged
+ │   └── test_json_log_format_in_production
+ │
+ └── 8. TestSecurityAuditRemediations (4 tests) [Added in v1.0.4]
+     ├── test_full_name_sanitization_strips_xss_tags
+     ├── test_permissions_policy_allows_microphone
+     ├── test_humanize_request_bounds
+     └── test_prompt_sanitizer_homoglyphs_and_nested`
+      },
+      {
+        id: 11,
+        title: "State Management & Persistence Matrix",
+        description: "Data storage matrix: React useState vs. AuthContext vs. HttpOnly cookies vs. Redis vs. PostgreSQL.",
+        code: `flowchart TD
+    classDef local fill:#0f172a,stroke:#38bdf8,stroke-width:2px,color:#f8fafc
+    classDef ctx fill:#1e1b4b,stroke:#818cf8,stroke-width:2px,color:#f8fafc
+    classDef browser fill:#3b0764,stroke:#c084fc,stroke-width:2px,color:#f8fafc
+    classDef cache fill:#064e3b,stroke:#34d399,stroke-width:2px,color:#f8fafc
+    classDef db fill:#451a03,stroke:#fbbf24,stroke-width:2px,color:#f8fafc
+
+    subgraph CLIENT_STATE["Client Memory (React)"]
+        direction TB
+        UI_STATE["Component State (useState)<br/>• activeTab, loading spinners, form inputs"]:::local
+        AUTH_CTX["AuthContext<br/>• user, email, isAdmin, isAuthenticated"]:::ctx
+        CREDIT_CTX["CreditContext<br/>• remaining, used, isUnlimited, deductLocal()"]:::ctx
+        ROAST_CTX["RoastModeContext<br/>• isRoastMode, toggleRoast()"]:::ctx
+    end
+
+    subgraph BROWSER_STORAGE["Browser Storage (Survives Refresh)"]
+        direction TB
+        COOKIES["HttpOnly Cookies<br/>• __krs_sid (Session Token - 4d)<br/>• __krs_rid (Refresh Token - 30d)"]:::browser
+        CSRF_COOKIE["JS Readable Cookie<br/>• __krs_xsrf (CSRF double-submit)"]:::browser
+        SESSION_STORE["sessionStorage<br/>• __krs_csrf token backup<br/>• chunk-reload flag"]:::browser
+    end
+
+    subgraph SERVER_PERSISTENCE["Server & Cloud Persistence"]
+        direction TB
+        REDIS[("Upstash Redis Cache<br/>• interview:session:{uid} (45m TTL)<br/>• SlowAPI rate limit sliding counters")]:::cache
+        SUPA[("Supabase PostgreSQL 15<br/>• profiles, resumes, ai_analyses<br/>• interview_reports, credit_transactions")]:::db
+    end
+
+    AUTH_CTX -->|Credentials| COOKIES
+    AUTH_CTX -->|CSRF Token| CSRF_COOKIE
+    CREDIT_CTX -->|Optimistic UI Update| UI_STATE
+    UI_STATE -->|REST API Calls| REDIS
+    UI_STATE -->|Durable Storage| SUPA`,
+        ascii: `┌─────────────────────────────────────────────────────────────────────────────┐
+│                           GLOBAL REACT CONTEXTS                             │
+│                                                                             │
+│  ┌─────────────────────────────┐           ┌─────────────────────────────┐  │
+│  │         AuthContext         │           │        CreditContext        │  │
+│  │ • user: {id, email} | null  │──────────►│ • balance: remaining, used  │  │
+│  │ • isAdmin: boolean          │  Triggers │ • canUse(feature): boolean  │  │
+│  │ • isLoading: boolean        │  balance  │ • deductLocal(feature)      │  │
+│  │ • ColdStartBanner (>4s)     │  fetch    │ • refreshCredits(): backend │  │
+│  └─────────────────────────────┘           └─────────────────────────────┘  │
+│                                                           │                 │
+│                                                           │ Real-Time Sync  │
+│                                                           ▼                 │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │                           PAGE LOCAL STATE                            │  │
+│  │ • ResumeAnalysis: ATS result, deep analysis, 45s slow intel timer     │  │
+│  │ • AIInterview: MediaRecorder audio blobs, question array, report      │  │
+│  │ • CoverLetter: Draft editor, humanizer text buffer, PDF preview       │  │
+│  │ • AdminPage: Search query, activity modal tab selection               │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │ Persistence
+                                       ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                            PERSISTENCE LAYERS                               │
+│  • HttpOnly Cookies: __krs_sid (Session JWT), __krs_rid (Refresh Token)     │
+│  • Browser sessionStorage: __krs_xsrf (CSRF token for double-submit)        │
+│  • Redis Cache (Server): interview:session:{uid} (45-min TTL)               │
+│  • PostgreSQL DB: Profiles, Resumes, Analyses, Credit Transactions          │
+└─────────────────────────────────────────────────────────────────────────────┘`
+      },
+      {
+        id: 12,
+        title: "Dependency Graph & Module Coupling",
+        description: "Audited dependency mapping across backend Python libraries and frontend Node packages.",
+        code: `flowchart TD
+    classDef fe fill:#1e1b4b,stroke:#818cf8,stroke-width:2px,color:#f8fafc
+    classDef be fill:#064e3b,stroke:#34d399,stroke-width:2px,color:#f8fafc
+    classDef core fill:#0f172a,stroke:#38bdf8,stroke-width:2px,color:#f8fafc
+
+    subgraph FRONTEND["Frontend Dependencies (FRONTEND/package.json)"]
+        direction TB
+        F_CORE["react 18 + react-dom + vite 5"]:::core
+        F_ROUTER["react-router-dom v6 (SPA routing)"]:::fe
+        F_QUERY["@tanstack/react-query (Server state)"]:::fe
+        F_UI["tailwindcss + @radix-ui + shadcn/ui"]:::fe
+        F_ICONS["lucide-react (Icons) + sonner (Toasts)"]:::fe
+        F_SUPA["@supabase/supabase-js (OAuth PKCE only)"]:::fe
+    end
+
+    subgraph BACKEND["Backend Dependencies (backend/requirements.txt)"]
+        direction TB
+        B_CORE["fastapi 0.128 + uvicorn 0.40"]:::core
+        B_DATA["supabase 2.27 + redis 5.0"]:::be
+        B_AI["groq 1.0 + huggingface-hub 1.3"]:::be
+        B_ML["scikit-learn 1.8 + numpy 2.4"]:::be
+        B_FILES["pypdf 6.5 + reportlab 4.4"]:::be
+        B_SEC["pydantic 2.12 + slowapi 0.1.9 + PyJWT"]:::be
+        B_OBS["sentry-sdk 2.29 + tenacity 8.3"]:::be
+    end`,
+        ascii: `┌─────────────────────────────────────────────────────────────────────────────┐
+│                            BACKEND (Python 3.13)                            │
+│                                                                             │
+│  • Framework & Server:     fastapi (0.128), uvicorn (0.40), pydantic (2.12) │
+│  • Database & Auth:        supabase (2.27), PyJWT (2.10)                    │
+│  • Caching & Rate Limiting:redis (5.0), slowapi (0.1.9)                     │
+│  • AI & Machine Learning:  groq (1.0), huggingface-hub (1.3), tenacity (8.3)│
+│  • Document & NLP:         pypdf (6.5), reportlab (4.4), scikit-learn (1.8) │
+│  • Telemetry & Monitoring: sentry-sdk (2.29)                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                            FRONTEND (Node.js 18+)                           │
+│                                                                             │
+│  • Core UI & Build:        react (18.3), react-dom, vite (5.4), typescript  │
+│  • Routing & State:        react-router-dom (v6), @tanstack/react-query     │
+│  • Styling & Animations:   tailwindcss (3.4), framer-motion (11.0)          │
+│  • UI Primitives:          @radix-ui/* (dialog, tooltip, toast), shadcn/ui  │
+│  • Icons & Utilities:      lucide-react, sonner, jsPDF, html2canvas         │
+│  • Client Auth:            @supabase/supabase-js (v2.49)                    │
+└─────────────────────────────────────────────────────────────────────────────┘`
+      }
+    ];
+
+    // --- STATE MANAGEMENT ---
+    let activeTab = 'canvas';
+    let activeDiagramId = 1;
+    let selectedNode = null;
+    let isDarkMode = true;
+
+    // Pan & Zoom parameters (Default 100% spacious view)
+    let scale = 1.0;
+    let position = { x: 40, y: 40 };
+    let isDragging = false;
+    let dragStart = { x: 0, y: 0 };
+
+    // --- ON LOAD INITIALIZATION ---
+    window.onload = function() {
+      // Initialize lucide icons
+      lucide.createIcons();
+      
+      // Initialize mermaid with expansive, uncluttered spacing
+      mermaid.initialize({
+        startOnLoad: false,
+        securityLevel: 'loose',
+        fontFamily: 'Inter, system-ui, sans-serif',
+        theme: 'base',
+        themeVariables: {
+          darkMode: true,
+          fontSize: '15px',
+          fontFamily: 'Inter, system-ui, sans-serif',
+          background: 'transparent',
+          primaryColor: '#1e293b',
+          primaryTextColor: '#f8fafc',
+          primaryBorderColor: '#475569',
+          lineColor: '#60a5fa',
+          secondaryColor: '#0f172a',
+          tertiaryColor: '#1e1b4b',
+          edgeLabelBackground: '#0b1329',
+          clusterBkg: '#0b1329',
+          clusterBorder: '#334155'
+        },
+        flowchart: {
+          curve: 'basis',
+          nodeSpacing: 85,
+          rankSpacing: 100,
+          padding: 24,
+          htmlLabels: true,
+          useMaxWidth: false
+        }
+      });
+
+      populateDiagramList();
+      populateScorecard();
+      populateIssues();
+      renderActiveDiagram();
+      renderActiveSchematic();
+    };
+
+    // --- POPULATE SIDEBARS & GRIDS ---
+    function populateDiagramList() {
+      const container = document.getElementById('diagram-list');
+      container.innerHTML = '';
+      
+      diagramsData.forEach(d => {
+        const btn = document.createElement('button');
+        btn.id = `diagram-btn-${d.id}`;
+        btn.className = `w-full text-left p-3 rounded-xl border transition-all duration-200 flex items-start gap-3 ${
+          activeDiagramId === d.id
+            ? 'bg-blue-600/10 border-blue-500/50 text-slate-100 shadow'
+            : 'bg-transparent border-transparent text-slate-400 hover:bg-slate-900/60 hover:text-slate-200 dark:hover:bg-slate-800/40'
+        }`;
+        
+        btn.onclick = () => selectDiagram(d.id);
+        
+        btn.innerHTML = `
+          <div class="mt-0.5 w-5 h-5 rounded-md flex items-center justify-center text-xs font-bold ${
+            activeDiagramId === d.id ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'
+          }">
+            ${d.id}
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-xs font-bold truncate">${d.title}</p>
+            <p class="text-[10px] text-slate-500 mt-0.5 line-clamp-2 leading-relaxed">${d.description}</p>
+          </div>
+          <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-600 mt-1 flex-shrink-0"></i>
+        `;
+        
+        container.appendChild(btn);
+      });
+      
+      lucide.createIcons({ attrs: { class: 'w-3.5 h-3.5 text-slate-600 mt-1 flex-shrink-0' } });
+    }
+
+    function populateScorecard() {
+      const container = document.getElementById('scorecard-grid');
+      container.innerHTML = '';
+      
+      scorecardData.forEach(item => {
+        const card = document.createElement('div');
+        card.className = 'bg-slate-950/60 border border-slate-800 rounded-xl p-5 shadow flex flex-col justify-between';
+        
+        const badgeColor = item.score >= 7 
+          ? 'bg-green-500/10 border-green-500/30 text-green-400' 
+          : item.score >= 5 
+          ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400'
+          : 'bg-red-500/10 border-red-500/30 text-red-400';
+          
+        const barColor = item.score >= 7 ? 'bg-green-500' : item.score >= 5 ? 'bg-yellow-500' : 'bg-red-500';
+
+        card.innerHTML = `
+          <div>
+            <div class="flex items-center justify-between">
+              <span class="text-sm font-bold text-slate-200">${item.dimension}</span>
+              <span class="text-xs px-2.5 py-0.5 rounded-full font-bold border ${badgeColor}">
+                ${item.score} / 10
+              </span>
+            </div>
+            <div class="w-full bg-slate-900 rounded-full h-1.5 mt-3 overflow-hidden">
+              <div class="h-full rounded-full ${barColor}" style="width: ${item.score * 10}%"></div>
+            </div>
+            <p class="text-xs text-slate-400 mt-4 leading-relaxed">${item.justification}</p>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function populateIssues() {
+      const container = document.getElementById('issues-list');
+      container.innerHTML = '';
+      
+      criticalIssuesData.forEach(issue => {
+        const item = document.createElement('div');
+        item.className = 'bg-slate-950/60 border border-slate-800/80 rounded-xl p-5 hover:border-slate-700 transition-colors flex flex-col justify-between';
+        
+        const sevClass = issue.severity === 'CRITICAL'
+          ? 'bg-red-500/10 border-red-500/30 text-red-400 animate-pulse'
+          : issue.severity === 'HIGH'
+          ? 'bg-orange-500/10 border-orange-500/30 text-orange-400'
+          : 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400';
+
+        item.innerHTML = `
+          <div>
+            <div class="flex items-center gap-3">
+              <span class="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border ${sevClass}">
+                ${issue.severity}
+              </span>
+              <span class="text-xs text-slate-500 font-mono font-bold">Issue ${issue.id}</span>
+              <span class="text-xs text-slate-500 font-mono font-bold truncate flex-1 text-right">${issue.location}</span>
+            </div>
+
+            <h3 class="text-sm font-extrabold text-slate-100 mt-3">${issue.title}</h3>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 text-xs">
+              <div class="bg-slate-900/40 p-3 rounded-lg border border-slate-900">
+                <p class="font-bold text-red-400">Risk Profile</p>
+                <p class="text-slate-400 mt-1 leading-relaxed">${issue.risk}</p>
+              </div>
+              <div class="bg-slate-900/40 p-3 rounded-lg border border-slate-900">
+                <p class="font-bold text-green-400">Proposed Remediation</p>
+                <p class="text-slate-400 mt-1 leading-relaxed">${issue.fix}</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex justify-end border-t border-slate-900 mt-4 pt-3">
+            <button onclick='locateIssue(${JSON.stringify(issue)})' class="flex items-center gap-1.5 px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold transition-all shadow-md hover:shadow-blue-500/20">
+              <i data-lucide="search" class="w-3.5 h-3.5"></i>
+              Locate in Diagram
+            </button>
+          </div>
+        `;
+        container.appendChild(item);
+      });
+      lucide.createIcons();
+    }
+
+    // --- INTERACTIVE DIAGRAM SELECT ---
+        // --- SCHEMATIC RENDER & COPY ---
+    function renderActiveSchematic() {
+      const activeDiagram = diagramsData.find(d => d.id === activeDiagramId) || diagramsData[0];
+      document.getElementById('schematic-badge').innerText = `Diagram ${activeDiagram.id}`;
+      document.getElementById('schematic-title').innerText = activeDiagram.title;
+      document.getElementById('schematic-desc').innerText = activeDiagram.description;
+      document.getElementById('schematic-code').innerText = activeDiagram.ascii || "No ASCII schematic available.";
+      lucide.createIcons();
+    }
+
+    function copySchematic() {
+      const code = document.getElementById('schematic-code').innerText;
+      navigator.clipboard.writeText(code).then(() => {
+        const btnText = document.getElementById('copy-btn-text');
+        btnText.innerText = 'Copied!';
+        setTimeout(() => {
+          btnText.innerText = 'Copy Diagram';
+        }, 2000);
+      });
+    }
+
+    function selectDiagram(id) {
+      console.log("selectDiagram called for id:", id);
+      activeDiagramId = id;
+      
+      // Re-populate the sidebar list to apply correct active styles automatically
+      populateDiagramList();
+      
+      dismissDrawer();
+      const searchInput = document.getElementById('search-input');
+      if (searchInput) searchInput.value = '';
+      
+      renderActiveDiagram();
+      renderActiveSchematic();
+    }
+
+    // --- MERMAID RENDER ENGINE ---
+    async function renderActiveDiagram() {
+      console.log("renderActiveDiagram called for id:", activeDiagramId);
+      const renderArea = document.getElementById('mermaid-render-area');
+      renderArea.innerHTML = '<div class="text-slate-400 text-sm">Rendering flowchart suite...</div>';
+      
+      const activeDiagram = diagramsData.find(d => d.id === activeDiagramId) || diagramsData[0];
+      
+      // Update details banner
+      document.getElementById('diagram-badge').innerText = `Active Diagram ${activeDiagram.id}`;
+      document.getElementById('diagram-title').innerText = activeDiagram.title;
+      document.getElementById('diagram-desc').innerText = activeDiagram.description;
+
+      try {
+        const uniqueId = `mermaid-svg-${activeDiagram.id}-${Date.now()}`;
+        console.log("Calling mermaid.render for uniqueId:", uniqueId);
+        
+        const { svg } = await mermaid.render(uniqueId, activeDiagram.code);
+        console.log("mermaid.render succeeded for:", uniqueId);
+        renderArea.innerHTML = svg;
+        
+        const svgEl = renderArea.querySelector('svg');
+        if (svgEl) {
+          svgEl.style.maxWidth = 'none';
+          svgEl.removeAttribute('width');
+          svgEl.removeAttribute('height');
+        }
+
+        resetView();
+        attachNodeListeners();
+      } catch (err) {
+        console.error("Mermaid Render Error:", err);
+        renderArea.innerHTML = `
+          <div class="p-6 text-red-500 bg-red-950/20 border border-red-900/50 rounded-lg max-w-md">
+            <p class="font-bold">Render Failure</p>
+            <p class="text-xs opacity-80 mt-1">${err.message || err}</p>
+          </div>
+        `;
+      }
+    }
+
+    // --- NODE INTERACTIVE DRAG & ZOOM CONTROLS ---
+    function updateTransform() {
+      const container = document.getElementById('mermaid-render-area');
+      container.style.transform = `translate(${position.x}px, ${position.y}px) scale(${scale})`;
+      container.style.transformOrigin = '0 0';
+      document.getElementById('zoom-label').innerText = `${Math.round(scale * 100)}%`;
+    }
+
+    function onMouseDown(e) {
+      if (e.button !== 0 && e.button !== 1) return; // Left/middle click
+      const wrapper = document.getElementById('canvas-container');
+      wrapper.classList.add('grabbing');
+      isDragging = true;
+      dragStart = { x: e.clientX - position.x, y: e.clientY - position.y };
+      e.preventDefault();
+    }
+
+    function onMouseMove(e) {
+      if (!isDragging) return;
+      position = {
+        x: e.clientX - dragStart.x,
+        y: e.clientY - dragStart.y
+      };
+      updateTransform();
+    }
+
+    function onMouseUp() {
+      const wrapper = document.getElementById('canvas-container');
+      wrapper.classList.remove('grabbing');
+      isDragging = false;
+    }
+
+    function onWheel(e) {
+      e.preventDefault();
+      const container = document.getElementById('canvas-container');
+      const rect = container.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+
+      const zoomFactor = 0.05;
+      const direction = e.deltaY < 0 ? 1 : -1;
+      const factor = 1 + direction * zoomFactor;
+
+      const nextScale = Math.max(0.15, Math.min(3, scale * factor));
+
+      const dx = mouseX - position.x;
+      const dy = mouseY - position.y;
+      
+      position = {
+        x: mouseX - dx * (nextScale / scale),
+        y: mouseY - dy * (nextScale / scale)
+      };
+      scale = nextScale;
+      updateTransform();
+    }
+
+    function zoomIn() {
+      scale = Math.min(3, scale + 0.15);
+      updateTransform();
+    }
+
+    function zoomOut() {
+      scale = Math.max(0.15, scale - 0.15);
+      updateTransform();
+    }
+
+    function resetView() {
+      scale = 1.0;
+      const container = document.getElementById('canvas-container');
+      const svgEl = document.querySelector('#mermaid-render-area svg');
+      if (container && svgEl) {
+        const cWidth = container.clientWidth;
+        const sWidth = svgEl.clientWidth || (svgEl.getBoundingClientRect && svgEl.getBoundingClientRect().width) || 1000;
+        position = {
+          x: Math.max(40, (cWidth - sWidth * scale) / 2),
+          y: 40
+        };
+      } else {
+        position = { x: 60, y: 40 };
+      }
+      updateTransform();
+    }
+
+    function fitView() {
+      const container = document.getElementById('canvas-container');
+      const svgEl = document.querySelector('#mermaid-render-area svg');
+      if (container && svgEl) {
+        const pad = 60;
+        const cWidth = container.clientWidth - pad * 2;
+        const cHeight = container.clientHeight - pad * 2;
+        const sWidth = svgEl.clientWidth || (svgEl.getBoundingClientRect && svgEl.getBoundingClientRect().width) || 1000;
+        const sHeight = svgEl.clientHeight || (svgEl.getBoundingClientRect && svgEl.getBoundingClientRect().height) || 700;
+        const scaleX = cWidth / sWidth;
+        const scaleY = cHeight / sHeight;
+        scale = Math.min(1.2, Math.max(0.35, Math.min(scaleX, scaleY)));
+        position = {
+          x: Math.max(pad, (container.clientWidth - sWidth * scale) / 2),
+          y: Math.max(pad, (container.clientHeight - sHeight * scale) / 2)
+        };
+        updateTransform();
+      }
+    }
+
+    // --- NODE DETAIL DRAWER ATTACH ---
+    function attachNodeListeners() {
+      const nodes = document.querySelectorAll('.node');
+      nodes.forEach(node => {
+        node.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const text = node.textContent || "";
+          const cleanedText = text.replace(/<br\s*\/?>/gi, " ").replace(/\s+/g, " ").trim();
+          
+          let description = "This is an active node component of Kareerist. Use the search to locate its references.";
+          const lowercaseText = cleanedText.toLowerCase();
+
+          if (lowercaseText.includes("browser") || lowercaseText.includes("user")) {
+            description = "Client Browser: Runs the React 18 + Vite Single Page Application. Communicates with FastAPI via HTTP REST APIs, sending HttpOnly cookies for session management and standard JWT headers.";
+          } else if (lowercaseText.includes("vercel")) {
+            description = "Vercel CDN: Hosts the compiled React production bundle, serving static assets, pages, and components via Edge nodes for fast load times.";
+          } else if (lowercaseText.includes("render") || lowercaseText.includes("fastapi") || lowercaseText.includes("be") || lowercaseText.includes("backend")) {
+            description = "FastAPI Backend: Hosts the Python 3.13 API routes, rate-limiting, CORS validation, CSRF checks, and handles direct database operations, Upstash Redis queries, and Groq/HuggingFace API calls.";
+          } else if (lowercaseText.includes("supabase") || lowercaseText.includes("db") || lowercaseText.includes("postgres")) {
+            description = "Supabase PostgreSQL Database: Relational database hosting user profiles, credits, applications, and analyses. Protected by Row-Level Security (RLS) policies scoped to auth.uid().";
+          } else if (lowercaseText.includes("redis") || lowercaseText.includes("upstash") || lowercaseText.includes("sess")) {
+            description = "Upstash Redis Cache: Stores temporary mock interview sessions with a 45-minute TTL. Also stores IP and User rate-limiting buckets for SlowAPI.";
+          } else if (lowercaseText.includes("groq") || lowercaseText.includes("llama")) {
+            description = "Groq AI Services: Provides sub-second inference for Llama 3.3 (70B) for cover letters, CV roasting, and mock interview evaluation. Also runs Whisper for high-accuracy Speech-to-Text.";
+          } else if (lowercaseText.includes("hugging") || lowercaseText.includes("hf")) {
+            description = "HuggingFace Hub: Hosts the feature-extraction pipeline used by the FastAPI backend to calculate cosine similarity scores between resume text and job descriptions.";
+          } else if (lowercaseText.includes("sentry")) {
+            description = "Sentry Error Monitoring: Tracks backend errors, unhandled exceptions, and API latency with a 10% transaction trace sampling rate.";
+          } else if (lowercaseText.includes("csrf") || lowercaseText.includes("xsrf")) {
+            description = "CSRF protection: Double-submit cookie check. The server generates a random __krs_xsrf cookie, and the frontend sends it back in the X-CSRF-Token header for mutable requests.";
+          } else if (lowercaseText.includes("credit") || lowercaseText.includes("cost") || lowercaseText.includes("balance")) {
+            description = "Credit system: Features cost specific amounts of credits (e.g. ATS match = 5cr, Interview = 25cr). Deductions are processed atomically using a PostgreSQL row lock (FOR UPDATE).";
+          }
+
+          showDrawer(cleanedText, description);
+        });
+      });
+
+      // Dismiss node detail drawer if clicking whitespace
+      document.getElementById('canvas-container').addEventListener('click', (e) => {
+        if (!e.target.closest('.node') && !e.target.closest('#node-drawer')) {
+          dismissDrawer();
+        }
+      });
+    }
+
+    function showDrawer(title, desc) {
+      const drawer = document.getElementById('node-drawer');
+      document.getElementById('node-title').innerText = title;
+      document.getElementById('node-desc').innerText = desc;
+      drawer.classList.remove('hidden');
+      drawer.classList.add('animate-in', 'slide-in-from-right');
+    }
+
+    function dismissDrawer() {
+      document.getElementById('node-drawer').classList.add('hidden');
+    }
+
+    // --- SEARCH BAR HANDLER ---
+    function handleSearch(e) {
+      e.preventDefault();
+      const query = document.getElementById('search-input').value;
+      if (!query) return;
+
+      searchAndHighlight(query, 'searched-node-highlight');
+    }
+
+    function searchAndHighlight(query, highlightClass) {
+      const svg = document.querySelector('#mermaid-render-area svg');
+      if (!svg) return;
+
+      const nodes = svg.querySelectorAll('.node');
+      let targetNode = null;
+
+      for (const node of Array.from(nodes)) {
+        const text = node.textContent?.toLowerCase() || '';
+        if (text.includes(query.toLowerCase())) {
+          targetNode = node;
+          break;
+        }
+      }
+
+      if (targetNode) {
+        // Clear previous highlights
+        svg.querySelectorAll('.searched-node-highlight, .issue-node-highlight').forEach(el => el.remove());
+
+        // Get coordinates
+        const bbox = targetNode.getBBox();
+        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        rect.setAttribute('x', bbox.x - 8);
+        rect.setAttribute('y', bbox.y - 8);
+        rect.setAttribute('width', bbox.width + 16);
+        rect.setAttribute("height", bbox.height + 16);
+        rect.setAttribute('rx', 10);
+        rect.setAttribute('class', highlightClass);
+        
+        targetNode.appendChild(rect);
+
+        // Center Viewport
+        const svgRect = svg.getBoundingClientRect();
+        const nodeRect = targetNode.getBoundingClientRect();
+
+        const svgX = nodeRect.left - svgRect.left + nodeRect.width / 2;
+        const svgY = nodeRect.top - svgRect.top + nodeRect.height / 2;
+
+        const canvas = document.getElementById('canvas-container');
+        const cRect = canvas.getBoundingClientRect();
+        
+        scale = 1.15;
+        position = {
+          x: cRect.width / 2 - svgX * scale,
+          y: cRect.height / 2 - svgY * scale
+        };
+        updateTransform();
+
+        // Open details
+        showDrawer(
+          targetNode.textContent.replace(/<br\s*\/?>/gi, " ").trim(),
+          `Highlighted component matched search: "${query}".`
+        );
+      }
+    }
+
+    // --- TAB SWITCHER ---
+    function switchTab(tab) {
+      activeTab = tab;
+      
+      const canvasBtn = document.getElementById('tab-canvas-btn');
+      const schematicBtn = document.getElementById('tab-schematic-btn');
+      const scorecardBtn = document.getElementById('tab-scorecard-btn');
+      const issuesBtn = document.getElementById('tab-issues-btn');
+      
+      const sidebar = document.getElementById('canvas-sidebar');
+      const canvasEl = document.getElementById('canvas-container');
+      const schematicEl = document.getElementById('schematic-view');
+      const scorecardEl = document.getElementById('scorecard-view');
+      const issuesEl = document.getElementById('issues-view');
+
+      // Update button styles
+      [canvasBtn, schematicBtn, scorecardBtn, issuesBtn].forEach(btn => {
+        if (btn) btn.className = 'flex items-center gap-2 px-4 py-1.5 text-xs font-semibold rounded-md transition-all text-slate-400 hover:text-slate-200';
+      });
+
+      if (tab === 'canvas') {
+        canvasBtn.className = 'flex items-center gap-2 px-4 py-1.5 text-xs font-semibold rounded-md transition-all bg-blue-600 text-white shadow';
+        sidebar.classList.remove('hidden');
+        canvasEl.classList.remove('hidden');
+        schematicEl.classList.add('hidden');
+        scorecardEl.classList.add('hidden');
+        issuesEl.classList.add('hidden');
+        renderActiveDiagram();
+      } else if (tab === 'schematic') {
+        schematicBtn.className = 'flex items-center gap-2 px-4 py-1.5 text-xs font-semibold rounded-md transition-all bg-blue-600 text-white shadow';
+        sidebar.classList.remove('hidden');
+        canvasEl.classList.add('hidden');
+        schematicEl.classList.remove('hidden');
+        scorecardEl.classList.add('hidden');
+        issuesEl.classList.add('hidden');
+        renderActiveSchematic();
+      } else if (tab === 'scorecard') {
+        scorecardBtn.className = 'flex items-center gap-2 px-4 py-1.5 text-xs font-semibold rounded-md transition-all bg-blue-600 text-white shadow';
+        sidebar.classList.add('hidden');
+        canvasEl.classList.add('hidden');
+        schematicEl.classList.add('hidden');
+        scorecardEl.classList.remove('hidden');
+        issuesEl.classList.add('hidden');
+      } else if (tab === 'issues') {
+        issuesBtn.className = 'flex items-center gap-2 px-4 py-1.5 text-xs font-semibold rounded-md transition-all bg-blue-600 text-white shadow';
+        sidebar.classList.add('hidden');
+        canvasEl.classList.add('hidden');
+        schematicEl.classList.add('hidden');
+        scorecardEl.classList.add('hidden');
+        issuesEl.classList.remove('hidden');
+      }
+      lucide.createIcons();
+    }
+    function _unused_switchTab() {
+      
+      const sidebar = document.getElementById('canvas-sidebar');
+      const canvasEl = document.getElementById('canvas-container');
+      const scorecardEl = document.getElementById('scorecard-view');
+      const issuesEl = document.getElementById('issues-view');
+
+      // Update button styles
+      [canvasBtn, scorecardBtn, issuesBtn].forEach(btn => {
+        btn.className = 'flex items-center gap-2 px-4 py-1.5 text-xs font-semibold rounded-md transition-all text-slate-400 hover:text-slate-200';
+      });
+
+      if (tab === 'canvas') {
+        canvasBtn.className = 'flex items-center gap-2 px-4 py-1.5 text-xs font-semibold rounded-md transition-all bg-blue-600 text-white shadow';
+        sidebar.classList.remove('hidden');
+        canvasEl.classList.remove('hidden');
+        scorecardEl.classList.add('hidden');
+        issuesEl.classList.add('hidden');
+        renderActiveDiagram();
+      } else if (tab === 'scorecard') {
+        scorecardBtn.className = 'flex items-center gap-2 px-4 py-1.5 text-xs font-semibold rounded-md transition-all bg-blue-600 text-white shadow';
+        sidebar.classList.add('hidden');
+        canvasEl.classList.add('hidden');
+        scorecardEl.classList.remove('hidden');
+        issuesEl.classList.add('hidden');
+      } else if (tab === 'issues') {
+        issuesBtn.className = 'flex items-center gap-2 px-4 py-1.5 text-xs font-semibold rounded-md transition-all bg-blue-600 text-white shadow';
+        sidebar.classList.add('hidden');
+        canvasEl.classList.add('hidden');
+        scorecardEl.classList.add('hidden');
+        issuesEl.classList.remove('hidden');
+      }
+    }
+
+    // --- VULNERABILITY TRACER ---
+    function locateIssue(issue) {
+      switchTab('canvas');
+      selectDiagram(issue.diagramId);
+
+      setTimeout(() => {
+        searchAndHighlight(issue.nodeQuery, 'issue-node-highlight');
+        showDrawer(
+          `Issue Node: ${issue.nodeQuery}`,
+          `This node is affected by Critical Issue ${issue.id}: ${issue.title}.\nFix remediation: ${issue.fix}`
+        );
+      }, 300);
+    }
+
+    // --- DARK MODE TOGGLE ---
+    function toggleDarkMode() {
+      const html = document.documentElement;
+      const themeIcon = document.getElementById('theme-icon');
+      
+      if (html.classList.contains('dark')) {
+        html.classList.remove('dark');
+        html.classList.add('light');
+        isDarkMode = false;
+      } else {
+        html.classList.remove('light');
+        html.classList.add('dark');
+        isDarkMode = true;
+      }
+      
+      // Update theme toggle icon
+      themeIcon.setAttribute('data-lucide', isDarkMode ? 'sun' : 'moon');
+      lucide.createIcons();
+      
+      if (activeTab === 'canvas') {
+        renderActiveDiagram();
+      }
+    }
+  </script>
+</body>
+</html>
