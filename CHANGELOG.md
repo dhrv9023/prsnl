@@ -6,6 +6,41 @@ All notable changes to Kareerist are documented here.
 
 ---
 
+## [1.0.4] - September 6, 2026 — Security Hardening & Audit Remediations
+
+### Fixed & Hardened (Security Audit)
+
+- **Stored XSS Prevention in User Full Name (SEC-008 / VULN-004)**
+  - Added `@field_validator("full_name", mode="before")` on `UserAuth` schema to strip all HTML tags (`<[^>]+>`) and dangerous injection characters (`[<>"\'&;]`), enforcing a maximum length of 100 characters.
+
+- **FastAPI Voice Interview Permissions Policy (SEC-019 / VULN-016)**
+  - Updated `Permissions-Policy` header in `SecurityHeadersMiddleware` from `microphone=()` to `microphone=(self)`, allowing browser microphone capture for voice interviews while continuing to block camera and geolocation.
+
+- **Production Security Headers on Vercel Frontend (VULN-010 / COMPAT-002)**
+  - Added HTTP security headers in `FRONTEND/vercel.json`: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy: camera=(), microphone=(self), geolocation=()`, and `Strict-Transport-Security: max-age=31536000; includeSubDomains; preload`.
+
+- **Multi-Tenant Data Isolation in Analysis History (SEC-015 / VULN-014)**
+  - Added explicit `.eq("user_id", str(user.id))` filter to `get_analysis_history` in `ai_analysis.py`, providing defense-in-depth tenant isolation at the application layer in addition to Supabase RLS.
+
+- **Voice Interview Audio Upload Validation (VULN-009 / VULN-017)**
+  - In `interview.py:submit_voice_answer_route`, added MIME type checking against allowed audio formats (`audio/webm`, `audio/wav`, `audio/mp4`, `audio/ogg`, `audio/x-m4a`), file extension allowlist, and a strict 10MB file size limit to reject arbitrary or oversized file uploads.
+
+- **OAuth Exception Masking (SEC-026 / VULN-006)**
+  - In `auth.py:oauth_exchange_session`, masked internal Supabase exception details from the HTTP 401 response while preserving detailed debug tracebacks in server logs.
+
+- **Humanize Request Payload Bounds (P1-3 / VULN-020)**
+  - Added `Field(..., min_length=50, max_length=5000)` on `HumanizeRequest.text` to prevent empty requests or unbounded payloads causing LLM denial of service.
+
+- **Prompt Sanitizer Hardening (AI-001 / AI-002)**
+  - Added Unicode NFKC normalization in `prompt_sanitizer.py` to prevent homoglyph and fullwidth tag bypasses (e.g. `＜RESUME_TEXT＞`).
+  - Added HTML comment stripping (`<!--.*?-->`) and multi-pass loop (up to 3 passes) to eliminate nested delimiter tags (e.g. `<RES<RESUME_TEXT>UME_TEXT>`).
+  - Added system prompt extraction pattern filters against prompt-leak exploits.
+
+- **Automated Test Suite Expansion**
+  - Added Category 8 tests in `backend/tests/test_critical_paths.py` covering all new security remediations. Test suite now passes with 37/37 tests.
+
+---
+
 ## [1.0.3] - September 6, 2026 — Bug Fix Release
 
 ### Fixed
