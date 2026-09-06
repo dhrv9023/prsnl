@@ -83,6 +83,31 @@ This approach works in cross-origin production setups where cookies with `SameSi
 
 ---
 
+## Project Structure
+
+```
+prsnl/
+├── backend/                  # FastAPI backend application, routers, services, and tests
+├── FRONTEND/                 # React 18 + TypeScript + Vite frontend application
+├── supabase/                 # Supabase PostgreSQL migrations and schema definitions
+├── kareerist_blog/           # Blog micro-frontend subproject
+├── docs/                     # Centralized Documentation Hub (see docs/README.md)
+│   ├── README.md             # Navigation portal to all documentation sections
+│   ├── specifications/       # Master project specification & AI handoff docs
+│   ├── architecture/         # System flowcharts & interactive HTML architecture viewer
+│   ├── explanations/         # Component walkthroughs (Backend, Frontend, DB, Blog)
+│   ├── history/              # Development history & chronological evolution (Ch. 1–12)
+│   ├── qa/                   # 10-part QA audit reports & penetration test checklists
+│   └── security/             # Security implementation & CSRF documentation
+├── CHANGELOG.md              # Version release notes and changelog
+├── README.md                 # Project overview and getting started guide
+└── run.sh                    # Local development launcher script
+```
+
+For comprehensive architectural walkthroughs and module guides, explore the [Documentation Hub](file:///home/dhruv/Nextcloud/kareerist/prsnl/docs/README.md).
+
+---
+
 ## API Endpoints
 
 ```
@@ -213,7 +238,7 @@ cd backend
 pytest tests/ -v
 ```
 
-22 tests covering ATS scorer, credit system, auth, resume upload, and security headers.
+37 automated unit tests covering ATS scoring engines, credit systems, authentication, resume ingestion, security headers, XSS prevention, permissions policies, and prompt sanitization.
 
 ---
 
@@ -248,12 +273,17 @@ pytest tests/ -v
 | Error Monitoring (Sentry) | ✅ Complete |
 | Theme Toggle (Light/Dark Mode) | ✅ Complete |
 | RLS on ai_analyses | ✅ Complete |
-| Test Suite | ✅ Complete |
+| Test Suite (37 tests) | ✅ Complete |
 | Payment Integration | ⏳ Post-MVP |
 
 ---
 
 ## Recent Updates
+
+### September 6, 2026
+- ✅ **Repository Restructuring:** Unified all documentation, flowcharts, sprint history, and pentest reports into a centralized `docs/` hub.
+- ✅ **Security Hardening (Audit v1.0.4):** Remediated stored XSS sanitization, voice interview permissions policy, frontend security headers, multi-tenant isolation, audio upload validation, and hardened LLM prompt sanitizer against homoglyph and extraction bypasses.
+- ✅ **Bug Fixes (v1.0.3):** Added credit refund fallback on AI failures, fixed mobile sign-in background scroll bleed-through, and added UX warning indicators for slow LLM responses.
 
 ### May 29, 2026
 - ✅ Admin panel improvements

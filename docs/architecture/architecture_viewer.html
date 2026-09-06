@@ -1,0 +1,1597 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kareerist Miro Architecture Canvas</title>
+  
+  <!-- CDNs -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    /* Miro dotted grid background */
+    .miro-grid {
+      background-image: radial-gradient(rgba(148, 163, 184, 0.15) 1.5px, transparent 1.5px);
+      background-size: 24px 24px;
+    }
+    .light .miro-grid {
+      background-image: radial-gradient(rgba(100, 116, 139, 0.15) 1.5px, transparent 1.5px);
+      background-size: 24px 24px;
+    }
+    /* Mermaid SVG overrides */
+    .searched-node-highlight {
+      fill: none;
+      stroke: #3b82f6;
+      stroke-width: 4px;
+      stroke-dasharray: 6;
+      animation: dash 2s linear infinite, pulse 1.5s ease-in-out infinite;
+    }
+    .issue-node-highlight {
+      fill: none;
+      stroke: #f59e0b;
+      stroke-width: 4px;
+      stroke-dasharray: 6;
+      animation: dash 2s linear infinite, pulse 1.5s ease-in-out infinite;
+    }
+    @keyframes dash {
+      to {
+        stroke-dashoffset: -20;
+      }
+    }
+    @keyframes pulse {
+      0%, 100% {
+        opacity: 0.4;
+      }
+      50% {
+        opacity: 1;
+      }
+    }
+    /* Smooth transitions */
+    .canvas-transition {
+      transition: transform 0.15s ease-out;
+    }
+    .grabbing {
+      cursor: grabbing !important;
+    }
+    .node {
+      cursor: pointer;
+    }
+    .node:hover {
+      filter: brightness(1.1);
+    }
+  </style>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            border: 'hsl(var(--border))',
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-slate-900 dark:bg-slate-950 text-slate-100 dark:text-slate-100 h-screen overflow-hidden flex flex-col transition-colors duration-200">
+
+  <!-- Header -->
+  <header class="flex items-center justify-between px-6 py-4 bg-slate-950 border-b border-slate-800 z-10">
+    <div class="flex items-center gap-3">
+      <div class="flex items-center justify-center w-10 h-10 rounded-lg bg-blue-600/20 text-blue-400 border border-blue-500/30">
+        <i data-lucide="layout" class="w-5 h-5"></i>
+      </div>
+      <div>
+        <h1 class="text-lg font-bold tracking-tight bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
+          Kareerist Miro Architecture Canvas
+        </h1>
+        <p class="text-xs text-slate-400">Interactive live code map & developer explorer</p>
+      </div>
+    </div>
+
+    <!-- Tab switcher -->
+    <div class="flex items-center gap-1 bg-slate-900 border border-slate-800 rounded-lg p-1">
+      <button id="tab-canvas-btn" onclick="switchTab('canvas')" class="flex items-center gap-2 px-4 py-1.5 text-xs font-semibold rounded-md transition-all bg-blue-600 text-white shadow">
+        <i data-lucide="activity" class="w-3.5 h-3.5"></i>
+        Interactive Canvas
+      </button>
+      <button id="tab-scorecard-btn" onclick="switchTab('scorecard')" class="flex items-center gap-2 px-4 py-1.5 text-xs font-semibold rounded-md transition-all text-slate-400 hover:text-slate-200">
+        <i data-lucide="book-open" class="w-3.5 h-3.5"></i>
+        Scorecard Audit
+      </button>
+      <button id="tab-issues-btn" onclick="switchTab('issues')" class="flex items-center gap-2 px-4 py-1.5 text-xs font-semibold rounded-md transition-all text-slate-400 hover:text-slate-200">
+        <i data-lucide="shield-alert" class="w-3.5 h-3.5"></i>
+        Critical Issues (<span id="issues-count">10</span>)
+      </button>
+    </div>
+
+    <!-- Dark Mode + Back Link -->
+    <div class="flex items-center gap-3">
+      <button onclick="toggleDarkMode()" class="p-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg text-slate-400 hover:text-slate-100 transition-colors">
+        <i id="theme-icon" data-lucide="sun" class="w-4 h-4"></i>
+      </button>
+      <div class="text-xs text-slate-500 font-medium">Standalone Developer Mode</div>
+    </div>
+  </header>
+
+  <!-- Main View Workspace -->
+  <div class="flex flex-1 overflow-hidden relative">
+    
+    <!-- Sidebar: Canvas List -->
+    <aside id="canvas-sidebar" class="w-80 bg-slate-950 border-r border-slate-800 flex flex-col h-full z-10">
+      <div class="p-4 border-b border-slate-800">
+        <form onsubmit="handleSearch(event)" class="relative">
+          <input id="search-input" type="text" placeholder="Search node (e.g. Supabase)..." class="w-full pl-9 pr-4 py-2 text-xs bg-slate-900 border border-slate-800 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors" />
+          <i data-lucide="search" class="absolute left-3 top-2.5 w-3.5 h-3.5 text-slate-500"></i>
+        </form>
+      </div>
+
+      <div id="diagram-list" class="flex-1 overflow-y-auto p-4 space-y-2">
+        <!-- JS populated -->
+      </div>
+    </aside>
+
+    <!-- Canvas Panel -->
+    <main id="main-content" class="flex-1 h-full relative overflow-hidden bg-slate-900">
+      
+      <!-- Canvas Wrapper -->
+      <div id="canvas-container" class="w-full h-full cursor-grab relative select-none overflow-hidden miro-grid" 
+           onmousedown="onMouseDown(event)" 
+           onmousemove="onMouseMove(event)" 
+           onmouseup="onMouseUp()" 
+           onmouseleave="onMouseUp()"
+           onwheel="onWheel(event)">
+        
+        <!-- Mermaid compiled SVG container -->
+        <div id="mermaid-render-area" class="absolute w-full h-full p-12 flex items-center justify-center pointer-events-auto"></div>
+
+        <!-- Floating Canvas controls -->
+        <div class="absolute bottom-6 right-6 flex items-center gap-1.5 bg-slate-950/85 border border-slate-800 backdrop-blur-md rounded-xl p-1.5 shadow-2xl z-10">
+          <button onclick="zoomIn()" title="Zoom In" class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-100 hover:bg-slate-900 transition-colors">
+            <i data-lucide="zoom-in" class="w-4 h-4"></i>
+          </button>
+          <button onclick="zoomOut()" title="Zoom Out" class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-100 hover:bg-slate-900 transition-colors">
+            <i data-lucide="zoom-out" class="w-4 h-4"></i>
+          </button>
+          <button onclick="resetView()" title="Reset Zoom" class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-100 hover:bg-slate-900 transition-colors">
+            <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+          </button>
+          <button onclick="fitView()" title="Fit Canvas" class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-100 hover:bg-slate-900 transition-colors">
+            <i data-lucide="maximize-2" class="w-4 h-4"></i>
+          </button>
+          <div class="h-5 w-px bg-slate-800 mx-1"></div>
+          <span id="zoom-label" class="text-[10px] font-mono font-bold text-slate-500 px-1">100%</span>
+        </div>
+
+        <!-- Active Diagram Details banner -->
+        <div class="absolute top-6 left-6 max-w-sm bg-slate-950/85 border border-slate-800 backdrop-blur-md rounded-xl p-4 shadow-xl pointer-events-none z-10">
+          <span id="diagram-badge" class="text-[10px] font-bold text-blue-400 uppercase tracking-widest">Active Diagram 1</span>
+          <h3 id="diagram-title" class="text-sm font-extrabold text-slate-100 mt-1">System Overview</h3>
+          <p id="diagram-desc" class="text-xs text-slate-400 mt-1 leading-relaxed">Global stack overview and data flow boundaries.</p>
+        </div>
+
+        <!-- Node Detail Drawer -->
+        <div id="node-drawer" class="hidden absolute top-6 right-6 w-80 bg-slate-950 border border-slate-800 rounded-2xl shadow-2xl p-5 z-20">
+          <div class="flex justify-between items-start">
+            <span class="text-[10px] bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded font-bold border border-blue-500/20">Selected Component</span>
+            <button onclick="dismissDrawer()" class="text-xs text-slate-500 hover:text-slate-300">Dismiss</button>
+          </div>
+          <h4 id="node-title" class="text-sm font-extrabold text-slate-100 mt-3">Browser</h4>
+          <p id="node-desc" class="text-xs text-slate-400 mt-2 leading-relaxed border-t border-slate-900 pt-3">
+            Client Browser: Runs the React 18 + Vite Single Page Application.
+          </p>
+          <div class="bg-slate-900/60 rounded-xl p-3 mt-4 border border-slate-800/40">
+            <div class="flex gap-2 items-center text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+              <i data-lucide="file-text" class="w-3 h-3 text-slate-500"></i>
+              Audited Code References
+            </div>
+            <ul class="text-[11px] text-slate-500 mt-2 space-y-1.5">
+              <li>• Scoped inside `/backend/app/` logic</li>
+              <li>• Direct dependency in `requirements.txt`</li>
+              <li>• Covered by service-layer unit tests</li>
+            </ul>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Scorecard View (hidden initially) -->
+      <div id="scorecard-view" class="hidden w-full h-full overflow-y-auto p-8 max-w-4xl mx-auto space-y-6">
+        <div class="bg-slate-950 border border-slate-800 rounded-2xl p-6 shadow-xl">
+          <h2 class="text-lg font-bold tracking-tight text-slate-100 flex items-center gap-2">
+            <i data-lucide="book-open" class="w-5 h-5 text-blue-400"></i>
+            Codebase Security & Architecture Scorecard
+          </h2>
+          <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+            Evaluated health scores based on security audit audits, performance bottlenecks, test validation, and environment maturity.
+          </p>
+        </div>
+
+        <div id="scorecard-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <!-- Issues View (hidden initially) -->
+      <div id="issues-view" class="hidden w-full h-full overflow-y-auto p-8 max-w-4xl mx-auto space-y-6">
+        <div class="bg-slate-950 border border-slate-800 rounded-2xl p-6 shadow-xl">
+          <h2 class="text-lg font-bold tracking-tight text-slate-100 flex items-center gap-2">
+            <i data-lucide="shield-alert" class="w-5 h-5 text-amber-500"></i>
+            Top 10 Critical Vulnerabilities & Architectural Issues
+          </h2>
+          <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+            Interactive report detailing high-risk concerns discovered in the codebase audit. Click **"Locate in Diagram"** to open and center the affected components.
+          </p>
+        </div>
+
+        <div id="issues-list" class="space-y-4">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+    </main>
+
+  </div>
+
+  <script>
+    // --- DATABASE ---
+    const scorecardData = [
+      { dimension: "Security", score: 7, justification: "HttpOnly cookies, CSRF, RLS, IP anti-farming, atomic DB ops. Gap: localStorage token fallback, anon blog writes, WITH CHECK (true) on INSERT policies." },
+      { dimension: "Scalability", score: 4, justification: "Render free tier cold-starts, Supabase free-tier DB pauses, Groq 6000 req/day cap, no horizontal scaling, HuggingFace HTTP call per ATS request." },
+      { dimension: "Maintainability", score: 7, justification: "Clean service layer, good separation of concerns, well-named files. Gap: no ProtectedRoute abstraction, duplicated auth-check logic across pages." },
+      { dimension: "Test Coverage", score: 3, justification: "22 backend unit tests (~15% coverage). Zero frontend tests, no e2e, no integration tests against real DB." },
+      { dimension: "Error Handling", score: 6, justification: "Good retry logic for Cloudflare WAF, Sentry monitoring, AI refund on failure. Gap: no React Error Boundaries, silent credit failures, DB insert non-fatal after AI calls." },
+      { dimension: "Documentation", score: 8, justification: "Excellent - CHANGELOG, CSRF_IMPLEMENTATION.md, 15 chapters, inline docstrings throughout." },
+      { dimension: "Performance", score: 5, justification: "No caching of AI results, HuggingFace embedding call on every ATS request, no CDN for API, dashboard fetches all analyses (capped at 50)." },
+      { dimension: "DevOps Maturity", score: 3, justification: "No CI/CD, no staging, manual DB migrations, Render free-tier limitations, keep-alive cron is a workaround not a fix." }
+    ];
+
+    const criticalIssuesData = [
+      {
+        id: "#1",
+        severity: "CRITICAL",
+        title: "Supabase DB hibernation returns 0 credits on balance fetch",
+        location: "credits.py:31-38 (balance endpoint fallback)",
+        risk: "Users see 0 credits and are locked out of all features when DB pauses.",
+        fix: "Add error detection - if res.data is None due to DB error, return 503 instead of {remaining:0}.",
+        nodeQuery: "database",
+        diagramId: 1
+      },
+      {
+        id: "#2",
+        severity: "CRITICAL",
+        title: "Blog admin panel has no real authentication",
+        location: "kareerist_blog/src/ (admin panel)",
+        risk: "Hardcoded password visible in JS bundle. Anyone can publish/delete blog posts.",
+        fix: "Move admin auth to Supabase Auth with role check. Remove password from client JS.",
+        nodeQuery: "BAdmin",
+        diagramId: 6
+      },
+      {
+        id: "#3",
+        severity: "CRITICAL",
+        title: "blog_posts RLS allows anonymous WRITE",
+        location: "kareerist_blog/supabase_migration.sql",
+        risk: "Anyone can spam/inject content into the public blog without any account.",
+        fix: "Require authenticated + is_admin flag on INSERT/DELETE policies.",
+        nodeQuery: "BlogRLS",
+        diagramId: 6
+      },
+      {
+        id: "#4",
+        severity: "HIGH",
+        title: "INSERT RLS policies use WITH CHECK (true) for user data",
+        location: "20260515000001_audit_fixes.sql, 20260523000000_comprehensive_fix.sql",
+        risk: "Authenticated user can insert rows with arbitrary user_id (impersonation in DB).",
+        fix: "Change to WITH CHECK (user_id = auth.uid()) on all INSERT policies.",
+        nodeQuery: "profiles",
+        diagramId: 4
+      },
+      {
+        id: "#5",
+        severity: "HIGH",
+        title: "No React Error Boundaries",
+        location: "FRONTEND/src/App.tsx - no ErrorBoundary wrapper",
+        risk: "Any unhandled JS error in a page component crashes the entire app (blank white screen).",
+        fix: "Add <ErrorBoundary fallback={<ErrorPage/>}> around each lazy-loaded route.",
+        nodeQuery: "App.tsx",
+        diagramId: 5
+      },
+      {
+        id: "#6",
+        severity: "HIGH",
+        title: "Access token cookie outlives Supabase JWT",
+        location: "config.py:34 AUTH_ACCESS_MAX_AGE_SECONDS = 4 days",
+        risk: "Old/stale JWT in cookie sent to backend, auth.get_user() fails → 401 loop.",
+        fix: "Set AUTH_ACCESS_MAX_AGE_SECONDS to match Supabase JWT expiry (3600s).",
+        nodeQuery: "cookies",
+        diagramId: 2
+      },
+      {
+        id: "#7",
+        severity: "HIGH",
+        title: "localStorage stores JWT tokens (XSS risk)",
+        location: "api.ts:77-116 (__krs_access_token, __krs_refresh_token)",
+        risk: "XSS attack can steal tokens. HttpOnly cookies are already set - localStorage is redundant.",
+        fix: "Remove localStorage token storage entirely. Rely solely on HttpOnly cookies.",
+        nodeQuery: "localStorage",
+        diagramId: 2
+      },
+      {
+        id: "#8",
+        severity: "MEDIUM",
+        title: "Render backend spins down after 15 min - keep-alive is fragile",
+        location: "main.py /ping + cron-job.org",
+        risk: "If cron fails, cold start returns 503 for ~30s on first request.",
+        fix: "Upgrade to Render Starter ($7/mo) always-on or run keep-alive client-side.",
+        nodeQuery: "Render",
+        diagramId: 9
+      },
+      {
+        id: "#9",
+        severity: "MEDIUM",
+        title: "No centralized ProtectedRoute component",
+        location: "FRONTEND/src/App.tsx - all 12 routes unprotected at router level",
+        risk: "Auth redirect logic duplicated in each page. Easy to forget on new pages.",
+        fix: "Create <ProtectedRoute> and <AdminRoute> wrappers in App.tsx routing.",
+        nodeQuery: "App.tsx",
+        diagramId: 5
+      },
+      {
+        id: "#10",
+        severity: "MEDIUM",
+        title: "Unused packages installed in backend",
+        location: "requirements.txt - gTTS, google-genai, fpdf2",
+        risk: "google-genai is a large package (~50MB), increases cold start time on Render.",
+        fix: "Remove unused packages. Audit with: pip list | grep -E 'gtts|google-genai|fpdf2'",
+        nodeQuery: "google-genai",
+        diagramId: 12
+      }
+    ];
+
+    const diagramsData = [
+      {
+        id: 1,
+        title: "Master System Overview",
+        description: "Global stack overview and data flow boundaries across Vercel, Render, Supabase, Redis, and external AI services.",
+        code: `graph TD
+    classDef frontend fill:#1d4ed8,color:#fff,stroke:#1e40af
+    classDef backend fill:#15803d,color:#fff,stroke:#166534
+    classDef db fill:#ca8a04,color:#fff,stroke:#a16207
+    classDef auth fill:#dc2626,color:#fff,stroke:#b91c1c
+    classDef error fill:#ea580c,color:#fff,stroke:#c2410c
+    classDef external fill:#7c3aed,color:#fff,stroke:#6d28d9
+    classDef config fill:#6b7280,color:#fff,stroke:#4b5563
+
+    Browser("User Browser")
+
+    subgraph VERCEL["Vercel CDN"]
+        FE["React 18 + Vite SPA<br/>TypeScript · TanStack Query<br/>react-router-dom v6<br/>Shadcn/UI · Tailwind"]
+    end
+
+    subgraph RENDER["Render Free Tier"]
+        BE["FastAPI 0.128<br/>Python 3.13 · Uvicorn<br/>SlowAPI rate limiter<br/>Sentry monitoring"]
+        PING["/ping keep-alive<br/>cron every 10 min"]
+    end
+
+    subgraph SUPABASE["Supabase (PostgreSQL 15)"]
+        AUTH["Supabase Auth<br/>JWT HS256 · 1hr expiry<br/>Google OAuth PKCE<br/>Email+Password"]
+        DB["PostgreSQL DB<br/>9 tables · RLS enabled<br/>atomic RPCs"]
+        STORE["Supabase Storage<br/>Bucket: Resumes<br/>PDF files"]
+    end
+
+    subgraph REDIS["Upstash Redis"]
+        SESS["Interview Sessions<br/>TTL: 45 min<br/>key: interview:session:uid"]
+        RATELIM["Rate Limit Buckets<br/>per IP+userId<br/>SlowAPI backend"]
+    end
+
+    subgraph AI["AI Services"]
+        GROQ["Groq API<br/>llama-3.3-70b-versatile<br/>Whisper STT<br/>6000 req/day free"]
+        HF["HuggingFace<br/>Embeddings for ATS<br/>semantic similarity"]
+    end
+
+    SENTRY["Sentry<br/>Error monitoring<br/>10% trace sample"]
+
+    Browser -->|HTTPS · SPA navigation| FE
+    FE -->|REST/JSON · credentials:include<br/>HttpOnly cookies + Bearer JWT| BE
+    BE -->|supabase-py SDK<br/>service_role key| AUTH
+    BE -->|supabase-py SDK<br/>PostgresQL queries + RPC| DB
+    BE -->|supabase-py SDK<br/>file upload/delete| STORE
+    BE -->|redis.asyncio<br/>save/load/delete session| SESS
+    BE -->|slowapi<br/>rate limit counters| RATELIM
+    BE -->|AsyncGroq client<br/>chat.completions + transcriptions| GROQ
+    BE -->|HuggingFace Hub<br/>feature-extraction pipeline| HF
+    BE -->|sentry_sdk<br/>capture_exception| SENTRY
+    AUTH -->|JWT tokens| BE
+    PING -->|GET /ping -> 200 ok| BE
+
+    RateLimit{Is request<br/>rate-limited?}
+    AuthCheck{Is user<br/>authenticated?}
+    CreditCheck{Has enough<br/>credits?}
+
+    BE --> RateLimit
+    RateLimit -->|Yes -> 429| ERR429("429 Too Many Requests")
+    RateLimit -->|No| AuthCheck
+    AuthCheck -->|No -> 401| ERR401("401 Unauthorized")
+    AuthCheck -->|Yes| CreditCheck
+    CreditCheck -->|No -> 402| ERR402("402 Payment Required")
+    CreditCheck -->|Yes| Handler("Route Handler")
+    class Browser,FE frontend;
+    class RATELIM,BE,Handler,SESS backend;
+    class PING config;
+    class CreditCheck,AUTH,RateLimit,AuthCheck auth;
+    class STORE,DB db;
+    class GROQ,HF,SENTRY external;
+    class ERR402,ERR401,ERR429 error;`
+      },
+      {
+        id: 2,
+        title: "Authentication & Session Flow",
+        description: "Detailed visualization of Sign-up, login, Google OAuth PKCE exchange, HttpOnly/CSRF cookie setup, token refresh, and logout flow.",
+        code: `graph TD
+    classDef frontend fill:#1d4ed8,color:#fff,stroke:#1e40af
+    classDef backend fill:#15803d,color:#fff,stroke:#166534
+    classDef db fill:#ca8a04,color:#fff,stroke:#a16207
+    classDef auth fill:#dc2626,color:#fff,stroke:#b91c1c
+    classDef error fill:#ea580c,color:#fff,stroke:#c2410c
+    classDef external fill:#7c3aed,color:#fff,stroke:#6d28d9
+
+    subgraph SIGNUP_FLOW["1. Sign Up Flow"]
+        SignupForm["SignupForm<br/>useName+email+password<br/>client validation"]
+        SignupHandler["sign_up()<br/>auth.py:47"]
+        SupaAuth_SU["Supabase Auth<br/>creates auth.users row"]
+        ProfileRow["profiles row created<br/>remaining_credits=0<br/>total_credits_granted=0"]
+        IPCheck{IP already<br/>claimed?}
+        GrantCredits["grant_credits RPC<br/>+100 credits<br/>ip_credit_claims insert"]
+        NoGrant["0 credits granted<br/>anti-farming"]
+        AutoLogin["auto-login<br/>apiLogin()"]
+
+        SignupForm -->|"POST /api/v1/auth/signup<br/>{email,password,full_name}"| SignupHandler
+        SignupHandler -->|"supabase.auth.sign_up()"| SupaAuth_SU
+        SupaAuth_SU -->|"ON INSERT trigger<br/>handle_new_user()"| ProfileRow
+        SignupHandler -->|"grant_initial_credits()<br/>credits.py:84"| IPCheck
+        IPCheck -->|No| GrantCredits
+        IPCheck -->|Yes| NoGrant
+        SignupHandler -->|"200 {msg,user_id}"| AutoLogin
+    end
+
+    subgraph LOGIN_FLOW["2. Login & Google OAuth Flow"]
+        LoginForm["LoginForm<br/>email+password"]
+        LoginHandler["login()<br/>auth.py:83"]
+        GoogleBtn["Google Sign-In Button"]
+        GoogleOAuth["Google OAuth<br/>redirect to /auth/callback"]
+        AuthCallback["AuthCallback.tsx<br/>exchangeWithRetry()"]
+        OAuthHandler["oauth_exchange_session()<br/>auth.py:136"]
+        SupaAuth_LI["Supabase Auth<br/>verifies credentials"]
+        SetCookies_LI["set_session_cookies_and_cleanup()<br/>HttpOnly __krs_sid + __krs_rid<br/>JS-readable __krs_xsrf cookie"]
+        StoreTokens_LI["localStorage:<br/>__krs_access_token<br/>__krs_refresh_token"]
+        UpdateProfile["UPDATE profiles<br/>last_sign_in_at=now()"]
+        IPCheck_OA{IP already<br/>claimed?}
+        GrantCredits_OA["grant_credits RPC<br/>+100 credits<br/>ip_credit_claims insert"]
+        NoGrant_OA["0 credits granted<br/>anti-farming"]
+
+        LoginForm -->|"POST /api/v1/auth/login"| LoginHandler
+        LoginHandler -->|"supabase.auth.sign_in_with_password()"| SupaAuth_LI
+        
+        GoogleBtn -->|"supabase.auth.signInWithOAuth()<br/>PKCE flow"| GoogleOAuth
+        GoogleOAuth -->|"?code=xxx"| AuthCallback
+        AuthCallback -->|"POST /api/v1/auth/oauth/session<br/>{code, code_verifier}"| OAuthHandler
+        OAuthHandler -->|"anon.auth.exchange_code_for_session()"| SupaAuth_LI
+        OAuthHandler -->|"grant_initial_credits()"| IPCheck_OA
+        
+        IPCheck_OA -->|No| GrantCredits_OA
+        IPCheck_OA -->|Yes| NoGrant_OA
+        
+        SupaAuth_LI -->|"JWT access+refresh"| SetCookies_LI
+        SetCookies_LI -->|"Access: 4 days<br/>Refresh: 30 days"| StoreTokens_LI
+        LoginHandler -->|"200 {csrf_token, access_token}"| UpdateProfile
+    end
+
+    subgraph SESSION_FLOW["3. Session Check & Token Refresh"]
+        PageLoad["Page Load / useAuth mount"]
+        MeHandler["get_current_user_profile()<br/>auth.py:265"]
+        TokenVerify{Token<br/>valid?}
+        RefreshFlow["tryRefreshSession()<br/>POST /auth/refresh"]
+        FetchProfile["SELECT * FROM profiles<br/>grant_daily_credits()"]
+        CreditRefresh["CreditContext.fetchAll()<br/>GET /credits/balance<br/>GET /credits/costs"]
+        RefreshHandler["refresh_session()<br/>auth.py:216"]
+        SupaAuth_REF["Supabase Auth<br/>refresh session"]
+        SetCookies_REF["set_session_cookies_and_cleanup()"]
+        Logout_REF["clearStoredTokens()<br/>clearCsrfToken()<br/>user=null"]
+
+        PageLoad -->|"GET /api/v1/auth/me<br/>Bearer JWT header"| MeHandler
+        MeHandler -->|"get_current_user()<br/>dependencies.py:19"| TokenVerify
+        TokenVerify -->|No -> 401| RefreshFlow
+        TokenVerify -->|Yes| FetchProfile
+        FetchProfile -->|"200 {id,email,profile,is_admin<br/>daily_grant}"| CreditRefresh
+
+        RefreshFlow -->|"POST /api/v1/auth/refresh<br/>{refresh_token}"| RefreshHandler
+        RefreshHandler -->|"supabase.auth.refresh_session()"| SupaAuth_REF
+        SupaAuth_REF -->|"New JWT pair"| SetCookies_REF
+        RefreshHandler -->|"Fail -> 401"| Logout_REF
+    end
+
+    subgraph LOGOUT_FLOW["4. Logout Flow"]
+        LogoutBtn["Logout button"]
+        LogoutHandler["logout()<br/>auth.py:252"]
+        SupaAuth_LO["Supabase Auth<br/>sign_out()"]
+        ClearCookies["delete_cookie(__krs_sid,__krs_rid,__krs_xsrf)<br/>Cookies cleared"]
+
+        LogoutBtn -->|"POST /api/v1/auth/logout"| LogoutHandler
+        LogoutHandler -->|"supabase.auth.sign_out()"| SupaAuth_LO
+        SupaAuth_LO --> ClearCookies
+    end
+
+    class SignupForm,LoginForm,GoogleBtn,AuthCallback,PageLoad,LogoutBtn,AutoLogin,StoreTokens_LI,Logout_REF,CreditRefresh frontend;
+    class SignupHandler,LoginHandler,OAuthHandler,MeHandler,RefreshHandler,LogoutHandler,RefreshFlow backend;
+    class SupaAuth_SU,SupaAuth_LI,SupaAuth_REF,SupaAuth_LO,IPCheck,IPCheck_OA,TokenVerify auth;
+    class ProfileRow,GrantCredits,GrantCredits_OA,UpdateProfile,FetchProfile db;
+    class NoGrant,NoGrant_OA error;
+    class GoogleOAuth,SetCookies_LI,SetCookies_REF,ClearCookies external;`
+      },
+      {
+        id: 3,
+        title: "Complete API Route Map",
+        description: "Every single API endpoint in the FastAPI backend, grouped by router file, showing permissions, rate-limits, and credit costs.",
+        code: `graph TD
+    classDef backend fill:#15803d,color:#fff,stroke:#166534
+
+    APIRouter["FastAPI APIRouter<br/>prefix: /api/v1"]
+
+    subgraph AUTH_ROUTES["/auth - auth.py"]
+        A1["POST /signup<br/>🔓 public · 5/min<br/>body:{email,password,full_name}"]
+        A2["POST /login<br/>🔓 public · 5/min<br/>body:{email,password}"]
+        A3["POST /oauth/session<br/>🔓 public · 5/min<br/>body:{code,code_verifier}"]
+        A4["POST /refresh<br/>🔓 public · 5/min<br/>body:{refresh_token?}"]
+        A5["POST /logout<br/>🔒 session<br/>clears cookies"]
+        A6["GET /me<br/>🔒 JWT required<br/>triggers daily grant"]
+    end
+
+    subgraph RESUME_ROUTES["/resumes - resumes.py"]
+        R1["POST /upload<br/>🔒 JWT · 5/day<br/>Multipart PDF · max 5MB · max 20 resumes"]
+        R2["GET /<br/>🔒 JWT<br/>list user's resumes"]
+        R3["GET /{resume_id}<br/>🔒 JWT · user-scoped"]
+        R4["DELETE /{resume_id}<br/>🔒 JWT<br/>deletes storage + DB + cover letters"]
+    end
+
+    subgraph ANALYSIS_ROUTES["/analysis - ai_analysis.py"]
+        AN1["POST /match<br/>🔒 JWT · 5cr · 5/hr<br/>ATS score (general or JD-match)"]
+        AN2["POST /deep<br/>🔒 JWT · 15cr · 5/hr<br/>LLM deep resume critique"]
+        AN3["POST /hiring-intel<br/>🔒 JWT · 25cr · 5/hr<br/>9-section recruiter report"]
+        AN4["GET /history/{resume_id}<br/>🔒 JWT<br/>all past analyses for resume"]
+    end
+
+    subgraph INTERVIEW_ROUTES["/interview - interview.py"]
+        I1["POST /start<br/>🔒 JWT · 25cr · 5/hr<br/>generate 6 questions -> Redis"]
+        I2["POST /submit<br/>🔒 JWT · 15/min<br/>evaluate answer via LLM"]
+        I3["POST /submit_voice<br/>🔒 JWT · 15/min<br/>Whisper STT -> evaluate"]
+        I4["POST /end<br/>🔒 JWT<br/>compile report -> Supabase -> delete Redis"]
+        I5["POST /abandon<br/>🔒 JWT<br/>delete Redis session"]
+        I6["GET /session<br/>🔒 JWT<br/>check active session status"]
+        I7["GET /history<br/>🔒 JWT<br/>last 20 interview reports"]
+    end
+
+    subgraph COVER_ROUTES["/cover_letter - cover_letter.py"]
+        C1["POST /generate<br/>🔒 JWT · 10cr · 5/hr<br/>AI cover letter draft"]
+        C2["POST /generate-roast<br/>🔒 JWT · 10cr · 5/hr<br/>Savage cover letter"]
+        C3["POST /save_pdf<br/>🔒 JWT · 5/hr<br/>ReportLab PDF -> Storage"]
+        C4["POST /humanize<br/>🔒 JWT · 15cr · 5/hr<br/>AI humanizer"]
+        C5["GET /<br/>🔒 JWT<br/>list cover letters"]
+        C6["GET /{app_id}<br/>🔒 JWT<br/>get single cover letter"]
+    end
+
+    subgraph CREDIT_ROUTES["/credits - credits.py"]
+        CR1["GET /balance<br/>🔒 JWT<br/>remaining,granted,used,unlimited"]
+        CR2["GET /costs<br/>🔓 public<br/>feature costs map"]
+        CR3["POST /validate<br/>🔒 JWT<br/>can_use check without deducting"]
+        CR4["GET /history<br/>🔒 JWT<br/>last 50 credit transactions"]
+        CR5["POST /daily-grant<br/>🔒 JWT<br/>claim 50 daily credits (idempotent)"]
+    end
+
+    subgraph ADMIN_ROUTES["/admin - admin.py"]
+        AD1["GET /stats<br/>🔒 JWT + is_admin<br/>platform-wide stats"]
+        AD2["GET /users<br/>🔒 JWT + is_admin<br/>all user profiles"]
+        AD3["GET /users/{id}/activity<br/>🔒 JWT + is_admin<br/>full user activity"]
+        AD4["GET /users/{id}/credit-history<br/>🔒 JWT + is_admin"]
+        AD5["POST /users/{id}/grant-credits<br/>🔒 JWT + is_admin<br/>body:{amount,reason}"]
+        AD6["POST /users/{id}/set-unlimited<br/>🔒 JWT + is_admin<br/>body:{unlimited:bool}"]
+    end
+
+    subgraph UTIL_ROUTES["/utils - utils.py"]
+        U1["POST /hinglish<br/>🔒 JWT · 20/hr · FREE<br/>English->Hinglish LLM"]
+    end
+
+    subgraph SYSTEM_ROUTES["System routes - main.py"]
+        S1["GET /<br/>public · version info"]
+        S2["GET /health<br/>public · Redis+Supabase checks"]
+        S3["GET /ping<br/>public · keep-alive"]
+    end
+
+    APIRouter --> AUTH_ROUTES
+    APIRouter --> RESUME_ROUTES
+    APIRouter --> ANALYSIS_ROUTES
+    APIRouter --> INTERVIEW_ROUTES
+    APIRouter --> COVER_ROUTES
+    APIRouter --> CREDIT_ROUTES
+    APIRouter --> ADMIN_ROUTES
+    APIRouter --> UTIL_ROUTES
+    APIRouter --> SYSTEM_ROUTES
+    class AD6,A6,CR5,A2,I3,I2,C2,R1,AD3,I4,CR1,I1,I5,C6,AN4,CR3,S2,R4,A4,C3,C1,AN3,C4,S1,S3,APIRouter,AD2,A5,A3,CR4,AN1,AD4,AD5,AN2,A1,I7,C5,AD1,R3,I6,R2,U1,CR2 backend;`
+      },
+      {
+        id: 4,
+        title: "Database Schema",
+        description: "Relational entity mapping of the 9 PostgreSQL tables in Supabase, showing keys, columns, foreign constraints, and RLS policies.",
+        code: `erDiagram
+    AUTH_USERS {
+        uuid id PK
+        text email
+        jsonb raw_user_meta_data
+        timestamptz created_at
+    }
+
+    PROFILES {
+        uuid id PK
+        text email
+        text full_name
+        text avatar_url
+        int remaining_credits
+        int total_credits_granted
+        bool is_unlimited
+        bool is_admin
+        date last_daily_grant_date
+        timestamptz last_sign_in_at
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    RESUMES {
+        uuid id PK
+        uuid user_id FK
+        text file_url
+        jsonb parsed_content
+        int resume_quality_feedback
+        timestamptz created_at
+    }
+
+    AI_ANALYSES {
+        uuid id PK
+        uuid resume_id FK
+        uuid user_id FK
+        text analysis_type
+        jsonb output_data
+        timestamptz created_at
+    }
+
+    JOB_APPLICATIONS {
+        uuid id PK
+        uuid user_id FK
+        uuid resume_id FK
+        text company_name
+        text job_title
+        text job_description
+        text status
+        text cover_letter_content
+        text cover_letter_file_url
+        timestamptz created_at
+    }
+
+    INTERVIEW_REPORTS {
+        uuid id PK
+        uuid user_id FK
+        uuid resume_id FK
+        float overall_score
+        text qualitative_score
+        jsonb breakdown
+        text role
+        text experience_level
+        int questions_count
+        int answers_count
+        timestamptz created_at
+    }
+
+    CREDIT_TRANSACTIONS {
+        uuid id PK
+        uuid user_id FK
+        text feature
+        int credits_used
+        int credits_before
+        int credits_after
+        jsonb metadata
+        timestamptz created_at
+    }
+
+    DAILY_CREDIT_GRANTS {
+        uuid id PK
+        uuid user_id FK
+        date grant_date
+        int amount
+        timestamptz created_at
+    }
+
+    IP_CREDIT_CLAIMS {
+        text ip PK
+        uuid user_id FK
+        int granted_amount
+        timestamptz claimed_at
+    }
+
+    AUTH_USERS ||--|| PROFILES : "trigger: handle_new_user"
+    AUTH_USERS ||--o{ RESUMES : "user_id"
+    AUTH_USERS ||--o{ AI_ANALYSES : "user_id"
+    AUTH_USERS ||--o{ JOB_APPLICATIONS : "user_id"
+    AUTH_USERS ||--o{ INTERVIEW_REPORTS : "user_id"
+    AUTH_USERS ||--o{ CREDIT_TRANSACTIONS : "user_id"
+    AUTH_USERS ||--o{ DAILY_CREDIT_GRANTS : "user_id"
+    AUTH_USERS ||--o{ IP_CREDIT_CLAIMS : "user_id (ON DELETE SET NULL)"
+    RESUMES ||--o{ AI_ANALYSES : "resume_id"
+    RESUMES ||--o{ JOB_APPLICATIONS : "resume_id"
+    RESUMES ||--o{ INTERVIEW_REPORTS : "resume_id (nullable)"`
+      },
+      {
+        id: 5,
+        title: "Frontend Components Tree",
+        description: "Component hierarchy of the React Vite SPA, highlighting context providers, hooks, lazily-loaded routes, and shared components.",
+        code: `graph TD
+    classDef frontend fill:#1d4ed8,color:#fff,stroke:#1e40af
+    classDef context fill:#0891b2,color:#fff,stroke:#0e7490
+    classDef page fill:#2563eb,color:#fff,stroke:#1d4ed8
+    classDef hook fill:#4f46e5,color:#fff,stroke:#4338ca
+
+    Main["main.tsx<br/>ReactDOM.createRoot"]
+
+    subgraph PROVIDERS["Provider Tree (App.tsx)"]
+        QCP["QueryClientProvider<br/>TanStack Query"]
+        TTP["TooltipProvider"]
+        BRP["BrowserRouter"]
+        AP["AuthProvider<br/>AuthContext + ColdStartBanner"]
+        CP["CreditProvider<br/>CreditContext"]
+    end
+
+    subgraph PAGES["Pages (lazy-loaded with lazyWithRetry)"]
+        PG1["/ -> Index.tsx<br/>Landing page"]
+        PG2["/dashboard -> DashboardPage.tsx<br/>GET /dashboard/summary<br/>GET /credits/balance"]
+        PG3["/resume-analysis -> ResumeAnalysis.tsx<br/>POST /resumes/upload<br/>POST /analysis/match|deep|hiring-intel"]
+        PG4["/interview -> AIInterview.tsx<br/>POST /interview/start|submit|submit_voice|end|abandon<br/>GET /interview/session"]
+        PG5["/cover-letter -> CoverLetter.tsx<br/>POST /cover_letter/generate|generate-roast|humanize|save_pdf"]
+        PG6["/credits -> CreditsPage.tsx<br/>GET /credits/balance|history|costs"]
+        PG7["/interview/history -> InterviewHistory.tsx<br/>GET /interview/history"]
+        PG8["/admin -> AdminPage.tsx<br/>GET /admin/stats|users<br/>POST /admin/users/{id}/grant-credits"]
+        PG9["/pricing -> Pricing.tsx<br/>static page"]
+        PG10["/contact -> Contact.tsx<br/>static page"]
+        PG11["/auth/callback -> AuthCallback.tsx<br/>OAuth PKCE exchange"]
+        PG12["/* -> NotFound.tsx"]
+    end
+
+    subgraph HOOKS["Hooks"]
+        H1["useAuth()<br/>useAuth.ts<br/>login|signup|logout<br/>oAuth|refresh"]
+        H2["useCreditContext()<br/>CreditContext.tsx<br/>balance|canUse|deductLocal|refresh"]
+        H3["useAuthContext()<br/>AuthContext.tsx<br/>user|isAdmin|isLoading"]
+    end
+
+    subgraph GLOBAL_COMPONENTS["Shared UI Components"]
+        NAV["Navbar.tsx<br/>Credit badge, auth state, theme toggle"]
+        CDISPLAY["CreditDisplay.tsx<br/>CreditCard|CreditCompact|FeatureCostTag<br/>InsufficientCreditsWarning"]
+        CBADGE["CreditBadge.tsx"]
+    end
+
+    Main --> PROVIDERS
+    PROVIDERS --> PAGES
+    AP --> H1
+    AP --> H3
+    CP --> H2
+    PAGES --> NAV
+    PAGES --> CDISPLAY
+    H2 --> CDISPLAY
+    class CDISPLAY,Main,CBADGE,NAV frontend;
+    class TTP,CP,BRP,AP,QCP context;
+    class PG3,PG5,PG9,PG6,PG7,PG4,PG11,PG2,PG1,PG10,PG8,PG12 page;
+    class H1,H2,H3 hook;`
+      },
+      {
+        id: 6,
+        title: "Blog System & Development Journal",
+        description: "Separation between the public-facing Vercel blog system (and its RLS policies) and the private markdown development journal.",
+        code: `graph TD
+    classDef frontend fill:#1d4ed8,color:#fff,stroke:#1e40af
+    classDef db fill:#ca8a04,color:#fff,stroke:#a16207
+    classDef external fill:#7c3aed,color:#fff,stroke:#6d28d9
+
+    subgraph BLOG["kareerist_blog/ - Separate Vite+React App"]
+        BHome["Home Page<br/>Featured post hero + 3-col grid"]
+        BArticle["Article Reader Page<br/>Full content with bold+bullets rendering"]
+        BAdmin["Password-Protected Admin<br/>Ctrl+Shift+A -> login screen<br/>sessionStorage persistence"]
+        BCreate["Create Post Tab<br/>cover_image URL preview<br/>Category selector (10 categories)"]
+        BManage["Manage Posts Tab<br/>list + thumbnail + delete confirm"]
+    end
+
+    subgraph SUPABASE_BLOG["Supabase blog_posts table"]
+        BlogTable["blog_posts<br/>id, title, excerpt, content<br/>category, cover_image<br/>author, date, featured<br/>created_at"]
+        BlogRLS["RLS: anon READ<br/>anon WRITE (admin panel)<br/>no auth required"]
+    end
+
+    VERCEL_BLOG["Vercel<br/>kareerisit-blog.vercel.app<br/>Separate deployment"]
+    GITHUB_BLOG["github.com/dhrv9023/kareerisit_blog<br/>Separate repo"]
+
+    BHome -->|SELECT * FROM blog_posts<br/>ORDER BY date DESC| BlogTable
+    BArticle -->|SELECT * FROM blog_posts WHERE id=?| BlogTable
+    BAdmin -->|"password check (hardcoded?)<br/>INSERT INTO blog_posts"| BlogTable
+    BManage -->|DELETE FROM blog_posts WHERE id=?| BlogTable
+
+    subgraph SOFAR["kareerist_sofar/ - Development Journal"]
+        SF["15 Markdown chapters<br/>chapter_01 through chapter_12<br/>INDEX.md + UPDATES files<br/>Not deployed — local docs only"]
+    end
+    class BAdmin,BArticle,BHome,BManage,BCreate,SF frontend;
+    class BlogTable,BlogRLS db;
+    class VERCEL_BLOG,GITHUB_BLOG external;`
+      },
+      {
+        id: 7,
+        title: "Request Lifecycle (ATS Score)",
+        description: "Step-by-step trace of a resume analysis request, showing middleware verification, rate-limiting, credit deduction, HuggingFace scoring, and final DB persistence.",
+        code: `graph TD
+    classDef frontend fill:#1d4ed8,color:#fff,stroke:#1e40af
+    classDef backend fill:#15803d,color:#fff,stroke:#166534
+    classDef db fill:#ca8a04,color:#fff,stroke:#a16207
+    classDef auth fill:#dc2626,color:#fff,stroke:#b91c1c
+    classDef error fill:#ea580c,color:#fff,stroke:#c2410c
+    classDef external fill:#7c3aed,color:#fff,stroke:#6d28d9
+
+    Click["User clicks 'Analyze ATS Score'<br/>ResumeAnalysis.tsx"]
+    Click --> ClientVal{resume_id<br/>exists?}
+    ClientVal -->|No| ShowError["Show: Please upload resume first"]
+    ClientVal -->|Yes| DeductLocal["deductLocal('ats_score')<br/>optimistically -5 from UI"]
+    DeductLocal --> APICall["apiGetAtsScore(resume_id, jd?)<br/>POST /api/v1/analysis/match<br/>Headers: Authorization: Bearer {token}<br/>X-CSRF-Token: {csrf_token}"]
+
+    APICall --> MW1["RequestLoggerMiddleware<br/>log: method+path+status"]
+    MW1 --> MW2["CORSMiddleware<br/>check Origin header"]
+    MW2 --> MW3["CSRFMiddleware (prod only)<br/>cookie __krs_xsrf == header X-CSRF-Token?"]
+    MW3 -->|Mismatch -> 403| Err403("403 CSRF Mismatch")
+    MW3 -->|Pass| MW4["BodySizeLimitMiddleware<br/>Content-Length <= 1MB?"]
+    MW4 -->|Too large -> 413| Err413("413 Body Too Large")
+    MW4 -->|Pass| RateCheck["SlowAPI @limiter.limit<br/>5/hour per IP+userId<br/>Redis counter lookup"]
+    RateCheck -->|Exceeded -> 429| Err429("429 Rate Limit")
+    RateCheck -->|Pass| AuthDep["get_current_user()<br/>read __krs_sid cookie OR Authorization header<br/>supabase.auth.get_user(token)"]
+    AuthDep -->|Invalid -> 401| Err401("401 Session expired")
+    AuthDep -->|Valid user obj| CreditDep["require_credits('ats_score', 5)<br/>deduct_feature_credits()<br/>check is_unlimited flag<br/>call deduct_credits RPC"]
+    CreditDep -->|Insufficient -> 402| Err402("402 Payment Required")
+    CreditDep -->|Deducted, remaining=N| RouteHandler["ats_score_calculator()<br/>ai_analysis.py:20"]
+
+    RouteHandler -->|SELECT parsed_content FROM resumes<br/>WHERE id=? AND user_id=?| ResumeDB[(resumes table)]
+    ResumeDB -->|Not found -> 404| Err404("404 Resume Not Found")
+    ResumeDB -->|resume_text| ATSEngine["ats_score(resume_text, jd?)<br/>math_engine.py<br/>jd provided? -> HuggingFace embeddings<br/>no jd? -> rule-based scoring"]
+
+    ATSEngine -->|with JD| HFApi["HuggingFace API<br/>feature-extraction<br/>cosine similarity"]
+    ATSEngine -->|no JD| RuleBased["ats_general_engine.py<br/>keyword density, sections,<br/>action verbs, quantification"]
+    HFApi --> ScoreResult["score: 0-100<br/>mode: jd_match|general"]
+    RuleBased --> ScoreResult
+
+    ScoreResult --> SaveAnalysis["INSERT INTO ai_analyses<br/>{resume_id, user_id, analysis_type,<br/>output_data:{score,mode,details}}"]
+    SaveAnalysis -->|"DB fail (non-fatal)<br/>logger.warning"| ReturnResult
+    SaveAnalysis --> ReturnResult["return match_result<br/>200 {score, mode, breakdown, ...}"]
+
+    ReturnResult --> FrontendState["ResumeAnalysis.tsx<br/>setAtsResult(data)<br/>refresh() CreditContext balance"]
+    FrontendState --> UIUpdate["Show score gauge<br/>Update credit display<br/>Remove loading spinner"]
+
+    Err402 --> RefundCheck["refund_feature_credits()<br/>grant_credits RPC refund<br/>(if deducted before AI failed)"]
+    class UIUpdate,Click,FrontendState,APICall,DeductLocal frontend;
+    class AuthDep,ClientVal,MW3 auth;
+    class Err413,Err403,ShowError,Err404,Err401,Err402,Err429 error;
+    class MW1,RouteHandler,RateCheck,MW2,ATSEngine,ReturnResult,ScoreResult,RuleBased,MW4 backend;
+    class RefundCheck,CreditDep,SaveAnalysis db;
+    class HFApi external;`
+      },
+      {
+        id: 8,
+        title: "Error Handling & Failures",
+        description: "Overview of system fault-tolerance mechanisms, including transient database retries, AI credit refunds, and Vite chunk reload fallbacks.",
+        code: `graph TD
+    classDef backend fill:#15803d,color:#fff,stroke:#166534
+    classDef error fill:#ea580c,color:#fff,stroke:#c2410c
+    classDef external fill:#7c3aed,color:#fff,stroke:#6d28d9
+    classDef frontend fill:#1d4ed8,color:#fff,stroke:#1e40af
+
+    subgraph BACKEND_ERRORS["Backend Error Handling"]
+        E1["Network/DB Timeout<br/>-> Supabase returns HTML (Cloudflare WAF)<br/>_is_transient_supabase_error()<br/>Retry 3x with 1.5s, 3s backoff"]
+        E2["Supabase RPC fails<br/>deduct_credits throws<br/>-> HTTPException(500)"]
+        E3["AI API fails (Groq)<br/>-> refund_feature_credits()<br/>-> HTTPException(502)"]
+        E4["Auth token invalid<br/>supabase.auth.get_user() throws<br/>-> HTTPException(401)"]
+        E5["Rate limit exceeded<br/>SlowAPI -> HTTPException(429)"]
+        E6["Validation error<br/>Pydantic -> HTTPException(422)"]
+        E7["Admin non-fatal errors<br/>logger.warning, return -1 for stat"]
+        E8["Sentry capture<br/>all unhandled 5xx<br/>10% trace sample"]
+    end
+
+    subgraph FRONTEND_ERRORS["Frontend Error Handling"]
+        FE1["401 received<br/>-> tryRefreshSession()<br/>if refresh fails -> clearStoredTokens()<br/>user sees login page"]
+        FE2["402 received<br/>-> show InsufficientCreditsWarning<br/>deductLocal already applied<br/>-> refresh() restores true balance"]
+        FE3["429 received<br/>-> throw new Error(detail)<br/>-> toast.error shown"]
+        FE4["Network failure<br/>fetch() throws<br/>-> catch block -> toast.error"]
+        FE5["Chunk load failure<br/>lazyWithRetry()<br/>reload once via sessionStorage flag"]
+        FE6["Cold start (>4s load)<br/>ColdStartBanner shown<br/>'Waking up the server...'"]
+        FE7["No Error Boundaries<br/> unhandled render crash<br/>shows blank white page"]
+    end
+
+    subgraph RETRY_LOGIC["Retry Logic"]
+        R1["_rpc_with_retry()<br/>3 attempts<br/>1.5s -> 3s backoff<br/>for Cloudflare WAF blocks<br/>on: grant_credits, deduct_credits"]
+        R2["with_ai_retry()<br/>tenacity library<br/>for Groq LLM calls"]
+        R3["tryRefreshSession()<br/>single attempt<br/>no retry on refresh fail"]
+        R4["lazyWithRetry()<br/>1 page reload<br/>for stale Vite chunks"]
+    end
+    class E1,E3,FE7,E2,E7,E4,E6,E5 error;
+    class E8 external;
+    class FE4,FE5,FE2,FE6,R4,R3,FE1,FE3 frontend;
+    class R1,R2 backend;`
+      },
+      {
+        id: 9,
+        title: "Deployment & Environment Flow",
+        description: "Parity mapping between local developer environment (WSL setup script) and production Vercel/Render hosting with keep-alive cron tasks.",
+        code: `graph TD
+    classDef frontend fill:#1d4ed8,color:#fff,stroke:#1e40af
+    classDef backend fill:#15803d,color:#fff,stroke:#166534
+    classDef config fill:#6b7280,color:#fff,stroke:#4b5563
+    classDef external fill:#7c3aed,color:#fff,stroke:#6d28d9
+
+    subgraph LOCAL["Local Dev (run.sh)"]
+        L1["1. Check Redis<br/>redis-cli ping OR apt install<br/>port 6379"]
+        L2["2. Backend<br/>cd backend/<br/>python3 -m venv .venv<br/>pip install -r requirements.txt<br/>uvicorn app.main:app --port 8000"]
+        L3["3. Frontend<br/>cd FRONTEND/<br/>npm install<br/>write .env.local: VITE_WSL_IP<br/>npm run dev (port 8080)"]
+        L4["Vite proxy<br/>/api -> http://WSL_IP:8000<br/>no CORS needed in dev"]
+    end
+
+    subgraph ENV_VARS["Environment Variables"]
+        BE_ENV["Backend (backend/app/.env)<br/>SUPABASE_URL<br/>SUPABASE_SERVICE_ROLE<br/>SUPABASE_ANON_KEY<br/>SUPABASE_JWT_SECRET<br/>GROQ_API_KEY<br/>HUGGINGFACE_API_KEY<br/>REDIS_URL (Upstash)<br/>COOKIE_SECURE=true<br/>COOKIE_SAMESITE=none<br/>ENVIRONMENT=production<br/>SENTRY_DSN"]
+        FE_ENV["Frontend (FRONTEND/.env)<br/>VITE_API_BASE=https://backend.render.com<br/>VITE_SUPABASE_URL<br/>VITE_SUPABASE_ANON_KEY"]
+    end
+
+    subgraph PROD["Production Deployment"]
+        VERCEL["Vercel<br/>Frontend SPA<br/>Auto-deploy on git push<br/>CDN edge nodes"]
+        RENDER["Render Free Tier<br/>Backend FastAPI<br/>Manual deploy or git push<br/>Spins down after 15min idle<br/>Start cmd: uvicorn app.main:app --host 0.0.0.0 --port $PORT"]
+        SUPABASE_PROD["Supabase<br/>PostgreSQL + Auth + Storage<br/>Manual migration via SQL Editor<br/>No CI/CD for migrations"]
+        UPSTASH["Upstash Redis<br/>Serverless Redis<br/>HTTPS rediss:// URL"]
+    end
+
+    subgraph MIGRATIONS["Database Migration Flow"]
+        M1["Write migration SQL<br/>supabase/migrations/YYYYMMDD_name.sql"]
+        M2["Paste into Supabase SQL Editor<br/>Manual execution<br/>No rollback scripts"]
+        M3["Verify with SELECT queries"]
+    end
+
+    subgraph KEEPALIVE["Keep-Alive Strategy"]
+        CRON["cron-job.org<br/>GET /ping every 10min<br/>prevents Render cold start"]
+    end
+
+    LOCAL --> PROD
+    ENV_VARS --> LOCAL
+    ENV_VARS --> PROD
+    MIGRATIONS --> SUPABASE_PROD
+    CRON --> RENDER
+    class BE_ENV,FE_ENV,M3,L1,M1,L4,M2 config;
+    class L2 backend;
+    class L3 frontend;
+    class CRON,RENDER,SUPABASE_PROD,UPSTASH,VERCEL external;`
+      },
+      {
+        id: 10,
+        title: "QA & Testing Flow",
+        description: "Mapping of pytest unit files (critical services, headers, validation checks) and documentation of current testing gaps.",
+        code: `graph TD
+    classDef backend fill:#15803d,color:#fff,stroke:#166534
+    classDef config fill:#6b7280,color:#fff,stroke:#4b5563
+
+    subgraph TEST_SUITE["backend/tests/ - pytest"]
+        T1["test_critical_paths.py<br/>22 unit tests total"]
+        T2["ATS scorer tests<br/>general + JD-match scoring"]
+        T3["Credit system tests<br/>grant, deduct, refund logic"]
+        T4["Auth tests<br/>token validation, session flow"]
+        T5["Resume upload tests<br/>file validation, size limits"]
+        T6["Security header tests<br/>CSP, X-Frame-Options, HSTS"]
+    end
+
+    subgraph TEST_CONFIG["Test Config"]
+        P1["pytest.ini<br/>asyncio_mode=auto<br/>testpaths=tests"]
+        P2["pytest-asyncio<br/>async test support"]
+        P3["pytest-mock<br/>mocking Supabase + Groq"]
+    end
+
+    subgraph GAPS["Missing Test Coverage"]
+        G1["No frontend tests<br/>(no Vitest, no Playwright)"]
+        G2["No integration tests<br/>(no real DB calls)"]
+        G3["No e2e tests<br/>(no Cypress/Playwright)"]
+        G4["No load/stress tests"]
+        G5["No API contract tests"]
+        G6["No migration tests"]
+    end
+
+    T1 --> T2
+    T1 --> T3
+    T1 --> T4
+    T1 --> T5
+    T1 --> T6
+    class T1,T3,T6,T5,T2,T4 backend;
+    class G5,G3,G4,G6,G1,P2,P1,G2,P3 config;`
+      },
+      {
+        id: 11,
+        title: "State Management Flow",
+        description: "Data storage matrix documenting where critical UI, session tokens, and database states live, and how they handle refreshes.",
+        code: `graph TD
+    classDef context fill:#0891b2,color:#fff,stroke:#0e7490
+    classDef local fill:#1d4ed8,color:#fff,stroke:#1e40af
+    classDef persist fill:#ca8a04,color:#fff,stroke:#a16207
+
+    subgraph GLOBAL_STATE["Global State (React Context)"]
+        AUTH_STATE["AuthContext<br/>• user: {id, email} | null<br/>• isAdmin: bool<br/>• isLoading: bool<br/>• isSubmitting: bool<br/>• error: string<br/>Initialized: useAuth() on mount via GET /auth/me<br/>Persists: across navigation<br/>Resets: on logout or 401"]
+
+        CREDIT_STATE["CreditContext<br/>• balance: {remaining, total_granted, used, is_unlimited, low_credits}<br/>• featureCosts: {feature: {cost, label}}<br/>• isLoading: bool<br/>Initialized: on auth.isAuthenticated -> fetchAll()<br/>Updated: refresh() after feature use<br/>Optimistic: deductLocal(feature) -> -cost immediately<br/>Persists: across navigation<br/>Resets: on logout"]
+    end
+
+    subgraph LOCAL_STATE["Local State (useState per page)"]
+        LS1["ResumeAnalysis.tsx<br/>• resumeFile, uploadedResumes<br/>• atsResult, deepResult, intelResult<br/>• activeTab, isLoading flags"]
+        LS2["AIInterview.tsx<br/>• phase: setup|active|complete<br/>• questions, currentQuestion<br/>• evaluations, report<br/>• isRecording, audioBlob"]
+        LS3["CoverLetter.tsx<br/>• generatedContent, applicationId<br/>• isHumanized, editedContent<br/>• pdfUrl"]
+        LS4["AdminPage.tsx<br/>• stats, users, selectedUser<br/>• searchQuery, activeTab"]
+    end
+
+    subgraph PERSIST["Persistence (survives page refresh)"]
+        LS["localStorage<br/>• __krs_access_token<br/>• __krs_refresh_token"]
+        SS["sessionStorage<br/>• __krs_csrf (CSRF token)<br/>• chunk-reload (chunk error flag)"]
+        REDIS["Redis (server-side)<br/>• interview:session:{uid}<br/>TTL: 45 min"]
+    end
+
+    subgraph SERVER_STATE["Server State (TanStack Query)"]
+        SQ["QueryClient (App.tsx)<br/>Used by: DashboardPage only<br/>GET /dashboard/summary<br/>default stale/cache config"]
+    end
+
+    AUTH_STATE -->|isAuthenticated change| CREDIT_STATE
+    AUTH_STATE -->|tokens| LS
+    AUTH_STATE -->|csrf token| SS
+    CREDIT_STATE -->|"deductLocal()"| LS1
+    CREDIT_STATE -->|"deductLocal()"| LS2
+    CREDIT_STATE -->|"deductLocal()"| LS3
+    class AUTH_STATE,SQ,CREDIT_STATE context;
+    class LS4,LS1,LS3,LS2 local;
+    class REDIS,SS,LS persist;`
+      },
+      {
+        id: 12,
+        title: "Dependency & Module Map",
+        description: "Complete list of dependencies on both frontend and backend, with audits targeting unused packages like google-genai and gTTS.",
+        code: `graph TD
+    classDef backend fill:#15803d,color:#fff,stroke:#166534
+    classDef frontend fill:#1d4ed8,color:#fff,stroke:#1e40af
+    classDef external fill:#7c3aed,color:#fff,stroke:#6d28d9
+
+    subgraph BACKEND_DEPS["Backend Dependencies"]
+        BD1["fastapi 0.128 + uvicorn 0.40<br/>Core web framework"]
+        BD2["supabase 2.27<br/>DB + Auth + Storage client"]
+        BD3["groq 1.0<br/>LLM chat + Whisper STT"]
+        BD4["redis 5.0<br/>Session store + rate limit backend"]
+        BD5["slowapi 0.1.9<br/>Rate limiting middleware"]
+        BD6["scikit-learn 1.8 + numpy 2.4<br/>ATS cosine similarity"]
+        BD7["huggingface-hub 1.3<br/>Text embeddings for JD-match"]
+        BD8["pypdf 6.5<br/>PDF text extraction"]
+        BD9["reportlab 4.4<br/>PDF generation for cover letters"]
+        BD10["pydantic 2.12 + pydantic-settings 2.12<br/>Data validation + config"]
+        BD11["sentry-sdk 2.29<br/>Error monitoring"]
+        BD12["PyJWT 2.10<br/>JWT decode for rate-limit key"]
+        BD13["tenacity 8.3<br/>AI retry logic"]
+        BD14["gTTS 2.5 (unused?)<br/>Text-to-speech"]
+        BD15["google-genai 1.56 (unused?)<br/>Gemini client - not called anywhere"]
+        BD16["fpdf2 2.8 (unused?)<br/>Duplicate PDF gen - reportlab used instead"]
+    end
+
+    subgraph FRONTEND_DEPS["Frontend Dependencies"]
+        FD1["react 18 + react-dom<br/>Core UI"]
+        FD2["react-router-dom v6<br/>Client-side routing"]
+        FD3["@tanstack/react-query<br/>Server state (dashboard only)"]
+        FD4["@supabase/supabase-js<br/>OAuth PKCE client-side flow only"]
+        FD5["lucide-react<br/>Icons throughout app"]
+        FD6["sonner<br/>Toast notifications"]
+        FD7["shadcn/ui components<br/>Toast, Tooltip, etc."]
+        FD8["tailwindcss<br/>Styling"]
+    end
+
+    BD14 -.->|installed but likely unused| BD1
+    BD15 -.->|installed but likely unused<br/>google-genai large package| BD1
+    BD16 -.->|installed but reportlab used instead| BD1
+    class BD1,BD14,BD13,BD9,BD16,BD4,BD15,BD10,BD5,BD8,BD2,BD12,BD6 backend;
+    class BD3,BD11,BD7 external;
+    class FD7,FD4,FD8,FD6,FD5,FD1,FD2,FD3 frontend;`
+      }
+    ];
+
+    // --- STATE MANAGEMENT ---
+    let activeTab = 'canvas';
+    let activeDiagramId = 1;
+    let selectedNode = null;
+    let isDarkMode = true;
+
+    // Pan & Zoom parameters
+    let scale = 0.85;
+    let position = { x: 40, y: 40 };
+    let isDragging = false;
+    let dragStart = { x: 0, y: 0 };
+
+    // --- ON LOAD INITIALIZATION ---
+    window.onload = function() {
+      // Initialize lucide icons
+      lucide.createIcons();
+      
+      // Initialize mermaid
+      mermaid.initialize({
+        startOnLoad: false,
+        securityLevel: 'loose',
+        fontFamily: 'Inter, sans-serif',
+        theme: 'dark'
+      });
+
+      populateDiagramList();
+      populateScorecard();
+      populateIssues();
+      renderActiveDiagram();
+    };
+
+    // --- POPULATE SIDEBARS & GRIDS ---
+    function populateDiagramList() {
+      const container = document.getElementById('diagram-list');
+      container.innerHTML = '';
+      
+      diagramsData.forEach(d => {
+        const btn = document.createElement('button');
+        btn.id = `diagram-btn-${d.id}`;
+        btn.className = `w-full text-left p-3 rounded-xl border transition-all duration-200 flex items-start gap-3 ${
+          activeDiagramId === d.id
+            ? 'bg-blue-600/10 border-blue-500/50 text-slate-100 shadow'
+            : 'bg-transparent border-transparent text-slate-400 hover:bg-slate-900/60 hover:text-slate-200 dark:hover:bg-slate-800/40'
+        }`;
+        
+        btn.onclick = () => selectDiagram(d.id);
+        
+        btn.innerHTML = `
+          <div class="mt-0.5 w-5 h-5 rounded-md flex items-center justify-center text-xs font-bold ${
+            activeDiagramId === d.id ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'
+          }">
+            ${d.id}
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-xs font-bold truncate">${d.title}</p>
+            <p class="text-[10px] text-slate-500 mt-0.5 line-clamp-2 leading-relaxed">${d.description}</p>
+          </div>
+          <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-600 mt-1 flex-shrink-0"></i>
+        `;
+        
+        container.appendChild(btn);
+      });
+      
+      lucide.createIcons({ attrs: { class: 'w-3.5 h-3.5 text-slate-600 mt-1 flex-shrink-0' } });
+    }
+
+    function populateScorecard() {
+      const container = document.getElementById('scorecard-grid');
+      container.innerHTML = '';
+      
+      scorecardData.forEach(item => {
+        const card = document.createElement('div');
+        card.className = 'bg-slate-950/60 border border-slate-800 rounded-xl p-5 shadow flex flex-col justify-between';
+        
+        const badgeColor = item.score >= 7 
+          ? 'bg-green-500/10 border-green-500/30 text-green-400' 
+          : item.score >= 5 
+          ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400'
+          : 'bg-red-500/10 border-red-500/30 text-red-400';
+          
+        const barColor = item.score >= 7 ? 'bg-green-500' : item.score >= 5 ? 'bg-yellow-500' : 'bg-red-500';
+
+        card.innerHTML = `
+          <div>
+            <div class="flex items-center justify-between">
+              <span class="text-sm font-bold text-slate-200">${item.dimension}</span>
+              <span class="text-xs px-2.5 py-0.5 rounded-full font-bold border ${badgeColor}">
+                ${item.score} / 10
+              </span>
+            </div>
+            <div class="w-full bg-slate-900 rounded-full h-1.5 mt-3 overflow-hidden">
+              <div class="h-full rounded-full ${barColor}" style="width: ${item.score * 10}%"></div>
+            </div>
+            <p class="text-xs text-slate-400 mt-4 leading-relaxed">${item.justification}</p>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function populateIssues() {
+      const container = document.getElementById('issues-list');
+      container.innerHTML = '';
+      
+      criticalIssuesData.forEach(issue => {
+        const item = document.createElement('div');
+        item.className = 'bg-slate-950/60 border border-slate-800/80 rounded-xl p-5 hover:border-slate-700 transition-colors flex flex-col justify-between';
+        
+        const sevClass = issue.severity === 'CRITICAL'
+          ? 'bg-red-500/10 border-red-500/30 text-red-400 animate-pulse'
+          : issue.severity === 'HIGH'
+          ? 'bg-orange-500/10 border-orange-500/30 text-orange-400'
+          : 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400';
+
+        item.innerHTML = `
+          <div>
+            <div class="flex items-center gap-3">
+              <span class="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border ${sevClass}">
+                ${issue.severity}
+              </span>
+              <span class="text-xs text-slate-500 font-mono font-bold">Issue ${issue.id}</span>
+              <span class="text-xs text-slate-500 font-mono font-bold truncate flex-1 text-right">${issue.location}</span>
+            </div>
+
+            <h3 class="text-sm font-extrabold text-slate-100 mt-3">${issue.title}</h3>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 text-xs">
+              <div class="bg-slate-900/40 p-3 rounded-lg border border-slate-900">
+                <p class="font-bold text-red-400">Risk Profile</p>
+                <p class="text-slate-400 mt-1 leading-relaxed">${issue.risk}</p>
+              </div>
+              <div class="bg-slate-900/40 p-3 rounded-lg border border-slate-900">
+                <p class="font-bold text-green-400">Proposed Remediation</p>
+                <p class="text-slate-400 mt-1 leading-relaxed">${issue.fix}</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex justify-end border-t border-slate-900 mt-4 pt-3">
+            <button onclick='locateIssue(${JSON.stringify(issue)})' class="flex items-center gap-1.5 px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold transition-all shadow-md hover:shadow-blue-500/20">
+              <i data-lucide="search" class="w-3.5 h-3.5"></i>
+              Locate in Diagram
+            </button>
+          </div>
+        `;
+        container.appendChild(item);
+      });
+      lucide.createIcons();
+    }
+
+    // --- INTERACTIVE DIAGRAM SELECT ---
+    function selectDiagram(id) {
+      console.log("selectDiagram called for id:", id);
+      activeDiagramId = id;
+      
+      // Re-populate the sidebar list to apply correct active styles automatically
+      populateDiagramList();
+      
+      dismissDrawer();
+      const searchInput = document.getElementById('search-input');
+      if (searchInput) searchInput.value = '';
+      
+      renderActiveDiagram();
+    }
+
+    // --- MERMAID RENDER ENGINE ---
+    async function renderActiveDiagram() {
+      console.log("renderActiveDiagram called for id:", activeDiagramId);
+      const renderArea = document.getElementById('mermaid-render-area');
+      renderArea.innerHTML = '<div class="text-slate-400 text-sm">Rendering flowchart suite...</div>';
+      
+      const activeDiagram = diagramsData.find(d => d.id === activeDiagramId) || diagramsData[0];
+      
+      // Update details banner
+      document.getElementById('diagram-badge').innerText = `Active Diagram ${activeDiagram.id}`;
+      document.getElementById('diagram-title').innerText = activeDiagram.title;
+      document.getElementById('diagram-desc').innerText = activeDiagram.description;
+
+      try {
+        const uniqueId = `mermaid-svg-${activeDiagram.id}-${Date.now()}`;
+        console.log("Calling mermaid.render for uniqueId:", uniqueId);
+        
+        const { svg } = await mermaid.render(uniqueId, activeDiagram.code);
+        console.log("mermaid.render succeeded for:", uniqueId);
+        renderArea.innerHTML = svg;
+        
+        const svgEl = renderArea.querySelector('svg');
+        if (svgEl) {
+          svgEl.style.width = '100%';
+          svgEl.style.height = '100%';
+          svgEl.style.maxWidth = 'none';
+        }
+
+        resetView();
+        attachNodeListeners();
+      } catch (err) {
+        console.error("Mermaid Render Error:", err);
+        renderArea.innerHTML = `
+          <div class="p-6 text-red-500 bg-red-950/20 border border-red-900/50 rounded-lg max-w-md">
+            <p class="font-bold">Render Failure</p>
+            <p class="text-xs opacity-80 mt-1">${err.message || err}</p>
+          </div>
+        `;
+      }
+    }
+
+    // --- NODE INTERACTIVE DRAG & ZOOM CONTROLS ---
+    function updateTransform() {
+      const container = document.getElementById('mermaid-render-area');
+      container.style.transform = `translate(${position.x}px, ${position.y}px) scale(${scale})`;
+      container.style.transformOrigin = '0 0';
+      document.getElementById('zoom-label').innerText = `${Math.round(scale * 100)}%`;
+    }
+
+    function onMouseDown(e) {
+      if (e.button !== 0 && e.button !== 1) return; // Left/middle click
+      const wrapper = document.getElementById('canvas-container');
+      wrapper.classList.add('grabbing');
+      isDragging = true;
+      dragStart = { x: e.clientX - position.x, y: e.clientY - position.y };
+      e.preventDefault();
+    }
+
+    function onMouseMove(e) {
+      if (!isDragging) return;
+      position = {
+        x: e.clientX - dragStart.x,
+        y: e.clientY - dragStart.y
+      };
+      updateTransform();
+    }
+
+    function onMouseUp() {
+      const wrapper = document.getElementById('canvas-container');
+      wrapper.classList.remove('grabbing');
+      isDragging = false;
+    }
+
+    function onWheel(e) {
+      e.preventDefault();
+      const container = document.getElementById('canvas-container');
+      const rect = container.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+
+      const zoomFactor = 0.05;
+      const direction = e.deltaY < 0 ? 1 : -1;
+      const factor = 1 + direction * zoomFactor;
+
+      const nextScale = Math.max(0.15, Math.min(3, scale * factor));
+
+      const dx = mouseX - position.x;
+      const dy = mouseY - position.y;
+      
+      position = {
+        x: mouseX - dx * (nextScale / scale),
+        y: mouseY - dy * (nextScale / scale)
+      };
+      scale = nextScale;
+      updateTransform();
+    }
+
+    function zoomIn() {
+      scale = Math.min(3, scale + 0.15);
+      updateTransform();
+    }
+
+    function zoomOut() {
+      scale = Math.max(0.15, scale - 0.15);
+      updateTransform();
+    }
+
+    function resetView() {
+      scale = 0.85;
+      position = { x: 40, y: 40 };
+      updateTransform();
+    }
+
+    function fitView() {
+      scale = 1;
+      position = { x: 0, y: 0 };
+      updateTransform();
+    }
+
+    // --- NODE DETAIL DRAWER ATTACH ---
+    function attachNodeListeners() {
+      const nodes = document.querySelectorAll('.node');
+      nodes.forEach(node => {
+        node.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const text = node.textContent || "";
+          const cleanedText = text.replace(/<br\s*\/?>/gi, " ").replace(/\s+/g, " ").trim();
+          
+          let description = "This is an active node component of Kareerist. Use the search to locate its references.";
+          const lowercaseText = cleanedText.toLowerCase();
+
+          if (lowercaseText.includes("browser") || lowercaseText.includes("user")) {
+            description = "Client Browser: Runs the React 18 + Vite Single Page Application. Communicates with FastAPI via HTTP REST APIs, sending HttpOnly cookies for session management and standard JWT headers.";
+          } else if (lowercaseText.includes("vercel")) {
+            description = "Vercel CDN: Hosts the compiled React production bundle, serving static assets, pages, and components via Edge nodes for fast load times.";
+          } else if (lowercaseText.includes("render") || lowercaseText.includes("fastapi") || lowercaseText.includes("be") || lowercaseText.includes("backend")) {
+            description = "FastAPI Backend: Hosts the Python 3.13 API routes, rate-limiting, CORS validation, CSRF checks, and handles direct database operations, Upstash Redis queries, and Groq/HuggingFace API calls.";
+          } else if (lowercaseText.includes("supabase") || lowercaseText.includes("db") || lowercaseText.includes("postgres")) {
+            description = "Supabase PostgreSQL Database: Relational database hosting user profiles, credits, applications, and analyses. Protected by Row-Level Security (RLS) policies scoped to auth.uid().";
+          } else if (lowercaseText.includes("redis") || lowercaseText.includes("upstash") || lowercaseText.includes("sess")) {
+            description = "Upstash Redis Cache: Stores temporary mock interview sessions with a 45-minute TTL. Also stores IP and User rate-limiting buckets for SlowAPI.";
+          } else if (lowercaseText.includes("groq") || lowercaseText.includes("llama")) {
+            description = "Groq AI Services: Provides sub-second inference for Llama 3.3 (70B) for cover letters, CV roasting, and mock interview evaluation. Also runs Whisper for high-accuracy Speech-to-Text.";
+          } else if (lowercaseText.includes("hugging") || lowercaseText.includes("hf")) {
+            description = "HuggingFace Hub: Hosts the feature-extraction pipeline used by the FastAPI backend to calculate cosine similarity scores between resume text and job descriptions.";
+          } else if (lowercaseText.includes("sentry")) {
+            description = "Sentry Error Monitoring: Tracks backend errors, unhandled exceptions, and API latency with a 10% transaction trace sampling rate.";
+          } else if (lowercaseText.includes("csrf") || lowercaseText.includes("xsrf")) {
+            description = "CSRF protection: Double-submit cookie check. The server generates a random __krs_xsrf cookie, and the frontend sends it back in the X-CSRF-Token header for mutable requests.";
+          } else if (lowercaseText.includes("credit") || lowercaseText.includes("cost") || lowercaseText.includes("balance")) {
+            description = "Credit system: Features cost specific amounts of credits (e.g. ATS match = 5cr, Interview = 25cr). Deductions are processed atomically using a PostgreSQL row lock (FOR UPDATE).";
+          }
+
+          showDrawer(cleanedText, description);
+        });
+      });
+
+      // Dismiss node detail drawer if clicking whitespace
+      document.getElementById('canvas-container').addEventListener('click', (e) => {
+        if (!e.target.closest('.node') && !e.target.closest('#node-drawer')) {
+          dismissDrawer();
+        }
+      });
+    }
+
+    function showDrawer(title, desc) {
+      const drawer = document.getElementById('node-drawer');
+      document.getElementById('node-title').innerText = title;
+      document.getElementById('node-desc').innerText = desc;
+      drawer.classList.remove('hidden');
+      drawer.classList.add('animate-in', 'slide-in-from-right');
+    }
+
+    function dismissDrawer() {
+      document.getElementById('node-drawer').classList.add('hidden');
+    }
+
+    // --- SEARCH BAR HANDLER ---
+    function handleSearch(e) {
+      e.preventDefault();
+      const query = document.getElementById('search-input').value;
+      if (!query) return;
+
+      searchAndHighlight(query, 'searched-node-highlight');
+    }
+
+    function searchAndHighlight(query, highlightClass) {
+      const svg = document.querySelector('#mermaid-render-area svg');
+      if (!svg) return;
+
+      const nodes = svg.querySelectorAll('.node');
+      let targetNode = null;
+
+      for (const node of Array.from(nodes)) {
+        const text = node.textContent?.toLowerCase() || '';
+        if (text.includes(query.toLowerCase())) {
+          targetNode = node;
+          break;
+        }
+      }
+
+      if (targetNode) {
+        // Clear previous highlights
+        svg.querySelectorAll('.searched-node-highlight, .issue-node-highlight').forEach(el => el.remove());
+
+        // Get coordinates
+        const bbox = targetNode.getBBox();
+        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        rect.setAttribute('x', bbox.x - 8);
+        rect.setAttribute('y', bbox.y - 8);
+        rect.setAttribute('width', bbox.width + 16);
+        rect.setAttribute("height", bbox.height + 16);
+        rect.setAttribute('rx', 10);
+        rect.setAttribute('class', highlightClass);
+        
+        targetNode.appendChild(rect);
+
+        // Center Viewport
+        const svgRect = svg.getBoundingClientRect();
+        const nodeRect = targetNode.getBoundingClientRect();
+
+        const svgX = nodeRect.left - svgRect.left + nodeRect.width / 2;
+        const svgY = nodeRect.top - svgRect.top + nodeRect.height / 2;
+
+        const canvas = document.getElementById('canvas-container');
+        const cRect = canvas.getBoundingClientRect();
+        
+        scale = 1.15;
+        position = {
+          x: cRect.width / 2 - svgX * scale,
+          y: cRect.height / 2 - svgY * scale
+        };
+        updateTransform();
+
+        // Open details
+        showDrawer(
+          targetNode.textContent.replace(/<br\s*\/?>/gi, " ").trim(),
+          `Highlighted component matched search: "${query}".`
+        );
+      }
+    }
+
+    // --- TAB SWITCHER ---
+    function switchTab(tab) {
+      activeTab = tab;
+      
+      const canvasBtn = document.getElementById('tab-canvas-btn');
+      const scorecardBtn = document.getElementById('tab-scorecard-btn');
+      const issuesBtn = document.getElementById('tab-issues-btn');
+      
+      const sidebar = document.getElementById('canvas-sidebar');
+      const canvasEl = document.getElementById('canvas-container');
+      const scorecardEl = document.getElementById('scorecard-view');
+      const issuesEl = document.getElementById('issues-view');
+
+      // Update button styles
+      [canvasBtn, scorecardBtn, issuesBtn].forEach(btn => {
+        btn.className = 'flex items-center gap-2 px-4 py-1.5 text-xs font-semibold rounded-md transition-all text-slate-400 hover:text-slate-200';
+      });
+
+      if (tab === 'canvas') {
+        canvasBtn.className = 'flex items-center gap-2 px-4 py-1.5 text-xs font-semibold rounded-md transition-all bg-blue-600 text-white shadow';
+        sidebar.classList.remove('hidden');
+        canvasEl.classList.remove('hidden');
+        scorecardEl.classList.add('hidden');
+        issuesEl.classList.add('hidden');
+        renderActiveDiagram();
+      } else if (tab === 'scorecard') {
+        scorecardBtn.className = 'flex items-center gap-2 px-4 py-1.5 text-xs font-semibold rounded-md transition-all bg-blue-600 text-white shadow';
+        sidebar.classList.add('hidden');
+        canvasEl.classList.add('hidden');
+        scorecardEl.classList.remove('hidden');
+        issuesEl.classList.add('hidden');
+      } else if (tab === 'issues') {
+        issuesBtn.className = 'flex items-center gap-2 px-4 py-1.5 text-xs font-semibold rounded-md transition-all bg-blue-600 text-white shadow';
+        sidebar.classList.add('hidden');
+        canvasEl.classList.add('hidden');
+        scorecardEl.classList.add('hidden');
+        issuesEl.classList.remove('hidden');
+      }
+    }
+
+    // --- VULNERABILITY TRACER ---
+    function locateIssue(issue) {
+      switchTab('canvas');
+      selectDiagram(issue.diagramId);
+
+      setTimeout(() => {
+        searchAndHighlight(issue.nodeQuery, 'issue-node-highlight');
+        showDrawer(
+          `Issue Node: ${issue.nodeQuery}`,
+          `This node is affected by Critical Issue ${issue.id}: ${issue.title}.\nFix remediation: ${issue.fix}`
+        );
+      }, 300);
+    }
+
+    // --- DARK MODE TOGGLE ---
+    function toggleDarkMode() {
+      const html = document.documentElement;
+      const themeIcon = document.getElementById('theme-icon');
+      
+      if (html.classList.contains('dark')) {
+        html.classList.remove('dark');
+        html.classList.add('light');
+        isDarkMode = false;
+      } else {
+        html.classList.remove('light');
+        html.classList.add('dark');
+        isDarkMode = true;
+      }
+      
+      // Update theme toggle icon
+      themeIcon.setAttribute('data-lucide', isDarkMode ? 'sun' : 'moon');
+      lucide.createIcons();
+      
+      if (activeTab === 'canvas') {
+        renderActiveDiagram();
+      }
+    }
+  </script>
+</body>
+</html>

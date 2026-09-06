@@ -110,12 +110,14 @@ supabase/HOTFIX_*.sql
 supabase/TEST_*.sql
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Documentation & Docs (local reference only — not committed to GitHub)
+# Documentation & Docs
 # ─────────────────────────────────────────────────────────────────────────────
-# Ignore all markdown files except whitelisted ones
+# Root markdown files: allow README.md and CHANGELOG.md
 *.md
 !README.md
-!.kiro/README.md
+!CHANGELOG.md
+!docs/**/*.md
+!docs/**/architecture_viewer.html
 
 # Ignore all text and document files except requirements.txt and robots.txt
 *.txt
@@ -126,13 +128,6 @@ supabase/TEST_*.sql
 *.pdf
 *.xlsx
 *.xls
-
-# Local documentation directories
-kareerist_sofar/
-code_explained/
-code_explanation/
-docs/
-documentation/
 
 # Backend logs
 backend.log
@@ -149,5 +144,3 @@ backend.log
 # Subprojects with their own repos (excluded from prsnl repo)
 # ─────────────────────────────────────────────────────────────────────────────
 kareerist_blog/
-
-qa_report/
