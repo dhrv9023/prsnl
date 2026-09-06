@@ -655,4 +655,33 @@ class TestAdminDocs:
             assert "Kareerist Miro Architecture Canvas" in res.body.decode("utf-8")
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# CATEGORY 10 — Supabase Service Role Persistence
+# ═══════════════════════════════════════════════════════════════════════════════
 
+class TestSupabaseServiceRolePersistence:
+
+    def test_service_role_persists_across_auth_events(self):
+        """Auth events like SIGNED_IN must never mutate service_role authorization headers on get_db()."""
+        import asyncio
+        from types import SimpleNamespace
+        from app.db.supabase import get_db
+        from app.core.config import settings
+
+        async def _test():
+            client = await get_db()
+            expected_auth = f"Bearer {settings.SUPABASE_SERVICE_ROLE}"
+            assert client.options.headers.get("Authorization") == expected_auth
+
+            # Simulate an auth listener event that supabase-py would normally fire
+            fake_session = SimpleNamespace(access_token="USER_JWT_TOKEN_12345")
+            if hasattr(client, "_listen_to_auth_events"):
+                client._listen_to_auth_events("SIGNED_IN", fake_session)
+
+            # Re-fetch or check client
+            db = await get_db()
+            assert db.options.headers.get("Authorization") == expected_auth
+            if getattr(db, "_postgrest", None) is not None:
+                assert db._postgrest.headers.get("authorization") == expected_auth
+
+        asyncio.run(_test())
