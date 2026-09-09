@@ -25,18 +25,31 @@ This folder documents everything about the Kareerist project — what it is, how
 
 ## Recent Updates
 
-### **[September 2026 Updates Summary (v1.0.3 & v1.0.4)](./UPDATES_SEP_2026.md)** ⭐ **LATEST**
+### **[September 2026 Updates Summary (v1.0.3, v1.0.4 & v1.0.5)](./UPDATES_SEP_2026.md)** ⭐ **LATEST**
 Comprehensive summary of all changes made in September 2026:
-- Credit refund fallback on AI failure (eliminated lost credits on Groq timeouts)
-- Mobile sign-in background scroll lock in AuthModal
-- Hiring Intel 45s slow-load UX status warning
-- Stored XSS sanitization on user profile full name
-- Voice interview audio MIME type validation and 10MB payload size limit
-- Permissions-Policy header update unblocking voice interview microphone
-- Production edge security headers via Vercel configuration
-- Prompt sanitizer hardening (NFKC normalization, comment stripping, 3-pass loop)
-- Test suite expansion to 37 passing unit tests
-- Monorepo documentation consolidation under `docs/` hub
+- Production Launch Readiness (v1.0.5):
+  - Frontend private secret exposure protection (Vite build-time guard)
+  - Reverse-proxy HTTPS enforcement (`x-forwarded-proto`) and HSTS preload headers
+  - GDPR/CCPA cookie consent manager with preferences drawer in footer
+  - Dynamic per-route SEO (`RouteSEOManager`) and Schema.org JSON-LD structured data
+  - Branded 1200×630 OpenGraph & Twitter preview images (`og-image.png`, `og-image.webp`)
+  - XML Sitemap and robots.txt bot indexing protections
+  - Image compression (Pillow zlib level 9) and responsive loading
+  - WCAG 2.1 AA color contrast compliance (`--muted-foreground` to 65% lightness)
+  - Form validation & anti-bot protection (honeypots, velocity checks, auth brute-force lockout)
+  - Admin Analytics dashboard tab (conversion funnels, cohorts, credit burn, JSON telemetry)
+  - Unified primary Call to Action ("Start Free Analysis" with 100 free credits badge)
+- Security Audit Remediations (v1.0.4):
+  - Stored XSS sanitization on user profile full name
+  - Voice interview audio MIME type validation and 10MB payload size limit
+  - Permissions-Policy header update unblocking voice interview microphone
+  - Production edge security headers via Vercel configuration
+  - Prompt sanitizer hardening (NFKC normalization, comment stripping, 3-pass loop)
+- Core Reliability & Refund Enhancements (v1.0.3):
+  - Credit refund fallback on AI failure (eliminated lost credits on Groq timeouts)
+  - Mobile sign-in background scroll lock in AuthModal
+  - Hiring Intel 45s slow-load UX status warning
+  - Monorepo documentation consolidation under `docs/` hub (42 unit tests passing)
 
 ### **[May 2026 Updates Summary](./UPDATES_MAY_2026.md)**
 Comprehensive summary of changes made in May 2026:

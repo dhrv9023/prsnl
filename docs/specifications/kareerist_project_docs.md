@@ -370,8 +370,11 @@ Session state is stored in Redis with 45-minute TTL. Key: `interview:session:{us
 | GET | `/admin/users` | List all users with credit balances |
 | POST | `/admin/users/{id}/grant-credits` | Grant credits to specific user |
 | POST | `/admin/users/{id}/set-unlimited` | Toggle unlimited credits |
+| GET | `/admin/docs` | Live documentation catalog (scans `docs/` dynamically) |
+| GET | `/admin/docs/content` | Fetch verbatim markdown/HTML content for a document |
+| GET | `/admin/docs/viewer` | Interactive architecture Miro-style viewer canvas |
 
-Admin routes also use request signing for an extra layer of protection (HMAC-signed request body).
+Admin credit modification routes use request signing (HMAC-signed request body). Documentation endpoints enforce strict path traversal validation.
 
 ### System
 | Method | Path | Notes |
@@ -456,11 +459,11 @@ Renders the full marketing page composed of:
 - Strips `[ROAST]` prefix from role name for display
 
 ### `/admin` — Admin Panel
-- Stats section: Total users, total resumes, total analyses, total interviews, platform-level credit usage
-- Users table: All users with email, credit balance, join date, last activity
-- Actions per user: Grant credits (input + button), Toggle unlimited (toggle switch)
-- Guards: only renders if auth.user?.is_admin === true
-- Uses HMAC-signed requests for grant/set-unlimited operations
+- **Tab 1: Overview** — Real-time metrics (users, resumes, analyses, interviews), platform credit usage, breakdown bars, and recent activity feed.
+- **Tab 2: Analytics** — Funnel conversion drops (Signup → Resume → Analysis → Interview → Letter), feature distribution bars, DAU/WAU/MAU retention cohorts, credit burn velocity, and JSON telemetry export.
+- **Tab 3: Users** — Searchable user directory, expandable rows, activity modal, credit adjustments, and unlimited toggle switches with HMAC request signing.
+- **Tab 4: Documentation Portal** — Interactive, searchable live documentation viewer (`DocumentationPortal.tsx`). Renders Markdown, Mermaid flowcharts, code target links, and the full-screen Miro-style architecture canvas. Serves live documents dynamically via backend `/admin/docs` APIs.
+- Guards: Only renders if `auth.user?.is_admin === true` (client routing guard + backend database verification).
 
 ### `/pricing` — Pricing
 - Currently a placeholder (renders empty or static content)
