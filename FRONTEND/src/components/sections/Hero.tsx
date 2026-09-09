@@ -10,12 +10,12 @@ export function Hero() {
   const navigate = useNavigate();
   const [showAuthModal, setShowAuthModal] = useState(false);
 
-  const handleEnterKareerist = () => {
+  const handleStartAnalysis = () => {
     if (auth.isAuthenticated) {
-      navigate("/dashboard");
+      navigate("/resume-analysis");
     } else {
-      // Store intended destination so AuthModal can redirect after login
-      sessionStorage.setItem("redirectAfterLogin", "/dashboard");
+      // Store intended destination so AuthModal can redirect to analysis after login
+      sessionStorage.setItem("redirectAfterLogin", "/resume-analysis");
       setShowAuthModal(true);
     }
   };
@@ -67,20 +67,24 @@ export function Hero() {
             Kareerist brings your resume, preparation, and career decisions into one intelligent system — structured around how real hiring works.
           </motion.p>
 
-          {/* CTAs */}
+          {/* Single Clear Primary Call to Action */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.5 }}
-            className="flex flex-col sm:flex-row items-center justify-center gap-4"
+            className="flex flex-col items-center justify-center gap-3"
           >
             <button
-              onClick={handleEnterKareerist}
-              className="btn-premium h-14 px-8 text-base bg-primary text-primary-foreground rounded-full shadow-lg shadow-primary/10 hover:shadow-xl hover:shadow-primary/20"
+              onClick={handleStartAnalysis}
+              className="btn-premium group h-14 px-8 text-base bg-primary text-primary-foreground rounded-full shadow-lg shadow-primary/10 hover:shadow-xl hover:shadow-primary/20 flex items-center gap-2 font-semibold"
             >
-              Enter Kareerist
-              <ArrowRight className="w-4 h-4" />
+              Start Free Analysis
+              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </button>
+            <p className="text-xs text-muted-foreground font-medium flex items-center gap-2 mt-1">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400" />
+              100 Free Credits on Signup • No Credit Card Required
+            </p>
           </motion.div>
 
           {/* Trust Signals */}

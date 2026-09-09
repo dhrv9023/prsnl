@@ -15,6 +15,8 @@ import {
     Eye, X, BookOpen,
 } from "lucide-react";
 
+import { AdminAnalyticsView } from "@/components/admin/AdminAnalyticsView";
+
 const DocumentationPortal = lazy(() => import("@/components/admin/DocumentationPortal").then(m => ({ default: m.DocumentationPortal })));
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -476,7 +478,7 @@ export default function AdminPage() {
     const [usersLoading, setUsersLoading] = useState(false);
     const [error, setError] = useState("");
     const [refreshing, setRefreshing] = useState(false);
-    const [activeTab, setActiveTab] = useState<"overview" | "users" | "documentation">("overview");
+    const [activeTab, setActiveTab] = useState<"overview" | "analytics" | "users" | "documentation">("overview");
     const [search, setSearch] = useState("");
     const [activityUser, setActivityUser] = useState<AdminUser | null>(null);
 
@@ -618,15 +620,24 @@ export default function AdminPage() {
                         <button
                             onClick={() => setActiveTab("overview")}
                             className={`px-4 py-2.5 text-sm font-semibold capitalize border-b-2 transition-colors ${
-                                activeTab === "overview" ? "border-primary text-foreground" : "border-transparent text-muted-foreground/50 hover:text-muted-foreground"
+                                activeTab === "overview" ? "border-primary text-foreground" : "border-transparent text-muted-foreground/75 hover:text-foreground"
                             }`}
                         >
                             Overview
                         </button>
                         <button
+                            onClick={() => setActiveTab("analytics")}
+                            className={`px-4 py-2.5 text-sm font-semibold capitalize border-b-2 transition-colors flex items-center gap-1.5 ${
+                                activeTab === "analytics" ? "border-primary text-foreground" : "border-transparent text-muted-foreground/75 hover:text-foreground"
+                            }`}
+                        >
+                            <BarChart3 className="w-4 h-4 text-purple-400" />
+                            Analytics
+                        </button>
+                        <button
                             onClick={() => setActiveTab("users")}
                             className={`px-4 py-2.5 text-sm font-semibold capitalize border-b-2 transition-colors ${
-                                activeTab === "users" ? "border-primary text-foreground" : "border-transparent text-muted-foreground/50 hover:text-muted-foreground"
+                                activeTab === "users" ? "border-primary text-foreground" : "border-transparent text-muted-foreground/75 hover:text-foreground"
                             }`}
                         >
                             Users ({users.length})
@@ -634,7 +645,7 @@ export default function AdminPage() {
                         <button
                             onClick={() => setActiveTab("documentation")}
                             className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors flex items-center gap-2 ${
-                                activeTab === "documentation" ? "border-primary text-primary" : "border-transparent text-muted-foreground/50 hover:text-muted-foreground"
+                                activeTab === "documentation" ? "border-primary text-primary" : "border-transparent text-muted-foreground/75 hover:text-foreground"
                             }`}
                         >
                             <BookOpen className="w-4 h-4 text-blue-400" />
@@ -803,6 +814,11 @@ export default function AdminPage() {
                                 </div>
                             </section>
                         </div>
+                    )}
+
+                    {/* ── ANALYTICS TAB ─────────────────────────────────────── */}
+                    {activeTab === "analytics" && (
+                        <AdminAnalyticsView stats={stats} users={users} loading={loading} />
                     )}
 
                     {/* ── USERS TAB ────────────────────────────────────────── */}

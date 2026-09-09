@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { useAuthContext } from "@/contexts/AuthContext";
 import {
@@ -18,10 +18,13 @@ export default function Contact() {
         category: "general",
         message: "",
     });
+    const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+    const [honeypot, setHoneypot] = useState("");
+    const formMountTime = useRef(Date.now());
     const [status, setStatus] = useState<"idle" | "sending" | "success" | "error">("idle");
     const [errorMessage, setErrorMessage] = useState("");
 
-    // Blog posts from standalone blog
+    // Blog posts from standalone blog — uses env variables, zero hardcoded secrets
     const [blogPosts, setBlogPosts] = useState<Array<{
         id: string; title: string; description?: string;
         category: string; category_color: string;
@@ -31,13 +34,22 @@ export default function Contact() {
 
     useEffect(() => {
         async function fetchBlogPosts() {
+            const blogUrl = import.meta.env.VITE_BLOG_SUPABASE_URL || "https://qifdqnksyodhispfptgj.supabase.co";
+            const blogKey = import.meta.env.VITE_BLOG_SUPABASE_ANON_KEY;
+
+            if (!blogKey) {
+                // If blog anon key not supplied via env, gracefully stop loading without leaking secrets in git
+                setBlogLoading(false);
+                return;
+            }
+
             try {
                 const res = await fetch(
-                    `https://qifdqnksyodhispfptgj.supabase.co/rest/v1/blog_posts?select=id,title,description,category,category_color,media_url,type&order=display_order.asc&limit=3`,
+                    `${blogUrl}/rest/v1/blog_posts?select=id,title,description,category,category_color,media_url,type&order=display_order.asc&limit=3`,
                     {
                         headers: {
-                            apikey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFpZmRxbmtzeW9kaGlzcGZwdGdqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1OTc1NjgsImV4cCI6MjA5NTE3MzU2OH0.gjcvkhKw6DVvZSn6Og0SvFvTWRRl9DMGhroeLcnWkWw",
-                            Authorization: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFpZmRxbmtzeW9kaGlzcGZwdGdqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1OTc1NjgsImV4cCI6MjA5NTE3MzU2OH0.gjcvkhKw6DVvZSn6Og0SvFvTWRRl9DMGhroeLcnWkWw",
+                            apikey: blogKey,
+                            Authorization: `Bearer ${blogKey}`,
                         }
                     }
                 );
@@ -51,18 +63,87 @@ export default function Contact() {
         fetchBlogPosts();
     }, []);
 
+    const validateForm = () => {
+        const errors: Record<string, string> = {};
+        const trimmedName = formData.name.trim();
+        const trimmedEmail = formData.email.trim();
+        const trimmedMessage = formData.message.trim();
+
+        if (trimmedName.length < 2) {
+            errors.name = "Name must be at least 2 characters.";
+        } else if (trimmedName.length > 80) {
+            errors.name = "Name must be under 80 characters.";
+        }
+
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(trimmedEmail)) {
+            errors.email = "Please enter a valid email address.";
+        }
+
+        if (trimmedMessage.length < 10) {
+            errors.message = "Message must be at least 10 characters.";
+        } else if (trimmedMessage.length > 2000) {
+            errors.message = "Message must be under 2,000 characters.";
+        }
+
+        setFieldErrors(errors);
+        return Object.keys(errors).length === 0;
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setStatus("sending");
         setErrorMessage("");
 
-        const serviceId = import.meta.env.VITE_EMAILJS_SERVICE_ID || "service_kh71agt";
-        const templateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID || "template_7mfw80b";
+        // ── Spam protection 1: Honeypot trap ─────────────────────────────────
+        if (honeypot.trim().length > 0) {
+            // Silently pretend success to fool bot scripts
+            setStatus("success");
+            return;
+        }
+
+        // ── Spam protection 2: Superhuman submission speed check ─────────────
+        const elapsedMs = Date.now() - formMountTime.current;
+        if (elapsedMs < 1500) {
+            setStatus("error");
+            setErrorMessage("Submission rejected: form filled too quickly. Please take a moment and try again.");
+            return;
+        }
+
+        // ── Spam protection 3: Client-side hourly submission cap ──────────────
+        const SUBMISSION_KEY = "kareerist_contact_history";
+        const oneHourAgo = Date.now() - 3600 * 1000;
+        let history: number[] = [];
+        try {
+            const raw = localStorage.getItem(SUBMISSION_KEY);
+            if (raw) history = JSON.parse(raw).filter((t: number) => t > oneHourAgo);
+        } catch {
+            history = [];
+        }
+
+        if (history.length >= 3) {
+            setStatus("error");
+            setErrorMessage("Too many submissions this hour. For urgent questions, please email kareerist2@gmail.com directly.");
+            return;
+        }
+
+        // ── Client-side form validation ──────────────────────────────────────
+        if (!validateForm()) {
+            return;
+        }
+
+        setStatus("sending");
+
+        const sanitize = (str: string) => str.replace(/<[^>]*>?/gm, "").trim();
+        const safeName = sanitize(formData.name);
+        const safeMessage = sanitize(formData.message);
+
+        const serviceId = import.meta.env.VITE_EMAILJS_SERVICE_ID;
+        const templateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
         const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
 
-        if (!publicKey) {
+        if (!publicKey || !serviceId || !templateId) {
             setStatus("error");
-            setErrorMessage("Email service is not fully configured (missing Public Key). Please set VITE_EMAILJS_PUBLIC_KEY in your env file.");
+            setErrorMessage("Direct email submission is temporarily unavailable. Please reach us at kareerist2@gmail.com.");
             return;
         }
 
@@ -77,15 +158,17 @@ export default function Contact() {
                     template_id: templateId,
                     user_id: publicKey,
                     template_params: {
-                        name: formData.name,
-                        email: formData.email,
+                        name: safeName,
+                        email: formData.email.trim(),
                         category: formData.category,
-                        message: formData.message,
+                        message: safeMessage,
                     },
                 }),
             });
 
             if (response.ok) {
+                history.push(Date.now());
+                localStorage.setItem(SUBMISSION_KEY, JSON.stringify(history));
                 setStatus("success");
                 setFormData({
                     name: "",
@@ -220,20 +303,20 @@ export default function Contact() {
                                         >
                                             <Instagram className="w-4 h-4 text-muted-foreground" />
                                         </a>
-                                        <a
-                                            href="#"
-                                            className="w-10 h-10 rounded-xl bg-secondary/40 hover:bg-secondary/60 border border-border/30 flex items-center justify-center transition-colors opacity-50 cursor-not-allowed"
-                                            aria-label="LinkedIn"
+                                        <span
+                                            className="w-10 h-10 rounded-xl bg-secondary/30 border border-border/20 flex items-center justify-center text-muted-foreground/40 cursor-default"
+                                            aria-label="LinkedIn (Coming Soon)"
+                                            title="LinkedIn — coming soon"
                                         >
-                                            <Linkedin className="w-4 h-4 text-muted-foreground" />
-                                        </a>
-                                        <a
-                                            href="#"
-                                            className="w-10 h-10 rounded-xl bg-secondary/40 hover:bg-secondary/60 border border-border/30 flex items-center justify-center transition-colors opacity-50 cursor-not-allowed"
-                                            aria-label="GitHub"
+                                            <Linkedin className="w-4 h-4" />
+                                        </span>
+                                        <span
+                                            className="w-10 h-10 rounded-xl bg-secondary/30 border border-border/20 flex items-center justify-center text-muted-foreground/40 cursor-default"
+                                            aria-label="GitHub (Coming Soon)"
+                                            title="GitHub — coming soon"
                                         >
-                                            <Github className="w-4 h-4 text-muted-foreground" />
-                                        </a>
+                                            <Github className="w-4 h-4" />
+                                        </span>
                                     </div>
                                 </div>
                             </div>
@@ -282,6 +365,20 @@ export default function Contact() {
                                     )}
 
                                     <form onSubmit={handleSubmit} className="space-y-6">
+                                        {/* Honeypot field for bot spam protection - hidden from human users */}
+                                        <div className="hidden" aria-hidden="true" style={{ display: "none" }}>
+                                            <label htmlFor="website_trap">Website</label>
+                                            <input
+                                                type="text"
+                                                id="website_trap"
+                                                name="website_trap"
+                                                value={honeypot}
+                                                onChange={(e) => setHoneypot(e.target.value)}
+                                                tabIndex={-1}
+                                                autoComplete="off"
+                                            />
+                                        </div>
+
                                         {/* Name */}
                                         <div className="space-y-2">
                                             <label
@@ -295,11 +392,17 @@ export default function Contact() {
                                                 id="name"
                                                 name="name"
                                                 value={formData.name}
-                                                onChange={handleChange}
+                                                onChange={(e) => {
+                                                    handleChange(e);
+                                                    if (fieldErrors.name) setFieldErrors(prev => ({ ...prev, name: "" }));
+                                                }}
                                                 required
                                                 placeholder="John Doe"
-                                                className="w-full bg-secondary/20 border border-border/30 rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-foreground/20 transition-colors"
+                                                className={`w-full bg-secondary/20 border rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none transition-colors ${fieldErrors.name ? "border-destructive focus:border-destructive" : "border-border/30 focus:border-foreground/20"}`}
                                             />
+                                            {fieldErrors.name && (
+                                                <p className="text-xs text-destructive mt-1">{fieldErrors.name}</p>
+                                            )}
                                         </div>
 
                                         {/* Email */}
@@ -315,11 +418,17 @@ export default function Contact() {
                                                 id="email"
                                                 name="email"
                                                 value={formData.email}
-                                                onChange={handleChange}
+                                                onChange={(e) => {
+                                                    handleChange(e);
+                                                    if (fieldErrors.email) setFieldErrors(prev => ({ ...prev, email: "" }));
+                                                }}
                                                 required
                                                 placeholder="john@example.com"
-                                                className="w-full bg-secondary/20 border border-border/30 rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-foreground/20 transition-colors"
+                                                className={`w-full bg-secondary/20 border rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none transition-colors ${fieldErrors.email ? "border-destructive focus:border-destructive" : "border-border/30 focus:border-foreground/20"}`}
                                             />
+                                            {fieldErrors.email && (
+                                                <p className="text-xs text-destructive mt-1">{fieldErrors.email}</p>
+                                            )}
                                         </div>
 
                                         {/* Category */}
@@ -348,22 +457,34 @@ export default function Contact() {
 
                                         {/* Message */}
                                         <div className="space-y-2">
-                                            <label
-                                                htmlFor="message"
-                                                className="text-xs font-mono uppercase tracking-widest text-muted-foreground"
-                                            >
-                                                Message
-                                            </label>
+                                            <div className="flex items-center justify-between">
+                                                <label
+                                                    htmlFor="message"
+                                                    className="text-xs font-mono uppercase tracking-widest text-muted-foreground"
+                                                >
+                                                    Message
+                                                </label>
+                                                <span className="text-[10px] font-mono text-muted-foreground/60">
+                                                    {formData.message.length} / 2000
+                                                </span>
+                                            </div>
                                             <textarea
                                                 id="message"
                                                 name="message"
                                                 value={formData.message}
-                                                onChange={handleChange}
+                                                onChange={(e) => {
+                                                    handleChange(e);
+                                                    if (fieldErrors.message) setFieldErrors(prev => ({ ...prev, message: "" }));
+                                                }}
                                                 required
                                                 rows={6}
+                                                maxLength={2000}
                                                 placeholder="Tell us how we can help..."
-                                                className="w-full bg-secondary/20 border border-border/30 rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-foreground/20 transition-colors resize-none"
+                                                className={`w-full bg-secondary/20 border rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none transition-colors resize-none ${fieldErrors.message ? "border-destructive focus:border-destructive" : "border-border/30 focus:border-foreground/20"}`}
                                             />
+                                            {fieldErrors.message && (
+                                                <p className="text-xs text-destructive mt-1">{fieldErrors.message}</p>
+                                            )}
                                         </div>
 
                                         {/* Submit Button */}
@@ -452,7 +573,9 @@ export default function Contact() {
                                         <div className="relative h-44 overflow-hidden">
                                             <img
                                                 src={post.media_url}
-                                                alt={post.title}
+                                                alt={post.title || "Career insights blog article thumbnail"}
+                                                loading="lazy"
+                                                decoding="async"
                                                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                                             />
                                             <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />

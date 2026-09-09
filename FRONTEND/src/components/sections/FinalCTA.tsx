@@ -12,11 +12,11 @@ export function FinalCTA() {
   const navigate = useNavigate();
   const [showAuthModal, setShowAuthModal] = useState(false);
 
-  const handleEnterKareerist = () => {
+  const handleStartAnalysis = () => {
     if (auth.isAuthenticated) {
-      navigate("/dashboard");
+      navigate("/resume-analysis");
     } else {
-      sessionStorage.setItem("redirectAfterLogin", "/dashboard");
+      sessionStorage.setItem("redirectAfterLogin", "/resume-analysis");
       setShowAuthModal(true);
     }
   };
@@ -39,17 +39,17 @@ export function FinalCTA() {
             Kareerist brings structure to career growth — aligning your profile, preparation, and direction inside one intelligent system.
           </p>
 
-          <div className="flex flex-col items-center gap-6">
+          <div className="flex flex-col items-center gap-4">
             <button
-              onClick={handleEnterKareerist}
-              className="inline-flex items-center justify-center h-14 px-8 text-base rounded-full group bg-foreground text-background hover:bg-foreground/90 font-medium"
+              onClick={handleStartAnalysis}
+              className="inline-flex items-center justify-center h-14 px-8 text-base rounded-full group bg-foreground text-background hover:bg-foreground/90 font-semibold shadow-lg hover:shadow-xl transition-all"
             >
-              Enter Kareerist
+              Start Free Analysis
               <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </button>
 
-            <p className="text-[10px] uppercase tracking-widest text-muted-foreground/60 font-medium">
-              Designed around real hiring standards.
+            <p className="text-xs uppercase tracking-widest text-muted-foreground/80 font-medium">
+              100 Free Credits • Designed Around Real Hiring Standards
             </p>
           </div>
         </motion.div>

@@ -3,10 +3,12 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { CreditProvider } from "@/contexts/CreditContext";
 import { Loader2 } from "lucide-react";
+import { RouteSEOManager } from "@/components/SEO";
+import { CookieConsent } from "@/components/ui/CookieConsent";
 
 // Retry dynamic imports — handles stale chunks after Vercel redeploys
 function lazyWithRetry(importFn: () => Promise<{ default: React.ComponentType }>) {
@@ -62,6 +64,8 @@ const CoverLetter = lazyWithRetry(() => import("./pages/CoverLetter"));
 const CreditsPage = lazyWithRetry(() => import("./pages/CreditsPage"));
 const InterviewHistory = lazyWithRetry(() => import("./pages/InterviewHistory"));
 const Contact = lazyWithRetry(() => import("./pages/Contact"));
+const PrivacyPolicy = lazyWithRetry(() => import("./pages/PrivacyPolicy"));
+const TermsOfService = lazyWithRetry(() => import("./pages/TermsOfService"));
 
 const queryClient = new QueryClient();
 
@@ -77,6 +81,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
+        <RouteSEOManager />
         <AuthProvider>
           <CreditProvider>
             <Suspense fallback={<PageLoader />}>
@@ -91,10 +96,16 @@ const App = () => (
                 <Route path="/credits" element={<CreditsPage />} />
                 <Route path="/interview/history" element={<InterviewHistory />} />
                 <Route path="/contact" element={<Contact />} />
+                <Route path="/privacy" element={<PrivacyPolicy />} />
+                <Route path="/privacy-policy" element={<Navigate to="/privacy" replace />} />
+                <Route path="/terms" element={<TermsOfService />} />
+                <Route path="/terms-of-service" element={<Navigate to="/terms" replace />} />
+                <Route path="/terms-and-conditions" element={<Navigate to="/terms" replace />} />
                 <Route path="/auth/callback" element={<AuthCallback />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </Suspense>
+            <CookieConsent />
           </CreditProvider>
         </AuthProvider>
       </BrowserRouter>

@@ -232,7 +232,7 @@ export function Dashboard() {
                   </div>
                 </div>
 
-                <ArrowUpRight className="w-5 h-5 text-muted-foreground/30 group-hover:text-foreground/60 transition-colors" />
+                <ArrowUpRight className="w-5 h-5 text-muted-foreground/70 group-hover:text-foreground transition-colors" />
               </div>
 
               {/* Medium */}
@@ -258,7 +258,7 @@ export function Dashboard() {
                   </div>
                 </div>
 
-                <ArrowUpRight className="w-4 h-4 text-muted-foreground/30 group-hover:text-foreground/60 transition-colors" />
+                <ArrowUpRight className="w-4 h-4 text-muted-foreground/70 group-hover:text-foreground transition-colors" />
               </div>
 
               {/* Optimization */}
@@ -275,7 +275,7 @@ export function Dashboard() {
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm text-foreground/80 mb-1 group-hover:text-emerald-400 transition-colors">Refine technical skill grouping</p>
+                  <p className="text-sm text-foreground/80 mb-1 group-hover:text-emerald-400 transition-colors">Quantify achievements with metrics</p>
                   <div className="flex items-center gap-4 text-xs text-muted-foreground/70">
                     <span className="flex items-center gap-1.5">
                       <Clock className="w-3 h-3" />
@@ -284,14 +284,14 @@ export function Dashboard() {
                   </div>
                 </div>
 
-                <ArrowUpRight className="w-4 h-4 text-muted-foreground/30 group-hover:text-foreground/60 transition-colors" />
+                <ArrowUpRight className="w-4 h-4 text-muted-foreground/70 group-hover:text-foreground transition-colors" />
               </div>
             </div>
           </div>
 
           {/* Final Reinforcement Line */}
           <div className="mt-16 text-center">
-            <p className="text-[10px] font-medium tracking-widest uppercase text-muted-foreground/40 hover:text-muted-foreground/60 transition-colors cursor-default">
+            <p className="text-[11px] font-medium tracking-widest uppercase text-muted-foreground/80 hover:text-foreground transition-colors cursor-default">
               Signals update automatically as your profile evolves
             </p>
           </div>

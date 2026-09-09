@@ -5,7 +5,7 @@ from fastapi import FastAPI, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request as StarletteRequest
-from starlette.responses import Response
+from starlette.responses import Response, RedirectResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
@@ -81,8 +81,14 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
                 "frame-ancestors 'none';"
             )
 
-        # HSTS — only meaningful over HTTPS; skip for plain HTTP dev server
-        if request.url.scheme == "https":
+        # Force HTTPS / HSTS:
+        # Detect HTTPS either directly or via reverse-proxy header (e.g. Vercel, Fly.io, AWS ALB)
+        is_https = request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
+        if _is_prod and not is_https and request.headers.get("x-forwarded-proto") == "http":
+            secure_url = request.url.replace(scheme="https")
+            return RedirectResponse(url=str(secure_url), status_code=301)
+
+        if is_https:
             response.headers["Strict-Transport-Security"] = (
                 "max-age=31536000; includeSubDomains; preload"
             )

@@ -116,6 +116,17 @@ export function Navbar() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Prevent background body scroll when mobile menu is open
+  useEffect(() => {
+    if (isMobileMenuOpen) {
+      const prevOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = prevOverflow;
+      };
+    }
+  }, [isMobileMenuOpen]);
+
   const handleFeatureClick = (feature: (typeof features)[0]) => {
     if (!feature.active || !feature.href) return;
     setIsFeaturesOpen(false);
@@ -232,12 +243,12 @@ export function Navbar() {
                                   </span>
                                 )}
                                 {!feature.active && (
-                                  <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50 bg-secondary/60 px-1.5 py-0.5 rounded">
+                                  <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/85 bg-secondary/80 px-1.5 py-0.5 rounded">
                                     Soon
                                   </span>
                                 )}
                               </div>
-                              <p className="text-xs text-muted-foreground/60 mt-0.5 leading-relaxed line-clamp-2">
+                              <p className="text-xs text-muted-foreground/90 mt-0.5 leading-relaxed line-clamp-2">
                                 {feature.description}
                               </p>
                             </div>
@@ -260,13 +271,13 @@ export function Navbar() {
             </AnimatePresence>
           </div>
 
-          <span
-            className="text-sm font-medium text-muted-foreground/40 cursor-not-allowed flex items-center gap-1.5 select-none"
-            title="Pricing — coming soon"
+          <Link
+            to="/pricing"
+            className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors link-underline flex items-center gap-1.5"
           >
             Pricing
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/30 bg-secondary/40 px-1.5 py-0.5 rounded">Soon</span>
-          </span>
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400 bg-emerald-400/15 px-1.5 py-0.5 rounded">Beta</span>
+          </Link>
           <Link
             to="/contact"
             className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors link-underline"
@@ -283,18 +294,28 @@ export function Navbar() {
           {auth.isAuthenticated && <CreditBadge />}
 
 
-          {/* Sign In Button — when logged out */}
+          {/* Actions when logged out: Secondary Sign In + Primary Start Free Analysis CTA */}
           {!auth.isLoading && !auth.isAuthenticated && (
-            <button
-              onClick={() => {
-                // ✅ Direct login from navbar — no redirect, stay on current page
-                sessionStorage.removeItem("redirectAfterLogin");
-                setShowAuthModal(true);
-              }}
-              className="hidden md:flex items-center justify-center h-9 px-4 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
-            >
-              Sign In
-            </button>
+            <div className="hidden md:flex items-center gap-2">
+              <button
+                onClick={() => {
+                  sessionStorage.removeItem("redirectAfterLogin");
+                  setShowAuthModal(true);
+                }}
+                className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5"
+              >
+                Sign In
+              </button>
+              <button
+                onClick={() => {
+                  sessionStorage.setItem("redirectAfterLogin", "/resume-analysis");
+                  setShowAuthModal(true);
+                }}
+                className="inline-flex items-center justify-center h-9 px-4 rounded-xl bg-primary text-primary-foreground text-xs sm:text-sm font-semibold hover:opacity-90 transition-all shadow-sm"
+              >
+                Start Free Analysis
+              </button>
+            </div>
           )}
 
           {/* Profile Avatar — only when authenticated */}
@@ -351,19 +372,19 @@ export function Navbar() {
                       )}
                       <button
                         disabled
-                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-muted-foreground/40 cursor-not-allowed"
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-muted-foreground/75 cursor-not-allowed"
                       >
                         <User className="w-4 h-4" />
                         Profile
-                        <span className="ml-auto text-[10px] font-medium uppercase tracking-wider text-muted-foreground/30 bg-secondary/40 px-1.5 py-0.5 rounded">Soon</span>
+                        <span className="ml-auto text-[10px] font-medium uppercase tracking-wider text-muted-foreground/75 bg-secondary/60 px-1.5 py-0.5 rounded">Soon</span>
                       </button>
                       <button
                         disabled
-                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-muted-foreground/40 cursor-not-allowed"
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-muted-foreground/75 cursor-not-allowed"
                       >
                         <Settings className="w-4 h-4" />
                         Settings
-                        <span className="ml-auto text-[10px] font-medium uppercase tracking-wider text-muted-foreground/30 bg-secondary/40 px-1.5 py-0.5 rounded">Soon</span>
+                        <span className="ml-auto text-[10px] font-medium uppercase tracking-wider text-muted-foreground/75 bg-secondary/60 px-1.5 py-0.5 rounded">Soon</span>
                       </button>
                     </div>
 
@@ -397,15 +418,27 @@ export function Navbar() {
         </div>
       </nav>
 
-      {/* Mobile Menu */}
-      {isMobileMenuOpen && (
-        <motion.div
-          initial={{ opacity: 0, height: 0 }}
-          animate={{ opacity: 1, height: "auto" }}
-          exit={{ opacity: 0, height: 0 }}
-          className="md:hidden glass border-t border-border/50"
-        >
-          <div className="container py-6 flex flex-col gap-4">
+      {/* Mobile Menu Backdrop + Drawer */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="fixed inset-0 top-16 md:top-20 bg-black/60 backdrop-blur-sm z-40 md:hidden"
+              aria-hidden="true"
+            />
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.25, ease: "easeInOut" }}
+              className="relative z-50 md:hidden glass border-t border-border/50 max-h-[calc(100vh-4.5rem)] overflow-y-auto"
+            >
+              <div className="container py-6 flex flex-col gap-4">
             <Link
               to="/"
               onClick={() => setIsMobileMenuOpen(false)}
@@ -416,7 +449,7 @@ export function Navbar() {
 
             {/* Mobile Features */}
             <div className="space-y-1">
-              <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground/50 px-1 pb-1">
+              <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground/80 px-1 pb-1">
                 Features
               </p>
               {features.map((feature) => (
@@ -426,24 +459,26 @@ export function Navbar() {
                   disabled={!feature.active}
                   className={`w-full flex items-center gap-3 py-2.5 px-1 text-left transition-colors ${feature.active
                     ? "text-foreground"
-                    : "text-muted-foreground/40 cursor-not-allowed"
+                    : "text-muted-foreground/70 cursor-not-allowed"
                     }`}
                 >
                   <feature.icon className="w-4 h-4" />
                   <span className="text-base font-medium">{feature.name}</span>
                   {!feature.active && (
-                    <Lock className="w-3 h-3 ml-auto text-muted-foreground/30" />
+                    <Lock className="w-3 h-3 ml-auto text-muted-foreground/60" />
                   )}
                 </button>
               ))}
             </div>
 
-            <span
-              className="text-base font-medium text-muted-foreground/40 cursor-not-allowed flex items-center gap-2 py-2 select-none"
+            <Link
+              to="/pricing"
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="text-base font-medium text-muted-foreground hover:text-foreground transition-colors py-2 flex items-center gap-2"
             >
               Pricing
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/30 bg-secondary/40 px-1.5 py-0.5 rounded">Soon</span>
-            </span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400 bg-emerald-400/15 px-1.5 py-0.5 rounded">Beta</span>
+            </Link>
             <Link
               to="/contact"
               onClick={() => setIsMobileMenuOpen(false)}
@@ -484,15 +519,24 @@ export function Navbar() {
                 </button>
               </div>
             ) : (
-              <div className="border-t border-border/30 pt-4 mt-2">
+              <div className="border-t border-border/30 pt-4 mt-2 space-y-2.5">
+                <button
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    sessionStorage.setItem("redirectAfterLogin", "/resume-analysis");
+                    setShowAuthModal(true);
+                  }}
+                  className="w-full flex items-center justify-center h-11 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 transition-opacity shadow-sm"
+                >
+                  Start Free Analysis
+                </button>
                 <button
                   onClick={() => { 
                     setIsMobileMenuOpen(false); 
-                    // ✅ Direct login from mobile menu — no redirect
                     sessionStorage.removeItem("redirectAfterLogin");
                     setShowAuthModal(true); 
                   }}
-                  className="w-full flex items-center justify-center h-11 rounded-lg bg-primary text-primary-foreground text-base font-medium hover:opacity-90 transition-opacity"
+                  className="w-full flex items-center justify-center h-10 rounded-xl bg-secondary/80 border border-border/40 text-foreground text-sm font-medium hover:bg-secondary transition-colors"
                 >
                   Sign In
                 </button>
@@ -500,7 +544,9 @@ export function Navbar() {
             )}
           </div>
         </motion.div>
-      )}
+      </>
+    )}
+  </AnimatePresence>
       {/* Auth Modal overlay wrapper */}
       {!auth.isLoading && !auth.isAuthenticated && showAuthModal && (
         <AuthModal

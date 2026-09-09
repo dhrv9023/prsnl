@@ -5,6 +5,29 @@ import path from "path";
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
+
+  // Security guard: Ensure no backend secrets or private keys are exposed with VITE_ prefix
+  const sensitivePatterns = [
+    /SERVICE_ROLE/i,
+    /SECRET_KEY/i,
+    /PRIVATE_KEY/i,
+    /DATABASE_URL/i,
+    /POSTGRES_PASSWORD/i,
+    /SUPABASE_SERVICE/i,
+  ];
+
+  for (const key of Object.keys(env)) {
+    if (key.startsWith("VITE_")) {
+      for (const pattern of sensitivePatterns) {
+        if (pattern.test(key)) {
+          throw new Error(
+            `[SECURITY VIOLATION] Sensitive variable "${key}" matches "${pattern}" and must NOT be exposed to the frontend!`
+          );
+        }
+      }
+    }
+  }
+
   const backendTarget = env.VITE_WSL_IP ? `http://${env.VITE_WSL_IP}:8000` : "http://127.0.0.1:8000";
 
   return {

@@ -69,7 +69,7 @@ export function Features() {
               <div className="flex flex-col h-full justify-between gap-8">
                 <div className="flex justify-between items-start">
                   <feature.icon className="w-6 h-6 text-foreground/70 group-hover:text-foreground transition-colors duration-300 stroke-[1.5]" />
-                  <span className="text-xs font-mono text-muted-foreground/30">0{index + 1}</span>
+                  <span className="text-xs font-mono text-muted-foreground/75">0{index + 1}</span>
                 </div>
 
                 <div className="space-y-3">
