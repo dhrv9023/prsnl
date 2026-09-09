@@ -80,8 +80,8 @@ In-depth technical guides explaining key source files and subsystems:
 
 Chronological sprint archives tracking how Kareerist evolved:
 
-- **[September 2026 Updates (v1.0.3 & v1.0.4)](file:///home/dhruv/Nextcloud/kareerist/prsnl/docs/history/UPDATES_SEP_2026.md)** ⭐ **LATEST**
-  Detailed release notes covering AI failure credit refunds, mobile scroll locks, slow-load indicators, security pentest remediations (stored XSS, permissions policy, MIME validation), and monorepo restructuring.
+- **[September 2026 Updates (v1.0.3, v1.0.4 & v1.0.5)](file:///home/dhruv/Nextcloud/kareerist/prsnl/docs/history/UPDATES_SEP_2026.md)** ⭐ **LATEST**
+  Detailed release notes covering AI failure credit refunds, mobile scroll locks, slow-load indicators, security pentest remediations, secret protection guards, reverse-proxy HTTPS/HSTS enforcement, GDPR cookie consent, per-route SEO & OpenGraph cards, WCAG 2.1 AA contrast fixes, bot defenses, unified CTAs, and admin analytics dashboards.
 - **[Project Genesis & Chapters 1–12](file:///home/dhruv/Nextcloud/kareerist/prsnl/docs/history/)**:
   - `chapter_01_project_genesis_and_stack.md`
   - `chapter_02_backend_architecture.md`

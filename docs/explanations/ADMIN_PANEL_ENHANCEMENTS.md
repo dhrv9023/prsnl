@@ -16,27 +16,34 @@ Admin Dashboard
 │   ├── Analysis breakdown
 │   └── Recent activity feed
 │
-└── Users Tab
-    ├── Search box (email/name filter)
-    ├── User list (sorted by last_sign_in_at DESC)
-    │   ├── User row (expandable)
-    │   │   ├── Avatar + email + badges
-    │   │   ├── Join date + last login
-    │   │   ├── Credit bar
-    │   │   ├── Eye icon (view activity)
-    │   │   └── Expand/collapse chevron
-    │   │
-    │   └── Expanded row
-    │       ├── Full timestamps
-    │       ├── Credit breakdown (granted/used/remaining)
-    │       ├── Grant credits input
-    │       └── Toggle unlimited button
-    │
-    └── User Activity Modal (on eye icon click)
-        ├── Header (user info + close button)
-        ├── Summary bar (resumes/analyses/interviews/cover letters count)
-        ├── Tabs (analyses/interviews/resumes/cover_letters/credits)
-        └── Content area (scrollable list of activities)
+├── Users Tab
+│   ├── Search box (email/name filter)
+│   ├── User list (sorted by last_sign_in_at DESC)
+│   │   ├── User row (expandable)
+│   │   │   ├── Avatar + email + badges
+│   │   │   ├── Join date + last login
+│   │   │   ├── Credit bar
+│   │   │   ├── Eye icon (view activity)
+│   │   │   └── Expand/collapse chevron
+│   │   │
+│   │   └── Expanded row
+│   │       ├── Full timestamps
+│   │       ├── Credit breakdown (granted/used/remaining)
+│   │       ├── Grant credits input
+│   │       └── Toggle unlimited button
+│   │
+│   └── User Activity Modal (on eye icon click)
+│       ├── Header (user info + close button)
+│       ├── Summary bar (resumes/analyses/interviews/cover letters count)
+│       ├── Tabs (analyses/interviews/resumes/cover_letters/credits)
+│       └── Content area (scrollable list of activities)
+│
+└── Analytics Tab (September 2026 — v1.0.5)
+    ├── User Conversion Funnel (Signups → Resumes → Analyses → Interviews → Letters)
+    ├── Feature Engagement Distribution (Progress bars + % shares)
+    ├── User Retention Cohorts (Active DAU / WAU / MAU ratios)
+    ├── Credit Economy Burn Rates (Burn velocity & average balances)
+    └── Export System Telemetry (Raw JSON download)
 ```
 
 ---
@@ -509,10 +516,11 @@ def test_get_user_activity_empty_user():
 
 ## Files Modified
 
-- `backend/app/api/v1/endpoints/admin.py` - New activity endpoint, sorting fix
+- `backend/app/api/v1/endpoints/admin.py` - Activity endpoint, sorting fix
 - `FRONTEND/src/lib/api.ts` - Activity types and API function
-- `FRONTEND/src/pages/AdminPage.tsx` - Modal, search, eye icon, sorting
+- `FRONTEND/src/pages/AdminPage.tsx` - Modal, search, eye icon, sorting, Analytics tab integration
+- `FRONTEND/src/components/admin/AdminAnalyticsView.tsx` - Funnels, feature bars, cohorts, telemetry export
 
 ---
 
-*Last Updated: May 29, 2026*
+*Last Updated: September 9, 2026 (v1.0.5 Release)*

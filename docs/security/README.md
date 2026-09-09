@@ -86,3 +86,6 @@ Kareerist adheres to a defense-in-depth security model across its client, edge, 
 | **Anti-Farming** | Multi-account signup abuse | `ip_credit_claims` table enforces one 100-credit bonus per unique client IP address in `credits.py`. |
 | **Financial Race** | Credit double-spend race conditions | Atomic PostgreSQL RPC `deduct_credits()` with `FOR UPDATE` row lock in `20260513000000_credit_system.sql`. |
 | **Failure Refunds** | Credit loss on AI timeouts | `refund_feature_credits()` restores user balance automatically before raising HTTP 502 Bad Gateway. |
+| **Secret Protection** | Accidental build-time API secret leaks | `FRONTEND/vite.config.ts` plugin halts compilation if `SERVICE_ROLE`, `SECRET_KEY`, `PRIVATE_KEY`, or `DATABASE_URL` are prefixed with `VITE_`. |
+| **Transport Security** | Man-in-the-Middle & HTTP downgrade attacks | Reverse-proxy aware (`x-forwarded-proto`) 301 HTTPS redirect and HSTS `max-age=31536000; includeSubDomains; preload` in `backend/app/main.py`. |
+| **Bot & Form Abuse** | Contact spam & brute force credential stuffing | Hidden honeypots, <1.5s velocity trap, 3/hr contact throttling in `Contact.tsx`, and 30s lockout after 5 failed attempts in `AuthModal.tsx`. |

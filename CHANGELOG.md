@@ -6,6 +6,55 @@ All notable changes to Kareerist are documented here.
 
 ---
 
+## [1.0.5] - September 9, 2026 — Production Launch Readiness, SEO, Admin Telemetry & Security Hardening
+
+### Added & Enhanced
+
+- **Frontend Secret Exposure Protection**
+  - Added [FRONTEND/.env.example](file:///home/dhruv/Nextcloud/kareerist/prsnl/FRONTEND/.env.example) documenting allowable public client variables with security warnings.
+  - Implemented build-time Vite plugin guard in [FRONTEND/vite.config.ts](file:///home/dhruv/Nextcloud/kareerist/prsnl/FRONTEND/vite.config.ts) that halts the build if any server secret or service role pattern is prefixed with `VITE_`.
+
+- **Reverse-Proxy HTTPS Enforcement & HSTS**
+  - In [backend/app/main.py](file:///home/dhruv/Nextcloud/kareerist/prsnl/backend/app/main.py), updated `SecurityHeadersMiddleware` with `x-forwarded-proto` proxy detection, 301 HTTPS redirects for non-secure production traffic, and HSTS headers (`max-age=31536000; includeSubDomains; preload`).
+
+- **GDPR/CCPA Cookie Consent Manager**
+  - Implemented [CookieConsent.tsx](file:///home/dhruv/Nextcloud/kareerist/prsnl/FRONTEND/src/components/ui/CookieConsent.tsx) providing "Accept All", "Essential Only", and customizable privacy preferences.
+  - Persisted consent state in `localStorage` and added a "Cookie Preferences" trigger in the footer.
+
+- **Dynamic Per-Route SEO & Schema.org JSON-LD**
+  - Created [SEO.tsx](file:///home/dhruv/Nextcloud/kareerist/prsnl/FRONTEND/src/components/SEO.tsx) (`RouteSEOManager`) that synchronizes document titles, meta descriptions, canonical URLs, and Open Graph tags across every client route.
+  - Added SoftwareApplication Schema.org JSON-LD structured data to [index.html](file:///home/dhruv/Nextcloud/kareerist/prsnl/FRONTEND/index.html).
+
+- **Social Preview Assets (OpenGraph / Twitter Cards)**
+  - Generated branded 1200×630 social preview images: `og-image.png` (99KB), `og-image.webp` (44KB), and `twitter-card.png`.
+  - Configured OpenGraph and Twitter card image meta tags.
+
+- **Sitemap Index & robots.txt Protection**
+  - Added [sitemap.xml](file:///home/dhruv/Nextcloud/kareerist/prsnl/FRONTEND/public/sitemap.xml) with route priorities.
+  - Configured [robots.txt](file:///home/dhruv/Nextcloud/kareerist/prsnl/FRONTEND/public/robots.txt) to protect `/admin`, `/dashboard`, `/credits`, `/interview/history`, and `/auth/callback` from bot indexing.
+
+- **Image Compression & Responsive Loading**
+  - Losslessly compressed public images using Pillow zlib level 9 and verified `loading="lazy"` / `decoding="async"` across all image tags.
+
+- **WCAG 2.1 AA Color Contrast Compliance**
+  - Bumped dark mode `--muted-foreground` to `40 6% 65%` in [index.css](file:///home/dhruv/Nextcloud/kareerist/prsnl/FRONTEND/src/index.css) (6.5:1 contrast against dark background).
+  - Fixed low-contrast opacity classes across Navbar, Features, Dashboard, and AuthModal.
+
+- **Form Validation & Inline Alerts**
+  - Added client-side field validation, regex checks, and real-time inline alerts in [Contact.tsx](file:///home/dhruv/Nextcloud/kareerist/prsnl/FRONTEND/src/pages/Contact.tsx) and [AuthModal.tsx](file:///home/dhruv/Nextcloud/kareerist/prsnl/FRONTEND/src/components/ui/AuthModal.tsx).
+
+- **Multi-Layer Spam & Bot Defense**
+  - Added honeypot trap inputs, submission velocity checks (< 1.5s), client-side hourly submission limits (max 3/hr) in Contact form, and brute-force attempt throttling (30s cooldown after 5 failed attempts) in AuthModal.
+
+- **Admin Telemetry & Analytics Dashboard**
+  - Created [AdminAnalyticsView.tsx](file:///home/dhruv/Nextcloud/kareerist/prsnl/FRONTEND/src/components/admin/AdminAnalyticsView.tsx) and embedded a new **Analytics** tab in [AdminPage.tsx](file:///home/dhruv/Nextcloud/kareerist/prsnl/FRONTEND/src/pages/AdminPage.tsx).
+  - Tracks user conversion funnel, feature distribution, DAU/WAU/MAU retention cohorts, credit economy burn rates, and one-click JSON telemetry export.
+
+- **Unified Primary Call to Action**
+  - Standardized the Navbar, Hero, and FinalCTA around **"Start Free Analysis"** with supporting trust microcopy (*"100 Free Credits on Signup • No Credit Card Required"*).
+
+---
+
 ## [1.0.4] - September 6, 2026 — Security Hardening & Audit Remediations
 
 ### Fixed & Hardened (Security Audit)
