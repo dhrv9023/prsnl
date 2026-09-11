@@ -166,9 +166,10 @@ async def generate_hiring_intel(
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": user_message},
                 ],
-                temperature=0.3,
+                temperature=0.2,
                 response_format={"type": "json_object"},
                 timeout=60,
+                max_tokens=4096,
             ),
             label="hiring_intel",
         )
@@ -177,6 +178,8 @@ async def generate_hiring_intel(
         if not cleaned:
             raise RuntimeError("AI returned empty response")
         result = json.loads(cleaned)
+        if isinstance(result, list):
+            result = result[0] if (result and isinstance(result[0], dict)) else {}
 
         # ── Output validation ──────────────────────────────────────────────
         result.setdefault("overall_alignment", "Analysis complete.")

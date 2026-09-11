@@ -18,8 +18,8 @@ logger = logging.getLogger(__name__)
 # Single shared async Groq client
 _groq_client = AsyncGroq(api_key=settings.GROQ_API_KEY)
 
-# Fast, capable model on Groq — free tier, 6000 req/day
-GROQ_CHAT_MODEL = "llama-3.3-70b-versatile"
+# Fast, free model on Groq (openai/gpt-oss-20b: ~0.6s latency, native JSON support)
+GROQ_CHAT_MODEL = getattr(settings, "GROQ_CHAT_MODEL", "openai/gpt-oss-20b")
 
 
 def _strip_code_fences(text: str) -> str:
@@ -35,6 +35,7 @@ async def chat_complete(
     temperature: float = 0.3,
     response_format: dict | None = None,
     timeout: int = 60,
+    max_tokens: int | None = None,
 ) -> str:
     """
     Call Groq chat completions and return the raw content string.
@@ -49,6 +50,9 @@ async def chat_complete(
     }
     if response_format:
         kwargs["response_format"] = response_format
+    if max_tokens:
+        kwargs["max_tokens"] = max_tokens
 
     completion = await _groq_client.chat.completions.create(**kwargs)
-    return completion.choices[0].message.content
+    content = completion.choices[0].message.content or ""
+    return _strip_code_fences(content)

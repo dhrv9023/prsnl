@@ -6,6 +6,7 @@
 
 import { useState } from "react";
 import { Languages, Loader2, RotateCcw } from "lucide-react";
+import { apiConvertToHinglish } from "@/lib/api";
 
 interface HinglishToggleProps {
     /** The original English text */
@@ -16,19 +17,6 @@ interface HinglishToggleProps {
     className?: string;
     /** Label shown on button (default: "Hinglish mein samjho") */
     label?: string;
-}
-
-async function convertToHinglish(text: string): Promise<string> {
-    const API_BASE = import.meta.env.VITE_API_BASE ?? "";
-    const res = await fetch(`${API_BASE}/api/v1/utils/hinglish`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
-    });
-    if (!res.ok) throw new Error("Conversion failed");
-    const data = await res.json();
-    return data.hinglish_text as string;
 }
 
 export function HinglishToggle({ originalText, onConverted, className = "", label }: HinglishToggleProps) {
@@ -47,11 +35,12 @@ export function HinglishToggle({ originalText, onConverted, className = "", labe
         setLoading(true);
         setError("");
         try {
-            const converted = await convertToHinglish(originalText);
+            const converted = await apiConvertToHinglish(originalText);
             onConverted(converted);
             setIsHinglish(true);
-        } catch {
-            setError("Conversion failed. Try again.");
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : "Conversion failed. Try again.";
+            setError(msg);
         } finally {
             setLoading(false);
         }

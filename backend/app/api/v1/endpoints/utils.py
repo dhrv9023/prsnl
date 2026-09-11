@@ -26,7 +26,7 @@ async def convert_to_hinglish(request: Request, body: HinglishRequest, user: Cur
     Converts English career/resume text to Hinglish (Hindi + English in Roman script).
     Free feature — no credit deduction. Rate limited to 20/hour.
     """
-    if not body.text or len(body.text.strip()) < 10:
+    if not body.text or len(body.text.strip()) < 3:
         raise HTTPException(400, "Text is too short to convert.")
     if len(body.text) > 3000:
         raise HTTPException(400, "Text too long. Please convert smaller sections.")

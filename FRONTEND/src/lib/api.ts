@@ -538,6 +538,20 @@ export async function apiGetHiringIntel(
     });
 }
 
+// ── Utils endpoints ──────────────────────────────────────────────────────────
+
+export interface HinglishResponse {
+    hinglish_text: string;
+}
+
+export async function apiConvertToHinglish(text: string): Promise<string> {
+    const data = await request<HinglishResponse>("/utils/hinglish", {
+        method: "POST",
+        body: JSON.stringify({ text }),
+    });
+    return data.hinglish_text;
+}
+
 // ── Cover Letter types ────────────────────────────────────────────────────────
 
 export interface CoverLetterResponse {

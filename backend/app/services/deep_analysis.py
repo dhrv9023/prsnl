@@ -185,9 +185,10 @@ async def generate_deep_analysis(
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": user_message},
                 ],
-                temperature=0.4,
+                temperature=0.2,
                 response_format={"type": "json_object"},
                 timeout=45,
+                max_tokens=4096,
             ),
             label="deep_analysis",
         )
@@ -196,6 +197,8 @@ async def generate_deep_analysis(
         if not cleaned:
             raise RuntimeError("AI returned empty response")
         result = json.loads(cleaned)
+        if isinstance(result, list):
+            result = result[0] if (result and isinstance(result[0], dict)) else {}
 
         # ── Output validation ──────────────────────────────────────────────
         # Ensure required top-level keys exist so the frontend never crashes
