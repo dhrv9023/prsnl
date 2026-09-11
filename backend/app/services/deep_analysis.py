@@ -63,6 +63,7 @@ CORE BEHAVIORAL RULES — NEVER VIOLATE:
 4. EVERY criticism must include: WHY it is weak (root cause) + HOW a recruiter perceives it psychologically + HOW to fix it (specific rewrite).
 5. DETECT signal vs noise. "Developed a microservices architecture using Docker and Kubernetes" may mean nothing or everything — probe the language for evidence of genuine understanding vs resume inflation.
 6. CALIBRATE to career stage. A fresher who built a CRUD app is not being compared to a Staff Engineer. Grade accordingly.
+7. ALWAYS output valid JSON according to the schema. Even if the resume text is very short, incomplete, or a single sentence, you MUST STILL analyze whatever text is provided and output the complete JSON object. NEVER ask for more information or decline to analyze.
 
 SECTION EVALUATION FRAMEWORK — apply to every section:
 For each section produce:
@@ -97,7 +98,7 @@ OUTPUT: Return ONLY valid JSON matching this exact schema:
       "issues": ["[Quoted element] → [Why it fails] → [Exact fix]"],
       "missing_keywords": []
     },
-    "summary": {
+    "profile_summary": {
       "score": "...",
       "feedback": "Does it pass the 'So what?' test? Quote the weakest line. Is it role-specific or generic copy-paste?",
       "issues": ["[Quoted line] → [Why it fails] → [Rewrite]"],
@@ -175,7 +176,8 @@ async def generate_deep_analysis(
         "3. NEVER repeat the same point across sections or action_items. Each insight must be net-new.\n"
         "4. action_items must NOT repeat anything already said in section issues — they are the top 5 cross-cutting priorities only.\n"
         "5. Apply the IPMR test to every experience bullet (Impact, Problem, Method, Role ownership).\n"
-        "6. Assess project legitimacy: tutorial clone vs independently designed system — name each project and give your verdict."
+        "6. Assess project legitimacy: tutorial clone vs independently designed system — name each project and give your verdict.\n\n"
+        "Return ONLY a valid JSON object matching the JSON schema."
     )
 
     try:
@@ -185,10 +187,10 @@ async def generate_deep_analysis(
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": user_message},
                 ],
-                temperature=0.2,
+                temperature=0.1,
                 response_format={"type": "json_object"},
                 timeout=45,
-                max_tokens=4096,
+                max_tokens=2500,
             ),
             label="deep_analysis",
         )
