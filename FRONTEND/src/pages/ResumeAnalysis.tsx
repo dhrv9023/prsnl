@@ -25,6 +25,7 @@ import {
     Download, Zap, RotateCcw, Eye, Edit3, LogOut,
     PanelLeft, FileSearch, ChartBar, ArrowLeft,
     Maximize, Minimize, Brain, Layers, ChevronDown, Sparkles,
+    PanelRightClose, PanelRightOpen,
 } from "lucide-react";
 
 // ─── Custom Select ────────────────────────────────────────────────────────────
@@ -180,6 +181,7 @@ export default function ResumeAnalysis() {
 
     const [mobileTab, setMobileTab] = useState<MobileTab>("controls");
     const [isExpanded, setIsExpanded] = useState(false);
+    const [analysisPanelOpen, setAnalysisPanelOpen] = useState(true);
 
     // ── Saved resume list (shared across all features) ────────────────────────
     const [savedResumes, setSavedResumes] = useState<ResumeListItem[]>([]);
@@ -317,7 +319,7 @@ export default function ResumeAnalysis() {
     async function handleAtsScore() {
         if (!file && !resumeId) { setError("Please select a resume or upload a PDF first."); return; }
         if (!canUse("ats_score")) { setError("Insufficient credits. ATS Score costs 5 credits."); return; }
-        setError(""); setAtsLoading(true);
+        setError(""); setAtsLoading(true); setAnalysisPanelOpen(true);
         deductLocal("ats_score");
         try {
             const id = await ensureUploaded();
@@ -339,7 +341,7 @@ export default function ResumeAnalysis() {
         if (isAnything || deepLoading) return;
         if (!file && !resumeId) { setError("Please select a resume or upload a PDF first."); return; }
         if (!canUse("deep_analysis")) { setError("Insufficient credits. Deep Analysis costs 15 credits."); return; }
-        setError(""); setDeepLoading(true);
+        setError(""); setDeepLoading(true); setAnalysisPanelOpen(true);
         deductLocal("deep_analysis");
         try {
             const id = await ensureUploaded();
@@ -369,7 +371,7 @@ export default function ResumeAnalysis() {
         if (!jobDesc.trim()) { setError("Hiring Intel requires a job description."); return; }
         if (!targetRole.trim()) { setError("Please enter the target role."); return; }
         if (!canUse("hiring_intel")) { setError("Insufficient credits. Hiring Intelligence costs 25 credits."); return; }
-        setError(""); setIntelLoading(true); setIntelSlowWarning(false);
+        setError(""); setIntelLoading(true); setIntelSlowWarning(false); setAnalysisPanelOpen(true);
         deductLocal("hiring_intel");
         // Show a "still working" message after 45s so the UI doesn't feel dead
         const slowTimer = setTimeout(() => setIntelSlowWarning(true), 45_000);
@@ -392,6 +394,7 @@ export default function ResumeAnalysis() {
 
     const isAnything = atsLoading || deepLoading || intelLoading;
     const showAnalysisPanel = atsLoading || deepLoading || intelLoading || !!match || !!deepResult || !!intel;
+    const isAnalysisOpen = showAnalysisPanel && analysisPanelOpen && viewMode !== "diff";
 
     // ─── Sidebar ──────────────────────────────────────────────────────────────
     const sidebarContent = (
@@ -569,6 +572,22 @@ export default function ResumeAnalysis() {
                         ? "Edit extracted text · changes are local only"
                         : "Read-only PDF preview"}
                 </span>
+
+                {showAnalysisPanel && !analysisPanelOpen && viewMode !== "diff" && (
+                    <button
+                        onClick={() => setAnalysisPanelOpen(true)}
+                        className="ml-auto flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-semibold bg-primary/10 border border-primary/20 text-primary hover:bg-primary/20 transition-colors cursor-pointer"
+                        title="Show Analysis Panel"
+                    >
+                        <PanelRightOpen className="w-3.5 h-3.5" />
+                        <span>Show Analysis</span>
+                        {match && (
+                            <span className="text-[10px] font-mono px-1 rounded bg-primary/20">
+                                {match.score}/100
+                            </span>
+                        )}
+                    </button>
+                )}
             </div>
 
             <div className={`flex-1 overflow-auto flex items-start justify-center ${viewMode === "diff" ? "p-2 md:p-3 h-full w-full" : "p-4 md:p-6"}`}>
@@ -577,11 +596,15 @@ export default function ResumeAnalysis() {
                         originalText={resumeText || editText}
                         pdfUrl={pdfUrl}
                         deepResult={deepResult}
+                        loading={deepLoading}
                         onApplyToEditor={(text) => {
                             setEditText(text);
                             setViewMode("edit");
                         }}
-                        onClose={() => setViewMode("preview")}
+                        onClose={() => {
+                            setViewMode("preview");
+                            setAnalysisPanelOpen(true);
+                        }}
                         onRunDeepAnalysis={handleDeepAnalysis}
                     />
                 ) : viewMode === "preview" && pdfUrl ? (
@@ -672,12 +695,23 @@ export default function ResumeAnalysis() {
                     <Brain className="w-3.5 h-3.5" /> Hiring Intel
                     {intelLoading && <Loader2 className="w-3 h-3 animate-spin ml-1" />}
                 </button>
-                <div className="ml-auto">
+                <div className="ml-auto flex items-center gap-1">
                     <button
                         onClick={() => setIsExpanded(!isExpanded)}
-                        className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary/60 transition-colors hidden md:block"
+                        className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary/60 transition-colors hidden md:block cursor-pointer"
+                        title={isExpanded ? "Restore side panel" : "Maximize to full width"}
                     >
                         {isExpanded ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+                    </button>
+                    <button
+                        onClick={() => {
+                            setIsExpanded(false);
+                            setAnalysisPanelOpen(false);
+                        }}
+                        className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary/60 transition-colors cursor-pointer"
+                        title="Minimize / Hide Analysis Panel"
+                    >
+                        <PanelRightClose className="w-4 h-4" />
                     </button>
                 </div>
             </div>
@@ -771,10 +805,33 @@ export default function ResumeAnalysis() {
 
                 {analysisTab === "deep" && (
                     deepLoading ? (
-                        <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
-                            <Loader2 className="w-7 h-7 animate-spin text-primary/50" />
-                            <p className="text-sm text-muted-foreground">Analyzing your resume section by section…</p>
-                            <p className="text-xs text-muted-foreground/40">This takes about 20 seconds</p>
+                        <div className="rounded-xl border border-border/30 bg-card p-6 space-y-5 shadow-sm text-center">
+                            <div className="w-14 h-14 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto">
+                                <Loader2 className="w-7 h-7 animate-spin text-primary" />
+                            </div>
+                            <div className="space-y-1">
+                                <p className="text-sm font-bold text-foreground">Deep Analysis in Progress</p>
+                                <p className="text-xs text-muted-foreground/70 leading-relaxed max-w-xs mx-auto">
+                                    Reviewing your resume section by section against senior technical recruiter benchmarks…
+                                </p>
+                            </div>
+                            <div className="space-y-2 text-left max-w-xs mx-auto pt-2">
+                                {[
+                                    "Auditing summary & technical keyword alignment…",
+                                    "Evaluating experience bullets for quantification…",
+                                    "Checking projects & skills for real-world depth…",
+                                    "Synthesizing recruiter-grade before vs after rewrites…",
+                                ].map((step, i) => (
+                                    <div key={i} className="flex items-center gap-2 text-xs text-muted-foreground/60">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-primary/50 animate-pulse" />
+                                        <span>{step}</span>
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="w-full h-1.5 bg-secondary/50 rounded-full overflow-hidden">
+                                <div className="h-full bg-primary/70 rounded-full animate-pulse" style={{ width: "65%" }} />
+                            </div>
+                            <p className="text-[10px] font-mono text-muted-foreground/40">Estimated time: ~20 seconds</p>
                         </div>
                     ) : deepResult ? (
                         <DeepAnalysisPanel result={deepResult} onOpenDiff={() => setViewMode("diff")} />
@@ -854,6 +911,27 @@ export default function ResumeAnalysis() {
                 <div className="flex-1 sm:hidden" />
 
                 <div className="flex items-center gap-2">
+                    {showAnalysisPanel && (!analysisPanelOpen || viewMode === "diff") && (
+                        <button
+                            onClick={() => {
+                                setAnalysisPanelOpen(true);
+                                if (viewMode === "diff") setViewMode("preview");
+                            }}
+                            className="flex items-center gap-1.5 h-8 px-2 md:px-3 rounded-lg bg-secondary/80 border border-border/40 hover:bg-secondary text-foreground text-xs font-semibold transition-colors cursor-pointer"
+                            title="Open Analysis Results"
+                        >
+                            <PanelRightOpen className="w-3.5 h-3.5 text-primary" />
+                            <span className="hidden sm:inline">Show Analysis</span>
+                            {match && (
+                                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-primary/15 text-primary font-bold">
+                                    {match.score}
+                                </span>
+                            )}
+                            {deepResult && !match && (
+                                <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                            )}
+                        </button>
+                    )}
                     {(file || pdfUrl) && (
                         <button
                             onClick={handleDownload}
@@ -912,12 +990,12 @@ export default function ResumeAnalysis() {
                     )}
                 </aside>
 
-                <main className={`${isExpanded ? "hidden" : showAnalysisPanel ? "w-[45%]" : "flex-1"} flex flex-col overflow-hidden transition-all duration-300`}>
+                <main className={`${isExpanded ? "hidden" : isAnalysisOpen ? "flex-1 min-w-0" : "flex-1"} flex flex-col overflow-hidden transition-all duration-300`}>
                     {canvasContent}
                 </main>
 
-                {showAnalysisPanel && (
-                    <aside className={`${isExpanded ? "flex-1" : "w-[55%]"} flex-shrink-0 border-l border-border/40 flex flex-col overflow-hidden bg-background/60 transition-all duration-300 shadow-[-10px_0_20px_-10px_rgba(0,0,0,0.1)]`}>
+                {isAnalysisOpen && (
+                    <aside className={`${isExpanded ? "flex-1" : "w-[440px] lg:w-[480px] xl:w-[520px]"} flex-shrink-0 border-l border-border/40 flex flex-col overflow-hidden bg-background/60 transition-all duration-300 shadow-[-10px_0_20px_-10px_rgba(0,0,0,0.1)]`}>
                         {analysisContent}
                     </aside>
                 )}

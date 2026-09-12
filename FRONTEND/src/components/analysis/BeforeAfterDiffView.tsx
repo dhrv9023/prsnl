@@ -7,6 +7,7 @@ interface BeforeAfterDiffViewProps {
     originalText?: string;
     pdfUrl?: string | null;
     deepResult: DeepAnalysisResult | null;
+    loading?: boolean;
     onApplyToEditor?: (text: string) => void;
     onClose?: () => void;
     onRunDeepAnalysis?: () => void;
@@ -23,6 +24,7 @@ export function BeforeAfterDiffView({
     originalText = "",
     pdfUrl,
     deepResult,
+    loading = false,
     onApplyToEditor,
     onClose,
     onRunDeepAnalysis,
@@ -382,6 +384,24 @@ export function BeforeAfterDiffView({
                                             </div>
                                         </div>
                                     ))
+                                ) : loading ? (
+                                    <div className="w-full h-full min-h-[300px] flex flex-col items-center justify-center p-6 text-center space-y-4">
+                                        <div className="relative flex items-center justify-center">
+                                            <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center">
+                                                <Loader2 className="w-6 h-6 text-emerald-400 animate-spin" />
+                                            </div>
+                                        </div>
+                                        <div className="space-y-1 max-w-xs">
+                                            <p className="text-sm font-bold text-foreground">Deep Analysis in Progress…</p>
+                                            <p className="text-xs text-muted-foreground/75 leading-relaxed">
+                                                Auditing bullet points and generating recruiter rewrites (≈20s)…
+                                            </p>
+                                        </div>
+                                        <div className="w-40 h-1.5 bg-secondary/60 rounded-full overflow-hidden">
+                                            <div className="h-full bg-emerald-400 rounded-full animate-pulse" style={{ width: "65%" }} />
+                                        </div>
+                                        <span className="text-[10px] font-mono text-muted-foreground/50">Fixes will appear here automatically</span>
+                                    </div>
                                 ) : (
                                     <div className="w-full h-full min-h-[300px] flex flex-col items-center justify-center p-6 text-center space-y-3">
                                         <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
@@ -506,6 +526,23 @@ export function BeforeAfterDiffView({
                                         )}
                                     </div>
                                 ))
+                            ) : loading ? (
+                                <div className="w-full h-full min-h-[300px] flex flex-col items-center justify-center p-6 text-center space-y-4">
+                                    <div className="relative flex items-center justify-center">
+                                        <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center">
+                                            <Loader2 className="w-6 h-6 text-emerald-400 animate-spin" />
+                                        </div>
+                                    </div>
+                                    <div className="space-y-1 max-w-xs">
+                                        <p className="text-sm font-bold text-foreground">Generating Fixes…</p>
+                                        <p className="text-xs text-muted-foreground/75 leading-relaxed">
+                                            Reviewing your resume against recruiter benchmarks (≈20s)…
+                                        </p>
+                                    </div>
+                                    <div className="w-40 h-1.5 bg-secondary/60 rounded-full overflow-hidden">
+                                        <div className="h-full bg-emerald-400 rounded-full animate-pulse" style={{ width: "65%" }} />
+                                    </div>
+                                </div>
                             ) : (
                                 <div className="w-full h-full min-h-[300px] flex flex-col items-center justify-center p-6 text-center space-y-3">
                                     <Sparkles className="w-8 h-8 text-emerald-400/50" />
