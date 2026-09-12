@@ -7,9 +7,9 @@ from app.core.config import settings
 from app.core.rate_limit import ats_rate_key, limiter
 from app.db.supabase import get_db
 from app.services.math_engine import ats_score
-from app.services.deep_analysis import generate_deep_analysis
+from app.services.deep_analysis import generate_deep_analysis, DeepAnalysisError
 from app.services.hiring_intel import generate_hiring_intel
-from app.services.credits import refund_feature_credits
+from app.services.credits import refund_feature_credits, deduct_feature_credits
 from app.schemas.models import MatchRequest, HiringIntelRequest, DeepAnalysisRequest
 
 logger = logging.getLogger(__name__)
@@ -76,7 +76,6 @@ async def deep_analysis(
     request: Request,
     body: DeepAnalysisRequest,
     user: CurrentUser,
-    _credits=require_credits("deep_analysis", 15),
 ):
     """
     Section-by-section LLM resume critique.
@@ -85,6 +84,7 @@ async def deep_analysis(
     """
     supabase = await get_db()
 
+    # 1. Verify resume existence and user ownership BEFORE credit deduction
     data = await supabase.table("resumes") \
         .select("parsed_content") \
         .eq("id", body.resume_id) \
@@ -95,35 +95,78 @@ async def deep_analysis(
 
     try:
         resume_text = data.data[0]['parsed_content']['raw_text']
-    except KeyError:
-        raise HTTPException(status_code=500, detail="Resume has no parsed text")
+    except (KeyError, TypeError):
+        raise HTTPException(status_code=400, detail="Resume has no parsed text")
 
-    result = await generate_deep_analysis(
-        resume_text=resume_text,
-        job_description=body.job_description or None,
+    if not resume_text or not str(resume_text).strip():
+        raise HTTPException(status_code=400, detail="Extracted resume text is too short or empty")
+
+    # 2. Check dev bypass or atomically deduct credits
+    skip_credits = (
+        settings.ENVIRONMENT == "development"
+        and getattr(settings, "DEV_BYPASS_USER_ID", None)
+        and request.headers.get("X-Dev-Bypass") == "1"
     )
 
-    if not result:
-        # AI call failed after credits were already deducted — refund the user
-        await refund_feature_credits(supabase, str(user.id), "deep_analysis", 15, "ai_failure_refund")
-        raise HTTPException(status_code=502, detail="Deep analysis failed — your credits have been refunded. Please try again.")
+    credits_deducted = False
+    credits_refunded = False
 
-    analysis_record = {
-        "resume_id": body.resume_id,
-        "user_id": str(user.id),
-        "analysis_type": "deep_analysis",
-        "output_data": {
-            "jd_provided": bool(body.job_description),
-            **result,
-        }
-    }
+    if not skip_credits:
+        await deduct_feature_credits(
+            supabase=supabase,
+            user_id=str(user.id),
+            feature="deep_analysis",
+            cost=15,
+        )
+        credits_deducted = True
 
+    # 3. Execute AI generation and DB persistence with idempotent failure handling
     try:
-        await supabase.table("ai_analyses").insert(analysis_record).execute()
-    except Exception as e:
-        logger.warning("Failed to save deep analysis to DB: %s", e)
+        result = await generate_deep_analysis(
+            resume_text=str(resume_text),
+            job_description=body.job_description or None,
+        )
 
-    return result
+        analysis_record = {
+            "resume_id": body.resume_id,
+            "user_id": str(user.id),
+            "analysis_type": "deep_analysis",
+            "output_data": {
+                "jd_provided": bool(body.job_description),
+                **result,
+            }
+        }
+
+        try:
+            await supabase.table("ai_analyses").insert(analysis_record).execute()
+        except Exception as e:
+            logger.warning("Failed to save deep analysis to DB: %s", e)
+
+        return result
+
+    except HTTPException:
+        # Re-raise explicit HTTP exceptions (e.g. from rate limiting or validation)
+        raise
+    except Exception as exc:
+        if credits_deducted and not credits_refunded:
+            try:
+                await refund_feature_credits(
+                    supabase,
+                    str(user.id),
+                    "deep_analysis",
+                    15,
+                    "ai_failure_refund",
+                )
+            except Exception as ref_err:
+                logger.error("Failed to refund credits for user %s: %s", user.id, ref_err)
+            finally:
+                credits_refunded = True
+
+        logger.error("Deep analysis failed for user %s: %s", user.id, exc)
+        raise HTTPException(
+            status_code=502,
+            detail="Deep analysis failed — your credits have been refunded. Please try again.",
+        )
 
 
 @router.post("/hiring-intel")

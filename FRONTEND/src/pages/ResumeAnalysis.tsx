@@ -306,6 +306,7 @@ export default function ResumeAnalysis() {
 
     // ── Action: Deep Analysis ──────────────────────────────────────────────
     async function handleDeepAnalysis() {
+        if (isAnything || deepLoading) return;
         if (!file && !resumeId) { setError("Please select a resume or upload a PDF first."); return; }
         if (!canUse("deep_analysis")) { setError("Insufficient credits. Deep Analysis costs 15 credits."); return; }
         setError(""); setDeepLoading(true);

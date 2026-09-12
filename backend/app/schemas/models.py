@@ -10,6 +10,66 @@ class DeepAnalysisRequest(BaseModel):
     resume_id: str
     job_description: str | None = Field(default=None, max_length=15000)  # optional — enables JD-aware mode
 
+VALID_FEEDBACK_RATINGS = {"Excellent", "Very Good", "Good", "Fair", "Poor"}
+
+class DeepAnalysisSection(BaseModel):
+    score: str = "Fair"
+    feedback: str = ""
+    issues: List[str] = Field(default_factory=list)
+    missing_keywords: List[str] = Field(default_factory=list)
+
+    @field_validator("score", mode="before")
+    @classmethod
+    def normalise_score(cls, v: Any) -> str:
+        s = str(v).strip().title()
+        if s in VALID_FEEDBACK_RATINGS:
+            return s
+        return "Fair"
+
+    @field_validator("feedback", mode="before")
+    @classmethod
+    def ensure_feedback(cls, v: Any) -> str:
+        return str(v) if v is not None else ""
+
+    @field_validator("issues", "missing_keywords", mode="before")
+    @classmethod
+    def ensure_str_list(cls, v: Any) -> List[str]:
+        if isinstance(v, list):
+            return [str(item) for item in v if item is not None]
+        if isinstance(v, str) and v.strip():
+            return [v.strip()]
+        return []
+
+class DeepAnalysisResult(BaseModel):
+    summary: str = Field(default="Analysis complete.")
+    overall_feedback: str = "Fair"
+    sections: Dict[str, DeepAnalysisSection] = Field(default_factory=dict)
+    action_items: List[str] = Field(default_factory=list)
+    jd_provided: Optional[bool] = False
+
+    @field_validator("overall_feedback", mode="before")
+    @classmethod
+    def normalise_overall_feedback(cls, v: Any) -> str:
+        s = str(v).strip().title()
+        if s in {"Excellent", "Good", "Fair", "Poor"}:
+            return s
+        return "Fair"
+
+    @field_validator("summary", mode="before")
+    @classmethod
+    def ensure_summary(cls, v: Any) -> str:
+        s = str(v).strip() if v is not None else ""
+        return s or "Analysis complete."
+
+    @field_validator("action_items", mode="before")
+    @classmethod
+    def ensure_action_items(cls, v: Any) -> List[str]:
+        if isinstance(v, list):
+            return [str(item) for item in v if item is not None]
+        if isinstance(v, str) and v.strip():
+            return [v.strip()]
+        return []
+
 class HiringIntelRequest(BaseModel):
     resume_id: str
     job_description: str = Field(..., max_length=15000)

@@ -24,13 +24,36 @@ Output schema:
 
 import json
 import logging
+import re
+from typing import Any
+
+from pydantic import ValidationError
 
 from app.services.llm_client import chat_complete
 from app.services.resume_analyzer import clean_llm_answer
 from app.services.prompt_sanitizer import sanitize_user_text
 from app.services.ai_retry import with_ai_retry
+from app.schemas.models import DeepAnalysisResult, DeepAnalysisSection
 
 logger = logging.getLogger(__name__)
+
+# ─── Domain Exceptions ────────────────────────────────────────────────────────
+
+class DeepAnalysisError(Exception):
+    """Base exception for deep analysis failures."""
+    pass
+
+class DeepAnalysisJSONParseError(DeepAnalysisError):
+    """Raised when the LLM output cannot be parsed as valid JSON."""
+    pass
+
+class DeepAnalysisSchemaValidationError(DeepAnalysisError):
+    """Raised when the LLM output is valid JSON but does not match the expected schema."""
+    pass
+
+class DeepAnalysisProviderError(DeepAnalysisError):
+    """Raised when the upstream AI provider fails or exhausts retries."""
+    pass
 
 # ─── Prompts ──────────────────────────────────────────────────────────────────
 
@@ -87,9 +110,16 @@ action_items RULES:
 - NEVER repeat a point already made in the section issues
 - NEVER write anything that could apply to a resume you haven't read
 
-OUTPUT: Return ONLY valid JSON matching this exact schema:
+OUTPUT SPECIFICATION — ABSOLUTE MANDATE:
+- Return RAW JSON ONLY.
+- Output must start with '{' and end with '}'.
+- Absolutely NO conversational prose, introductory text, or concluding notes.
+- Absolutely NO Markdown fences (do not wrap in ```json or ```).
+- All strings must be properly JSON-escaped.
+
+Expected JSON Structure:
 {
-  "summary": "Write this as if you're talking directly to the candidate. Start with their name if it appears on the resume, otherwise start with 'Your resume'. Be brutally honest in 2-3 sentences. Lead with the single most damaging thing holding this resume back, then acknowledge the one genuine strength. No career-stage labels, no market-tier labels, no template language. Example tone: 'Your resume has real project depth — the Kareerist platform is a legitimate signal. But every experience bullet reads like a task list. A recruiter scanning this in 8 seconds sees what you did, not what you achieved, and that is costing you shortlists.'",
+  "summary": "Write this as if you're talking directly to the candidate. Start with their name if it appears on the resume, otherwise start with 'Your resume'. Be brutally honest in 2-3 sentences. Lead with the single most damaging thing holding this resume back, then acknowledge the one genuine strength. No career-stage labels, no market-tier labels, no template language.",
   "overall_feedback": "Excellent | Good | Fair | Poor",
   "sections": {
     "contact": {
@@ -144,17 +174,132 @@ OUTPUT: Return ONLY valid JSON matching this exact schema:
   ]
 }"""
 
+# ─── JSON Extraction & Normalization ──────────────────────────────────────────
+
+STANDARD_SECTIONS = [
+    "contact",
+    "profile_summary",
+    "experience",
+    "skills",
+    "education",
+    "projects",
+    "formatting",
+]
+
+SECTION_ALIASES: dict[str, str] = {
+    "work_experience": "experience",
+    "work_history": "experience",
+    "employment": "experience",
+    "professional_experience": "experience",
+    "summary": "profile_summary",
+    "about": "profile_summary",
+    "profile": "profile_summary",
+    "technical_skills": "skills",
+    "core_skills": "skills",
+    "academic": "education",
+    "academics": "education",
+    "personal_projects": "projects",
+    "key_projects": "projects",
+    "format": "formatting",
+}
+
+
+def extract_json_payload(text: str) -> dict:
+    """
+    Safely extracts and parses a JSON dictionary from LLM output.
+    Supports markdown fences, conversational prose, and think tags.
+    Raises json.JSONDecodeError or ValueError on failure.
+    """
+    if not text or not isinstance(text, str):
+        raise ValueError("Empty or invalid LLM response")
+
+    cleaned = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
+
+    # 1. Look for markdown code fence blocks (```json ... ``` or ``` ... ```)
+    fence_match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", cleaned, flags=re.IGNORECASE)
+    if fence_match:
+        candidate = fence_match.group(1).strip()
+        try:
+            parsed = json.loads(candidate)
+            if isinstance(parsed, dict):
+                return parsed
+        except json.JSONDecodeError:
+            pass
+
+    # 2. Try direct json.loads on cleaned text
+    try:
+        parsed = json.loads(cleaned)
+        if isinstance(parsed, dict):
+            return parsed
+        if isinstance(parsed, list) and parsed and isinstance(parsed[0], dict):
+            return parsed[0]
+    except json.JSONDecodeError:
+        pass
+
+    # 3. Search for outermost curly braces: first '{' to last '}'
+    first_brace = cleaned.find("{")
+    last_brace = cleaned.rfind("}")
+    if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
+        candidate = cleaned[first_brace : last_brace + 1].strip()
+        parsed = json.loads(candidate)
+        if isinstance(parsed, dict):
+            return parsed
+
+    raise json.JSONDecodeError("No valid JSON object found in LLM response", text, 0)
+
+
+def validate_and_normalize_result(raw_data: dict, jd_provided: bool = False) -> DeepAnalysisResult:
+    """
+    Normalizes section names and validates against DeepAnalysisResult schema.
+    Ensures standard sections are present and types are valid.
+    """
+    if not isinstance(raw_data, dict):
+        raise ValueError("Raw data must be a dictionary")
+
+    # Normalize section aliases
+    raw_sections = raw_data.get("sections")
+    normalized_sections: dict[str, Any] = {}
+
+    if isinstance(raw_sections, dict):
+        for key, value in raw_sections.items():
+            norm_key = SECTION_ALIASES.get(key.lower().strip(), key.lower().strip())
+            normalized_sections[norm_key] = value
+
+    # Ensure all standard sections exist
+    for sec in STANDARD_SECTIONS:
+        if sec not in normalized_sections:
+            normalized_sections[sec] = {
+                "score": "Fair",
+                "feedback": f"Section evaluation completed.",
+                "issues": [],
+                "missing_keywords": [],
+            }
+
+    data_to_validate = {
+        "summary": raw_data.get("summary") or "Analysis complete.",
+        "overall_feedback": raw_data.get("overall_feedback") or "Fair",
+        "sections": normalized_sections,
+        "action_items": raw_data.get("action_items") or [],
+        "jd_provided": jd_provided,
+    }
+
+    return DeepAnalysisResult.model_validate(data_to_validate)
+
+
+# ─── Service Function ─────────────────────────────────────────────────────────
 
 async def generate_deep_analysis(
     resume_text: str,
     job_description: str | None = None,
-) -> dict | None:
+) -> dict:
     """
     Runs a section-by-section LLM analysis of the resume.
-    Returns structured dict or None on failure.
+    Returns validated structured dict.
+    Raises DeepAnalysisError or subclass on failure.
     """
     safe_resume = sanitize_user_text(resume_text)
     safe_jd = sanitize_user_text(job_description or "").strip()
+    jd_provided = bool(safe_jd)
 
     if safe_jd:
         jd_block = f"\n<JOB_DESCRIPTION>\n{safe_jd}\n</JOB_DESCRIPTION>\n\nAnalyze the resume against this JD — highlight alignment, gaps, and missing keywords."
@@ -177,9 +322,11 @@ async def generate_deep_analysis(
         "4. action_items must NOT repeat anything already said in section issues — they are the top 5 cross-cutting priorities only.\n"
         "5. Apply the IPMR test to every experience bullet (Impact, Problem, Method, Role ownership).\n"
         "6. Assess project legitimacy: tutorial clone vs independently designed system — name each project and give your verdict.\n\n"
-        "Return ONLY a valid JSON object matching the JSON schema."
+        "MANDATORY FORMAT: Return ONLY a valid JSON object matching the JSON schema. Start with '{' and end with '}'. "
+        "No markdown fences (no ```json). No preamble. No conversational filler."
     )
 
+    # ── 1. Primary generation pass ────────────────────────────────────────────
     try:
         completion = await with_ai_retry(
             lambda: chat_complete(
@@ -189,40 +336,64 @@ async def generate_deep_analysis(
                 ],
                 temperature=0.1,
                 response_format={"type": "json_object"},
-                timeout=90,  # compound-mini generates long detailed output
-                # NO max_tokens — let model use its full output budget
-                # (was 2500 which truncated the 7-section JSON mid-response)
+                timeout=90,
             ),
             label="deep_analysis",
         )
-        raw = completion
-        cleaned = clean_llm_answer(raw)
-        if not cleaned:
-            raise RuntimeError("AI returned empty response")
-        result = json.loads(cleaned)
-        if isinstance(result, list):
-            result = result[0] if (result and isinstance(result[0], dict)) else {}
+    except Exception as prov_exc:
+        logger.error("Deep analysis primary AI call failed: %s", prov_exc)
+        raise DeepAnalysisProviderError(f"AI provider call failed: {prov_exc}") from prov_exc
 
-        # ── Output validation ──────────────────────────────────────────────
-        # Ensure required top-level keys exist so the frontend never crashes
-        result.setdefault("summary", "Analysis complete.")
-        result.setdefault("overall_feedback", "Fair")
-        result.setdefault("sections", {})
-        result.setdefault("action_items", [])
+    # ── 2. Parse and validate primary output ──────────────────────────────────
+    first_error: Exception | None = None
+    try:
+        parsed = extract_json_payload(completion)
+        validated = validate_and_normalize_result(parsed, jd_provided=jd_provided)
+        return validated.model_dump()
+    except (json.JSONDecodeError, ValidationError, ValueError) as exc:
+        first_error = exc
+        logger.warning(
+            "Deep analysis output failed validation (%s: %s). Attempting controlled recovery.",
+            type(exc).__name__,
+            str(exc)[:150],
+        )
 
-        # Clamp overall_feedback to known values
-        valid_feedback = {"Excellent", "Good", "Fair", "Poor"}
-        if result["overall_feedback"] not in valid_feedback:
-            result["overall_feedback"] = "Fair"
+    # ── 3. Controlled recovery pass (single-pass repair) ───────────────────────
+    recovery_prompt = (
+        "Your previous response was invalid. It failed parsing or schema validation:\n"
+        f"Error: {type(first_error).__name__}: {first_error}\n\n"
+        "You MUST return ONLY a single, strictly valid JSON object matching the schema.\n"
+        "Required top-level keys: summary (string), overall_feedback (\"Excellent\"|\"Good\"|\"Fair\"|\"Poor\"), "
+        "sections (object with contact, profile_summary, experience, skills, education, projects, formatting), "
+        "action_items (array of 5 strings).\n"
+        "DO NOT write any prose or markdown fences. Output RAW JSON starting with '{' and ending with '}'."
+    )
 
-        return result
-
-    except json.JSONDecodeError:
-        logger.error("Invalid JSON from deep analysis AI: %s", raw[:300])
-        return None
-    except RuntimeError as e:
-        logger.error("Deep analysis logic error: %s", e)
-        return None
-    except Exception as e:
-        logger.error("Deep analysis failed: %s", e)
-        return None
+    try:
+        recovery_completion = await with_ai_retry(
+            lambda: chat_complete(
+                messages=[
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": user_message},
+                    {"role": "assistant", "content": completion[:1500]},
+                    {"role": "user", "content": recovery_prompt},
+                ],
+                temperature=0.0,
+                response_format={"type": "json_object"},
+                timeout=90,
+            ),
+            label="deep_analysis_recovery",
+        )
+        parsed_recovery = extract_json_payload(recovery_completion)
+        validated_recovery = validate_and_normalize_result(parsed_recovery, jd_provided=jd_provided)
+        logger.info("Deep analysis controlled recovery succeeded.")
+        return validated_recovery.model_dump()
+    except json.JSONDecodeError as json_err:
+        logger.error("Deep analysis recovery failed — invalid JSON: %s", str(json_err)[:200])
+        raise DeepAnalysisJSONParseError("Failed to parse JSON from AI after recovery attempt") from json_err
+    except (ValidationError, ValueError) as schema_err:
+        logger.error("Deep analysis recovery failed — schema mismatch: %s", str(schema_err)[:200])
+        raise DeepAnalysisSchemaValidationError("Schema validation failed after recovery attempt") from schema_err
+    except Exception as rec_exc:
+        logger.error("Deep analysis recovery attempt encountered an unexpected error: %s", rec_exc)
+        raise DeepAnalysisError(f"Deep analysis failed during recovery: {rec_exc}") from rec_exc
