@@ -4,13 +4,15 @@ import logging
 import time
 from pathlib import Path
 
-from fastapi import APIRouter, UploadFile, File, HTTPException, Request
+from fastapi import APIRouter, UploadFile, File, HTTPException, Request, Response
+from pydantic import BaseModel
 from pypdf import PdfReader
 
 from app.api.dependencies import CurrentUser
 from app.core.config import settings
 from app.core.rate_limit import ats_rate_key, limiter
 from app.db.supabase import get_db
+from app.services.resume_pdf_generator import generate_resume_pdf, parse_issue_string
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -212,3 +214,97 @@ async def delete_resume(resume_id: str, user: CurrentUser):
         raise HTTPException(status_code=500, detail="An internal error occurred while deleting the record.")
 
     return {"msg": "Resume and all associated data successfully deleted."}
+
+
+class OptimizedPdfRequest(BaseModel):
+    replacements: list[dict] | None = None
+    custom_text: str | None = None
+
+
+@router.post("/{resume_id}/optimized_pdf")
+@router.get("/{resume_id}/optimized_pdf")
+async def get_optimized_resume_pdf(
+    resume_id: str,
+    user: CurrentUser,
+    body: OptimizedPdfRequest | None = None
+):
+    supabase = await get_db()
+    res = await supabase.table("resumes").select("*") \
+        .eq("id", resume_id).eq("user_id", user.id).execute()
+    if not res.data:
+        raise HTTPException(404, "Resume not found")
+    resume_data = res.data[0]
+
+    # 1. Determine base resume text
+    resume_text = (body.custom_text if body and body.custom_text else None)
+    if not resume_text:
+        parsed_content = resume_data.get("parsed_content") or {}
+        resume_text = parsed_content.get("raw_text")
+
+    # If raw_text is missing, fall back to downloading file from storage and extracting
+    if not resume_text:
+        file_path = resume_data.get("file_url")
+        if file_path:
+            try:
+                storage_bytes = await supabase.storage.from_("Resumes").download(file_path)
+                pdf_reader = PdfReader(io.BytesIO(storage_bytes))
+                resume_text = "".join(p.extract_text() + "\n" for p in pdf_reader.pages)
+            except Exception as e:
+                logger.warning("Failed to extract text from storage for resume %s: %s", resume_id, e)
+
+    if not resume_text or not resume_text.strip():
+        raise HTTPException(400, "Resume text could not be found or extracted.")
+
+    # 2. Determine replacements
+    replacements = (body.replacements if body and body.replacements is not None else None)
+    if replacements is None:
+        replacements = []
+        try:
+            analyses_res = await supabase.table("ai_analyses") \
+                .select("output_data") \
+                .eq("resume_id", resume_id) \
+                .eq("user_id", str(user.id)) \
+                .eq("analysis_type", "deep_analysis") \
+                .order("created_at", desc=True) \
+                .limit(1) \
+                .execute()
+            if analyses_res.data:
+                out = analyses_res.data[0].get("output_data") or {}
+                # Extract from sections
+                sections = out.get("sections") or {}
+                for sec_name, sec_val in sections.items():
+                    issues = sec_val.get("issues") or []
+                    for iss in issues:
+                        parsed = parse_issue_string(iss)
+                        if parsed["is_structured"] and (parsed["original"] or parsed["fix"]):
+                            replacements.append({
+                                "original": parsed["original"],
+                                "fix": parsed["fix"]
+                            })
+                # Extract from action items
+                action_items = out.get("action_items") or []
+                for item in action_items:
+                    parsed = parse_issue_string(item)
+                    if parsed["is_structured"] and (parsed["original"] or parsed["fix"]):
+                        replacements.append({
+                            "original": parsed["original"],
+                            "fix": parsed["fix"]
+                        })
+        except Exception as e:
+            logger.warning("Failed to fetch deep analysis fixes for resume %s: %s", resume_id, e)
+
+    # 3. Generate PDF
+    try:
+        pdf_bytes = generate_resume_pdf(resume_text, replacements)
+    except Exception as e:
+        logger.error("Failed to generate optimized PDF for resume %s: %s", resume_id, e)
+        raise HTTPException(500, "Failed to compile optimized resume PDF.")
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": 'inline; filename="optimized_resume.pdf"',
+            "Cache-Control": "no-cache",
+        }
+    )

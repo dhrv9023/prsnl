@@ -679,6 +679,53 @@ export async function apiGetResume(id: string): Promise<ResumeDetail> {
     };
 }
 
+export async function apiGetOptimizedResumePdf(
+    resumeId: string,
+    replacements?: Array<{ original: string; fix: string }>,
+    customText?: string
+): Promise<Blob> {
+    const csrfToken = getCsrfToken();
+    const csrfHeaders: Record<string, string> = csrfToken ? { "X-CSRF-Token": csrfToken } : {};
+    const authHeaders = getAuthHeaders();
+
+    let res = await fetch(`${BASE}/resumes/${resumeId}/optimized_pdf`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+            "Content-Type": "application/json",
+            ...DEV_BYPASS_HEADERS,
+            ...csrfHeaders,
+            ...authHeaders,
+        },
+        body: JSON.stringify({ replacements, custom_text: customText }),
+    });
+
+    if (res.status === 401) {
+        const newAccessToken = await tryRefreshSession();
+        if (newAccessToken) {
+            res = await fetch(`${BASE}/resumes/${resumeId}/optimized_pdf`, {
+                method: "POST",
+                credentials: "include",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...DEV_BYPASS_HEADERS,
+                    ...csrfHeaders,
+                    "Authorization": `Bearer ${newAccessToken}`,
+                },
+                body: JSON.stringify({ replacements, custom_text: customText }),
+            });
+        }
+    }
+
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Failed to generate optimized PDF" }));
+        throw new Error(err.detail || "Failed to generate optimized PDF");
+    }
+
+    return await res.blob();
+}
+
+
 // ── Daily credit grant ────────────────────────────────────────────────────────
 
 export interface DailyGrantResult {
