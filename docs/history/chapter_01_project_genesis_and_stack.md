@@ -42,7 +42,7 @@ The core idea: most career tools are shallow. They give you a score and leave yo
 - **numpy** — vector math for embedding comparison
 
 ### AI / ML
-- **Groq** (`llama-3.3-70b-versatile`) — all LLM features: Deep Analysis, Hiring Intel, Cover Letter, Humanizer, Interview questions and evaluation
+- **Groq** (`groq/compound-mini` + `groq/compound` fallback, both free on GroqCloud) — all LLM features: Deep Analysis, Hiring Intel, Cover Letter, Humanizer, Interview questions and evaluation
 - **Groq Whisper** (`whisper-large-v3-turbo`) — voice interview transcription (STT)
 - **HuggingFace API** (`sentence-transformers/all-mpnet-base-v2`) — sentence embeddings for ATS cosine similarity
 

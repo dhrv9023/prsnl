@@ -10,7 +10,7 @@ Powers the AI mock interview system with four main functions: generating intervi
 ## How It Fits Into The System
 
 - **Triggered by:** The `/interview/start` and `/interview/answer` API endpoints
-- **Dependencies:** Groq API client (llama-3.3-70b-versatile), `sanitize_user_text`, `with_ai_retry`, resume analysis context (from deep_analysis or hiring_intel)
+- **Dependencies:** Groq API client via `chat_complete` (`groq/compound-mini` primary, `groq/compound` fallback — both free on GroqCloud), `sanitize_user_text`, `with_ai_retry`, resume analysis context (from deep_analysis or hiring_intel)
 - **Dependents:** The AI Interview page in the frontend (`AIInterview.tsx`), which manages the interview session flow, displays questions, and shows evaluation results
 
 ## Code Breakdown

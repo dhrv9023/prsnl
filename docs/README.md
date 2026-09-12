@@ -8,18 +8,31 @@ Welcome to the centralized documentation repository for the **Kareerist** platfo
 
 ```
 docs/
-├── specifications/     # Master system architecture, API specifications & AI handoff
-├── architecture/       # Mermaid flowcharts and interactive HTML architecture viewer
-├── security/           # CSRF, security headers, and protection mechanisms
-├── explanations/       # Deep-dive code explanations (Backend, Frontend, DB, Blog)
-├── history/            # Chronological development history (Chapters 1–12)
-└── qa/                 # Comprehensive QA test reports and penetration audit findings
+├── self-hosted-ai/        # Modular blueprints, audit, training scripts & runbooks for in-house AI
+├── specifications/        # Master system architecture, API specifications & AI handoff
+├── architecture/          # Mermaid flowcharts and interactive HTML architecture viewer
+├── security/              # CSRF, security headers, and protection mechanisms
+├── explanations/          # Deep-dive code explanations (Backend, Frontend, DB, Blog)
+├── history/               # Chronological development history (Chapters 1–12)
+└── qa/                    # Comprehensive QA test reports and penetration audit findings
 ```
 
 ---
 
 ## 1. Specifications & Architecture
 
+- **[Self-Hosted AI Models Hub & Modular Blueprint](file:///home/dhruv/Nextcloud/kareerist/prsnl/docs/self-hosted-ai/README.md)** ⭐ **NEW**
+  Dedicated hub housing the strategy, audit, and execution runbooks:
+  - `00-summary.md`: Executive summary & break-even funding brief
+  - `01-plain-english.md`: Conceptual onboarding guide to SLMs and fine-tuning
+  - `02-audit.md`: Brutal technical audit of 34 loopholes & ToS violations
+  - `03-blueprint-v2.md`: Corrected execution plan (Phase 0–6, training & serving code)
+  - `04-phase0-checklist.md`: Ticket-ready zero-GPU sprint tasks for 60–80% immediate savings
+  - `05-eval-harness.md`: Automated evaluation harness (`run_eval.py`)
+  - `06-failure-playbook.md`: Diagnostic triage table for 3 AM debugging
+  - `07-kill-criteria.md`: Explicit conditions for terminating self-hosting
+- **[Self-Hosted AI Models Blueprint v2.0 (Full Monolith)](file:///home/dhruv/Nextcloud/kareerist/prsnl/docs/specifications/SELF_HOSTED_AI_MODELS_BLUEPRINT.md)**
+  Complete unified blueprint containing the entire strategy in a single reference document.
 - **[Project Master Specification](file:///home/dhruv/Nextcloud/kareerist/prsnl/docs/specifications/kareerist_project_docs.md)**
   The comprehensive single-source specification covering technical architecture, database schemas, API routes, credit policies, AI pipelines, middleware stacks, and deployment configurations.
 - **[System Architecture Hub & Visual Flowchart Guide](file:///home/dhruv/Nextcloud/kareerist/prsnl/docs/architecture/README.md)** ⭐ **NEW**

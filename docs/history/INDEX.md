@@ -69,7 +69,7 @@ In addition to the high-level architectural chapters, the codebase includes comp
 
 ### Backend Explanations (`docs/explanations/backend/`)
 - **[main.py](../explanations/backend/main.md)** — FastAPI entry point, CORS, and double-submit CSRF middleware stack.
-- **[llm_client.py](../explanations/backend/llm_client.md)** — Groq Async client initialization, `llama-3.3-70b-versatile` details, and code-fence sanitizers.
+- **[llm_client.py](../explanations/backend/llm_client.md)** — Groq Async client initialization, `groq/compound-mini` (primary) + `groq/compound` (fallback) model config, auto-fallback for JSON mode, and code-fence/think-tag sanitizers.
 - **[resume_analyzer.py](../explanations/backend/resume_analyzer.md)** — Legacy analyzer stub and LLM output parsing helpers.
 
 ### Frontend Explanations (`docs/explanations/frontend/`)

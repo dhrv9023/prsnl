@@ -5,7 +5,7 @@
 
 ## What This File Does
 
-Generates a structured, section-by-section LLM-powered resume critique using Groq's llama-3.3-70b-versatile model. It analyzes each resume section individually (summary, experience, education, skills, etc.) and produces scored feedback with actionable improvement suggestions. When a job description is provided, the analysis becomes JD-aware — comparing resume content against role requirements to identify gaps and alignment.
+Generates a structured, section-by-section LLM-powered resume critique via the shared `chat_complete` client (primary model: `groq/compound-mini`, fallback: `groq/compound`). It analyzes each resume section individually (summary, experience, education, skills, etc.) and produces scored feedback with actionable improvement suggestions. When a job description is provided, the analysis becomes JD-aware — comparing resume content against role requirements to identify gaps and alignment.
 
 ## How It Fits Into The System
 
@@ -17,7 +17,7 @@ Generates a structured, section-by-section LLM-powered resume critique using Gro
 
 ### LLM Configuration
 
-Uses Groq's `llama-3.3-70b-versatile` model with JSON response format enforced. The system prompt instructs the model to act as a senior resume reviewer and return structured JSON. Security rules are embedded in the system prompt to guard against prompt injection from resume content (e.g., "ignore previous instructions" patterns in user-submitted text).
+Uses the shared `chat_complete` function (primary: `groq/compound-mini`, both models 100% free on GroqCloud) with JSON response format enforced. The system prompt instructs the model to act as a senior resume reviewer and return structured JSON. Security rules are embedded in the system prompt to guard against prompt injection from resume content (e.g., "ignore previous instructions" patterns in user-submitted text).
 
 ### Input Handling
 

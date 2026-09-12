@@ -5,12 +5,12 @@
 
 ## What This File Does
 
-Provides two cover letter generation functions: a professional generator that produces formal, polished cover letters, and a roast-mode generator that creates savage, self-aware, darkly funny cover letters that are still technically usable. Both functions use Groq's llama-3.3-70b model and include post-processing to strip markdown artifacts and thinking tags from the output.
+Provides two cover letter generation functions: a professional generator that produces formal, polished cover letters, and a roast-mode generator that creates savage, self-aware, darkly funny cover letters that are still technically usable. Both functions use the shared `chat_complete` client (`groq/compound-mini` primary, `groq/compound` fallback — both free on GroqCloud) and include post-processing to strip markdown artifacts and thinking tags from the output.
 
 ## How It Fits Into The System
 
 - **Triggered by:** The `/cover-letter` and `/cover-letter/roast` API endpoints
-- **Dependencies:** Groq API client (llama-3.3-70b-versatile), `sanitize_user_text`, `with_ai_retry`
+- **Dependencies:** Groq API client via `chat_complete` (`groq/compound-mini` primary, `groq/compound` fallback — both free), `sanitize_user_text`, `with_ai_retry`
 - **Dependents:** The Cover Letter page in the frontend (`CoverLetter.tsx`), which toggles between professional and roast modes based on the RoastMode context
 
 ## Code Breakdown
@@ -53,6 +53,6 @@ Both functions apply the same cleanup pipeline:
 - The 250-word limit for professional mode is enforced only via prompt instruction — the model may occasionally exceed it; there's no hard truncation in code
 - Roast mode's Hinglish support depends on the language parameter being passed correctly from the frontend's `HinglishToggle` component
 - If you modify the post-processing regex for stripping asterisks, be careful not to strip legitimate uses (e.g., asterisks in email addresses, though unlikely in cover letters)
-- The `<think>` tag stripping is necessary because Groq's llama models sometimes emit reasoning in these tags even when not asked to — removing this cleanup will leak internal model reasoning into user-facing output
+- The `<think>` tag stripping is necessary because Groq reasoning models sometimes emit chain-of-thought in these tags even when not asked to — removing this cleanup will leak internal model reasoning into user-facing output. The same stripping is done globally in `llm_client._clean_response()`, but cover letter gen also applies it as an extra safety layer
 - Both functions use `with_ai_retry` — if Groq returns malformed output, it retries automatically
 - The "no placeholders" rule is critical for UX — users expect a ready-to-send letter, not a template they need to fill in

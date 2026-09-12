@@ -10,7 +10,7 @@ Provides a single function `humanize_text` that rewrites AI-generated cover lett
 ## How It Fits Into The System
 
 - **Triggered by:** The `/humanize` API endpoint, typically called after cover letter generation when the user wants the output to sound less AI-generated
-- **Dependencies:** Groq API client (llama-3.3-70b-versatile), `with_ai_retry`
+- **Dependencies:** Groq API client via `chat_complete` (`groq/compound-mini` primary, `groq/compound` fallback — both free on GroqCloud), `with_ai_retry`
 - **Dependents:** The Cover Letter page in the frontend, which offers a "Humanize" button after generation completes
 
 ## Code Breakdown

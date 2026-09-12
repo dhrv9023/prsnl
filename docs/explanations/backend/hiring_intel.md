@@ -10,14 +10,14 @@ Generates a comprehensive 9-section hiring intelligence report by simulating the
 ## How It Fits Into The System
 
 - **Triggered by:** The `/hiring-intel` API endpoint when a user requests hiring intelligence analysis
-- **Dependencies:** Groq API client (llama-3.3-70b-versatile), `sanitize_user_text`, `with_ai_retry`
+- **Dependencies:** Groq API client via `chat_complete` (`groq/compound-mini` primary, `groq/compound` fallback — both free on GroqCloud), `sanitize_user_text`, `with_ai_retry`
 - **Dependents:** The Hiring Intel panel in the frontend (`HiringIntelPanel.tsx`), which renders the multi-section report with recruiter verdicts and improvement suggestions
 
 ## Code Breakdown
 
 ### LLM Configuration
 
-- Model: Groq `llama-3.3-70b-versatile` with JSON response format
+- Model: `groq/compound-mini` (via shared `chat_complete`, with automatic fallback to `groq/compound`) — both free on GroqCloud, JSON response format enforced
 - Temperature: `0.3` (lower than default for more consistent, analytical output)
 - Timeout: `60s` (longer than other services because the 9-section output is substantial)
 - The system prompt instructs the model to simulate a panel of hiring professionals evaluating the resume
