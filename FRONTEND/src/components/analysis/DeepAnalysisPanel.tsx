@@ -2,6 +2,7 @@ import { useState } from "react";
 import { CheckCircle2, XCircle, AlertTriangle, MinusCircle, ChevronDown, ChevronUp, Layers, Zap } from "lucide-react";
 import type { DeepAnalysisResult, DeepAnalysisSection } from "@/lib/api";
 import { HinglishToggle } from "@/components/ui/HinglishToggle";
+import { IssueFixCard } from "@/components/analysis/IssueFixCard";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -85,18 +86,17 @@ function SectionCard({ name, sec }: { name: string; sec: DeepAnalysisSection }) 
                     {/* Full feedback — only shown when expanded, not duplicated */}
                     <p className="text-xs text-muted-foreground leading-relaxed">{sec.feedback}</p>
 
-                    {/* Issues */}
+                    {/* Issues & Fixes */}
                     {sec.issues?.length > 0 && (
                         <div>
-                            <p className="text-[10px] font-mono uppercase tracking-widest text-red-400/60 mb-2">Issues</p>
-                            <ul className="space-y-1.5">
+                            <p className="text-[10px] font-mono uppercase tracking-widest text-red-400/70 mb-2 font-semibold">
+                                Identified Issues & Recommended Fixes
+                            </p>
+                            <div className="space-y-2.5">
                                 {sec.issues.map((iss, i) => (
-                                    <li key={i} className="flex gap-2 text-xs text-muted-foreground leading-relaxed">
-                                        <XCircle className="w-3.5 h-3.5 text-red-400/70 flex-shrink-0 mt-0.5" />
-                                        {iss}
-                                    </li>
+                                    <IssueFixCard key={i} issue={iss} index={i} />
                                 ))}
-                            </ul>
+                            </div>
                         </div>
                     )}
 
@@ -167,19 +167,16 @@ export function DeepAnalysisPanel({ result }: Props) {
             {/* Action items */}
             {result.action_items?.length > 0 && (
                 <Section title="Top Priority Improvements">
-                    <ol className="space-y-3">
+                    <div className="space-y-3">
                         {result.action_items.map((item, i) => (
-                            <li key={i} className="flex gap-3 bg-background/50 border border-border/30 rounded-lg p-3.5">
-                                <div className="flex items-center justify-center w-6 h-6 rounded-md bg-primary/10 text-primary text-xs font-bold flex-shrink-0 mt-0.5">
-                                    {i + 1}
-                                </div>
-                                <div className="flex gap-2 text-sm text-muted-foreground leading-relaxed">
-                                    <Zap className="w-3.5 h-3.5 text-amber-400 flex-shrink-0 mt-0.5" />
-                                    <span>{item}</span>
-                                </div>
-                            </li>
+                            <IssueFixCard
+                                key={i}
+                                issue={item}
+                                index={i}
+                                priorityLabel={`Priority ${i + 1}`}
+                            />
                         ))}
-                    </ol>
+                    </div>
                 </Section>
             )}
         </div>

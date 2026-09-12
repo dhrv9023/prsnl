@@ -5,6 +5,7 @@ import { useCreditContext } from "@/contexts/CreditContext";
 import {
     apiUploadResume,
     apiListResumes,
+    apiGetResume,
     apiGetAtsScore,
     apiGetDeepAnalysis,
     apiGetHiringIntel,
@@ -16,13 +17,14 @@ import {
 import { friendlyError } from "@/lib/errors";
 import { HiringIntelPanel } from "@/components/analysis/HiringIntelPanel";
 import { DeepAnalysisPanel } from "@/components/analysis/DeepAnalysisPanel";
+import { BeforeAfterDiffView } from "@/components/analysis/BeforeAfterDiffView";
 import { InsufficientCreditsWarning } from "@/components/ui/CreditDisplay";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
     Upload, FileText, Loader2, AlertTriangle,
     Download, Zap, RotateCcw, Eye, Edit3, LogOut,
     PanelLeft, FileSearch, ChartBar, ArrowLeft,
-    Maximize, Minimize, Brain, Layers, ChevronDown,
+    Maximize, Minimize, Brain, Layers, ChevronDown, Sparkles,
 } from "lucide-react";
 
 // ─── Custom Select ────────────────────────────────────────────────────────────
@@ -169,8 +171,9 @@ export default function ResumeAnalysis() {
     // ── State ─────────────────────────────────────────────────────────────────
     const [file, setFile] = useState<File | null>(null);
     const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+    const [resumeText, setResumeText] = useState("");
     const [editText, setEditText] = useState("");
-    const [viewMode, setViewMode] = useState<"preview" | "edit">("preview");
+    const [viewMode, setViewMode] = useState<"preview" | "edit" | "diff">("preview");
     const [jobDesc, setJobDesc] = useState("");
     const [isDragOver, setIsDragOver] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -208,8 +211,14 @@ export default function ResumeAnalysis() {
             .then((items) => {
                 setSavedResumes(items);
                 if (items.length > 0 && !selectedSavedId) {
-                    setSelectedSavedId(items[0].id);
-                    setResumeId(items[0].id);
+                    const firstId = items[0].id;
+                    setSelectedSavedId(firstId);
+                    setResumeId(firstId);
+                    apiGetResume(firstId).then((r) => {
+                        const raw = r.parsed_content?.raw_text || "";
+                        setResumeText(raw);
+                        setEditText(raw);
+                    }).catch(() => {});
                 }
             })
             .catch(() => { /* non-fatal */ })
@@ -226,6 +235,11 @@ export default function ResumeAnalysis() {
         setIntel(null);
         setDeepResult(null);
         setError("");
+        apiGetResume(id).then((r) => {
+            const raw = r.parsed_content?.raw_text || "";
+            setResumeText(raw);
+            setEditText(raw);
+        }).catch(() => {});
     }
 
     // ── PDF object URL ────────────────────────────────────────────────────────
@@ -313,10 +327,19 @@ export default function ResumeAnalysis() {
         deductLocal("deep_analysis");
         try {
             const id = await ensureUploaded();
+            // Ensure resumeText is loaded if not already
+            if (!resumeText) {
+                apiGetResume(id).then((r) => {
+                    const raw = r.parsed_content?.raw_text || "";
+                    setResumeText(raw);
+                    if (!editText) setEditText(raw);
+                }).catch(() => {});
+            }
             const result = await apiGetDeepAnalysis(id, jobDesc.trim() || undefined);
             setDeepResult(result);
             setAnalysisTab("deep");
             setMobileTab("analysis");
+            setViewMode("diff");
         } catch (e: unknown) {
             setError(friendlyError(e, "Deep analysis failed."));
         } finally {
@@ -503,26 +526,47 @@ export default function ResumeAnalysis() {
                 <div className="flex items-center bg-secondary/40 rounded-md p-0.5">
                     <button
                         onClick={() => setViewMode("preview")}
-                        className={`flex items-center gap-1.5 px-3 py-1 rounded text-xs font-medium transition-colors ${viewMode === "preview" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                        className={`flex items-center gap-1.5 px-3 py-1 rounded text-xs font-medium transition-colors ${viewMode === "preview" ? "bg-background text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"}`}
                     >
                         <Eye className="w-3 h-3" /> Preview
                     </button>
                     <button
                         onClick={() => setViewMode("edit")}
-                        className={`flex items-center gap-1.5 px-3 py-1 rounded text-xs font-medium transition-colors ${viewMode === "edit" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                        className={`flex items-center gap-1.5 px-3 py-1 rounded text-xs font-medium transition-colors ${viewMode === "edit" ? "bg-background text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"}`}
                     >
                         <Edit3 className="w-3 h-3" /> Edit Text
                     </button>
+                    <button
+                        onClick={() => setViewMode("diff")}
+                        className={`flex items-center gap-1.5 px-3 py-1 rounded text-xs font-medium transition-colors ${viewMode === "diff" ? "bg-background text-emerald-400 shadow-xs font-semibold" : "text-muted-foreground hover:text-foreground"}`}
+                    >
+                        <Sparkles className="w-3 h-3 text-emerald-400" />
+                        <span>Before vs After</span>
+                        {deepResult && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse ml-0.5" />
+                        )}
+                    </button>
                 </div>
-                {file && (
-                    <span className="text-xs text-muted-foreground/40 ml-2 hidden sm:inline">
-                        {viewMode === "edit" ? "Edit extracted text · changes are local only" : "Read-only PDF preview"}
-                    </span>
-                )}
+                <span className="text-xs text-muted-foreground/40 ml-2 hidden sm:inline">
+                    {viewMode === "diff"
+                        ? "Side-by-side comparison with AI fixes applied"
+                        : viewMode === "edit"
+                        ? "Edit extracted text · changes are local only"
+                        : "Read-only PDF preview"}
+                </span>
             </div>
 
             <div className="flex-1 overflow-auto flex items-start justify-center p-4 md:p-6">
-                {!file ? (
+                {viewMode === "diff" ? (
+                    <BeforeAfterDiffView
+                        originalText={resumeText || editText}
+                        deepResult={deepResult}
+                        onApplyToEditor={(text) => {
+                            setEditText(text);
+                            setViewMode("edit");
+                        }}
+                    />
+                ) : !file ? (
                     <div
                         onDragOver={onDragOver}
                         onDragLeave={onDragLeave}
@@ -534,8 +578,12 @@ export default function ResumeAnalysis() {
                             <FileText className="w-7 h-7 text-muted-foreground/40" />
                         </div>
                         <div className="text-center space-y-1">
-                            <p className="text-sm font-semibold text-foreground/60">Drop your resume PDF here</p>
-                            <p className="text-xs text-muted-foreground/40">or click to browse · PDF only</p>
+                            <p className="text-sm font-semibold text-foreground/60">
+                                {selectedSavedId ? "Saved resume active — click 'Before vs After' or 'Edit Text' above" : "Drop your resume PDF here"}
+                            </p>
+                            <p className="text-xs text-muted-foreground/40">
+                                {selectedSavedId ? "or upload another PDF to replace" : "or click to browse · PDF only"}
+                            </p>
                         </div>
                     </div>
                 ) : viewMode === "preview" && pdfUrl ? (

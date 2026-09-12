@@ -662,6 +662,22 @@ export async function apiListResumes(): Promise<ResumeListItem[]> {
     }));
 }
 
+export interface ResumeDetail extends ResumeListItem {
+    parsed_content?: {
+        raw_text?: string;
+    };
+}
+
+export async function apiGetResume(id: string): Promise<ResumeDetail> {
+    const res = await request<Omit<ResumeDetail, "original_filename">>(`/resumes/${id}`);
+    return {
+        ...res,
+        original_filename: res.file_url
+            ? res.file_url.split("/").pop()!.replace(/^\d+_/, "")
+            : "resume.pdf",
+    };
+}
+
 // ── Daily credit grant ────────────────────────────────────────────────────────
 
 export interface DailyGrantResult {
