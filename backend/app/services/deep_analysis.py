@@ -189,8 +189,9 @@ async def generate_deep_analysis(
                 ],
                 temperature=0.1,
                 response_format={"type": "json_object"},
-                timeout=45,
-                max_tokens=2500,
+                timeout=90,  # compound-mini generates long detailed output
+                # NO max_tokens — let model use its full output budget
+                # (was 2500 which truncated the 7-section JSON mid-response)
             ),
             label="deep_analysis",
         )

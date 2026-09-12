@@ -168,8 +168,9 @@ async def generate_hiring_intel(
                 ],
                 temperature=0.2,
                 response_format={"type": "json_object"},
-                timeout=60,
-                max_tokens=4096,
+                timeout=90,
+                # NO max_tokens — let model use its full output budget
+                # (was 4096 which could truncate the 9-section JSON mid-response)
             ),
             label="hiring_intel",
         )
