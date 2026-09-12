@@ -149,7 +149,20 @@ async def get_resume(resume_id: str, user: CurrentUser):
         .eq("id", resume_id).eq("user_id", user.id).execute()
     if not res.data:
         raise HTTPException(404, "Not found")
-    return res.data[0]
+    resume_data = res.data[0]
+
+    # Generate signed URL for PDF preview in browser iframe
+    file_path = resume_data.get("file_url")
+    pdf_url = None
+    if file_path:
+        try:
+            signed = await supabase.storage.from_("Resumes").create_signed_url(file_path, 3600)
+            pdf_url = signed.get("signedUrl") or signed.get("signedURL")
+        except Exception as e:
+            logger.warning("Failed to create signed URL for resume %s: %s", resume_id, e)
+
+    resume_data["pdf_url"] = pdf_url
+    return resume_data
 
 
 @router.delete("/{resume_id}")

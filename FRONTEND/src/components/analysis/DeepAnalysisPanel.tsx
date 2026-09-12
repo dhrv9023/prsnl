@@ -123,9 +123,10 @@ function SectionCard({ name, sec }: { name: string; sec: DeepAnalysisSection }) 
 
 interface Props {
     result: DeepAnalysisResult;
+    onOpenDiff?: () => void;
 }
 
-export function DeepAnalysisPanel({ result }: Props) {
+export function DeepAnalysisPanel({ result, onOpenDiff }: Props) {
     const sectionEntries = Object.entries(result.sections ?? {});
     const [displaySummary, setDisplaySummary] = useState(result.summary);
 
@@ -151,6 +152,17 @@ export function DeepAnalysisPanel({ result }: Props) {
                     onConverted={setDisplaySummary}
                     label="Hinglish mein samjho"
                 />
+
+                {onOpenDiff && (
+                    <button
+                        type="button"
+                        onClick={onOpenDiff}
+                        className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 text-xs font-semibold transition-all shadow-sm group cursor-pointer mt-2"
+                    >
+                        <Zap className="w-3.5 h-3.5 text-emerald-400 group-hover:scale-110 transition-transform" />
+                        <span>Preview AI Fixes on Resume (Before vs After)</span>
+                    </button>
+                )}
             </div>
 
             {/* Section breakdown */}

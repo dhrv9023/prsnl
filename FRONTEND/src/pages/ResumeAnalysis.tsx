@@ -218,6 +218,9 @@ export default function ResumeAnalysis() {
                         const raw = r.parsed_content?.raw_text || "";
                         setResumeText(raw);
                         setEditText(raw);
+                        if (r.pdf_url) {
+                            setPdfUrl(r.pdf_url);
+                        }
                     }).catch(() => {});
                 }
             })
@@ -231,6 +234,7 @@ export default function ResumeAnalysis() {
         setSelectedSavedId(id);
         setResumeId(id);
         setFile(null);          // clear any locally uploaded file
+        setPdfUrl(null);
         setMatch(null);
         setIntel(null);
         setDeepResult(null);
@@ -239,12 +243,15 @@ export default function ResumeAnalysis() {
             const raw = r.parsed_content?.raw_text || "";
             setResumeText(raw);
             setEditText(raw);
+            if (r.pdf_url) {
+                setPdfUrl(r.pdf_url);
+            }
         }).catch(() => {});
     }
 
-    // ── PDF object URL ────────────────────────────────────────────────────────
+    // ── PDF object URL for local uploads ──────────────────────────────────────
     useEffect(() => {
-        if (!file) { setPdfUrl(null); return; }
+        if (!file) return;
         const url = URL.createObjectURL(file);
         setPdfUrl(url);
         return () => URL.revokeObjectURL(url);
@@ -276,13 +283,22 @@ export default function ResumeAnalysis() {
 
     // ── Download ──────────────────────────────────────────────────────────────
     function handleDownload() {
-        if (!file) return;
-        const url = URL.createObjectURL(file);
-        const a = document.createElement("a");
-        a.href = url; a.download = file.name;
-        document.body.appendChild(a); a.click();
-        document.body.removeChild(a);
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        if (file) {
+            const url = URL.createObjectURL(file);
+            const a = document.createElement("a");
+            a.href = url; a.download = file.name;
+            document.body.appendChild(a); a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        } else if (pdfUrl) {
+            const currentResume = savedResumes.find(r => r.id === selectedSavedId);
+            const a = document.createElement("a");
+            a.href = pdfUrl;
+            a.download = currentResume?.original_filename || "resume.pdf";
+            a.target = "_blank";
+            document.body.appendChild(a); a.click();
+            document.body.removeChild(a);
+        }
     }
 
     // ── Upload helper ─────────────────────────────────────────────────────────
@@ -339,7 +355,6 @@ export default function ResumeAnalysis() {
             setDeepResult(result);
             setAnalysisTab("deep");
             setMobileTab("analysis");
-            setViewMode("diff");
         } catch (e: unknown) {
             setError(friendlyError(e, "Deep analysis failed."));
         } finally {
@@ -565,27 +580,8 @@ export default function ResumeAnalysis() {
                             setEditText(text);
                             setViewMode("edit");
                         }}
+                        onClose={() => setViewMode("preview")}
                     />
-                ) : !file ? (
-                    <div
-                        onDragOver={onDragOver}
-                        onDragLeave={onDragLeave}
-                        onDrop={onDrop}
-                        onClick={() => fileInputRef.current?.click()}
-                        className={`w-full max-w-[680px] aspect-[1/1.41] border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-4 cursor-pointer transition-all duration-200 ${isDragOver ? "border-primary/60 bg-primary/5" : "border-border/30 hover:border-border/50 hover:bg-secondary/20"}`}
-                    >
-                        <div className="w-14 h-14 rounded-2xl border border-border/30 bg-secondary/30 flex items-center justify-center">
-                            <FileText className="w-7 h-7 text-muted-foreground/40" />
-                        </div>
-                        <div className="text-center space-y-1">
-                            <p className="text-sm font-semibold text-foreground/60">
-                                {selectedSavedId ? "Saved resume active — click 'Before vs After' or 'Edit Text' above" : "Drop your resume PDF here"}
-                            </p>
-                            <p className="text-xs text-muted-foreground/40">
-                                {selectedSavedId ? "or upload another PDF to replace" : "or click to browse · PDF only"}
-                            </p>
-                        </div>
-                    </div>
                 ) : viewMode === "preview" && pdfUrl ? (
                     <div className="w-full max-w-[760px] shadow-2xl rounded-lg overflow-hidden border border-border/20">
                         <iframe
@@ -595,7 +591,7 @@ export default function ResumeAnalysis() {
                             style={{ height: "calc(100vh - 150px)", minHeight: "400px", border: "none" }}
                         />
                     </div>
-                ) : (
+                ) : viewMode === "edit" ? (
                     <div className="w-full max-w-[760px]">
                         <div className="bg-background border border-border/30 rounded-lg shadow-xl overflow-hidden">
                             <div className="h-8 border-b border-border/20 flex items-center px-3 gap-1.5">
@@ -610,6 +606,26 @@ export default function ResumeAnalysis() {
                                 className="w-full bg-background text-foreground text-sm leading-relaxed p-4 md:p-8 resize-none focus:outline-none font-mono"
                                 style={{ height: "calc(100vh - 180px)", minHeight: "400px" }}
                             />
+                        </div>
+                    </div>
+                ) : (
+                    <div
+                        onDragOver={onDragOver}
+                        onDragLeave={onDragLeave}
+                        onDrop={onDrop}
+                        onClick={() => fileInputRef.current?.click()}
+                        className={`w-full max-w-[680px] aspect-[1/1.41] border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-4 cursor-pointer transition-all duration-200 ${isDragOver ? "border-primary/60 bg-primary/5" : "border-border/30 hover:border-border/50 hover:bg-secondary/20"}`}
+                    >
+                        <div className="w-14 h-14 rounded-2xl border border-border/30 bg-secondary/30 flex items-center justify-center">
+                            <FileText className="w-7 h-7 text-muted-foreground/40" />
+                        </div>
+                        <div className="text-center space-y-1">
+                            <p className="text-sm font-semibold text-foreground/60">
+                                {selectedSavedId ? "Loading PDF preview…" : "Drop your resume PDF here"}
+                            </p>
+                            <p className="text-xs text-muted-foreground/40">
+                                {selectedSavedId ? "or upload another PDF to replace" : "or click to browse · PDF only"}
+                            </p>
                         </div>
                     </div>
                 )}
@@ -759,7 +775,7 @@ export default function ResumeAnalysis() {
                             <p className="text-xs text-muted-foreground/40">This takes about 20 seconds</p>
                         </div>
                     ) : deepResult ? (
-                        <DeepAnalysisPanel result={deepResult} />
+                        <DeepAnalysisPanel result={deepResult} onOpenDiff={() => setViewMode("diff")} />
                     ) : (
                         <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
                             <Layers className="w-8 h-8 text-muted-foreground/20" />
@@ -810,7 +826,7 @@ export default function ResumeAnalysis() {
                 </Link>
 
                 <div className="hidden sm:flex items-center gap-2 text-sm text-muted-foreground flex-1 min-w-0">
-                    {file && (
+                    {file ? (
                         <>
                             <span className="text-muted-foreground/40">·</span>
                             <span className="text-foreground/70 font-medium truncate max-w-xs">{file.name}</span>
@@ -820,16 +836,26 @@ export default function ResumeAnalysis() {
                                 </span>
                             )}
                         </>
-                    )}
+                    ) : selectedSavedId && savedResumes.length > 0 ? (
+                        <>
+                            <span className="text-muted-foreground/40">·</span>
+                            <span className="text-foreground/70 font-medium truncate max-w-xs">
+                                {savedResumes.find(r => r.id === selectedSavedId)?.original_filename || "Resume"}
+                            </span>
+                            <span className="text-xs px-1.5 py-0.5 rounded bg-emerald-400/10 text-emerald-400 border border-emerald-400/20 font-mono">
+                                SAVED
+                            </span>
+                        </>
+                    ) : null}
                 </div>
 
                 <div className="flex-1 sm:hidden" />
 
                 <div className="flex items-center gap-2">
-                    {file && (
+                    {(file || pdfUrl) && (
                         <button
                             onClick={handleDownload}
-                            className="flex items-center gap-1.5 h-8 px-2 md:px-3 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 transition-opacity"
+                            className="flex items-center gap-1.5 h-8 px-2 md:px-3 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 transition-opacity cursor-pointer"
                         >
                             <Download className="w-3.5 h-3.5" />
                             <span className="hidden sm:inline">Download PDF</span>

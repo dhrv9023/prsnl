@@ -663,6 +663,7 @@ export async function apiListResumes(): Promise<ResumeListItem[]> {
 }
 
 export interface ResumeDetail extends ResumeListItem {
+    pdf_url?: string;
     parsed_content?: {
         raw_text?: string;
     };
