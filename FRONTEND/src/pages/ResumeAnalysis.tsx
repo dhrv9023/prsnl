@@ -571,16 +571,18 @@ export default function ResumeAnalysis() {
                 </span>
             </div>
 
-            <div className="flex-1 overflow-auto flex items-start justify-center p-4 md:p-6">
+            <div className={`flex-1 overflow-auto flex items-start justify-center ${viewMode === "diff" ? "p-2 md:p-3 h-full w-full" : "p-4 md:p-6"}`}>
                 {viewMode === "diff" ? (
                     <BeforeAfterDiffView
                         originalText={resumeText || editText}
+                        pdfUrl={pdfUrl}
                         deepResult={deepResult}
                         onApplyToEditor={(text) => {
                             setEditText(text);
                             setViewMode("edit");
                         }}
                         onClose={() => setViewMode("preview")}
+                        onRunDeepAnalysis={handleDeepAnalysis}
                     />
                 ) : viewMode === "preview" && pdfUrl ? (
                     <div className="w-full max-w-[760px] shadow-2xl rounded-lg overflow-hidden border border-border/20">

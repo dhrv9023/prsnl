@@ -1,30 +1,36 @@
 import { useState, useMemo } from "react";
-import { Copy, Check, Sparkles, Download, ArrowRight, FileText, CheckCircle2, Columns, Split, X, Eye } from "lucide-react";
+import { Copy, Check, Sparkles, Download, ArrowRight, FileText, CheckCircle2, Columns, X, Eye, Layers, Zap, Loader2 } from "lucide-react";
 import type { DeepAnalysisResult } from "@/lib/api";
 import { parseIssueString } from "@/components/analysis/IssueFixCard";
 
 interface BeforeAfterDiffViewProps {
-    originalText: string;
+    originalText?: string;
+    pdfUrl?: string | null;
     deepResult: DeepAnalysisResult | null;
     onApplyToEditor?: (text: string) => void;
     onClose?: () => void;
+    onRunDeepAnalysis?: () => void;
 }
 
 interface ReplacementItem {
     original: string;
+    critique: string;
     fix: string;
     section: string;
 }
 
 export function BeforeAfterDiffView({
-    originalText,
+    originalText = "",
+    pdfUrl,
     deepResult,
     onApplyToEditor,
     onClose,
+    onRunDeepAnalysis,
 }: BeforeAfterDiffViewProps) {
-    const [copied, setCopied] = useState(false);
+    const [copiedAll, setCopiedAll] = useState(false);
+    const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
     const [applied, setApplied] = useState(false);
-    const [displayMode, setDisplayMode] = useState<"optimized" | "original" | "split">("optimized");
+    const [displayMode, setDisplayMode] = useState<"split" | "pdf" | "fixes">("split");
 
     // Extract all structured fixes from deepResult
     const replacements = useMemo<ReplacementItem[]>(() => {
@@ -37,9 +43,10 @@ export function BeforeAfterDiffView({
                 if (sec.issues) {
                     for (const iss of sec.issues) {
                         const parsed = parseIssueString(iss);
-                        if (parsed.isStructured && parsed.original && parsed.fix) {
+                        if (parsed.isStructured && (parsed.original || parsed.fix)) {
                             list.push({
-                                original: parsed.original,
+                                original: parsed.original || "Unspecified bullet in " + secName,
+                                critique: parsed.critique,
                                 fix: parsed.fix.replace(/^(?:Add|Rewrite|Fix):\s*/i, ""),
                                 section: secName,
                             });
@@ -53,11 +60,12 @@ export function BeforeAfterDiffView({
         if (deepResult.action_items) {
             for (const item of deepResult.action_items) {
                 const parsed = parseIssueString(item);
-                if (parsed.isStructured && parsed.original && parsed.fix) {
+                if (parsed.isStructured && (parsed.original || parsed.fix)) {
                     list.push({
-                        original: parsed.original,
+                        original: parsed.original || "Action Item",
+                        critique: parsed.critique,
                         fix: parsed.fix.replace(/^(?:Add|Rewrite|Fix):\s*/i, ""),
-                        section: "priority",
+                        section: "top priority",
                     });
                 }
             }
@@ -66,7 +74,7 @@ export function BeforeAfterDiffView({
         return list;
     }, [deepResult]);
 
-    // Build the optimized text by applying rewrites to the original text
+    // Build the optimized text string for export or editor
     const optimizedText = useMemo(() => {
         if (!originalText) return "";
         let result = originalText;
@@ -74,13 +82,11 @@ export function BeforeAfterDiffView({
         for (const rep of replacements) {
             if (!rep.original || !rep.fix) continue;
 
-            // Try exact replace
             if (result.includes(rep.original)) {
                 result = result.replace(rep.original, rep.fix);
                 continue;
             }
 
-            // Try normalized whitespace replace
             const normalizedOriginal = rep.original.replace(/\s+/g, " ").trim();
             const normalizedResult = result.replace(/\s+/g, " ");
             if (normalizedResult.includes(normalizedOriginal)) {
@@ -99,114 +105,111 @@ export function BeforeAfterDiffView({
         return result;
     }, [originalText, replacements]);
 
-    const handleCopy = async () => {
-        const textToCopy = displayMode === "original" ? originalText : optimizedText;
+    const handleCopyAll = async () => {
+        if (replacements.length === 0) return;
+        const textToCopy = replacements
+            .map((r, i) => `[${i + 1}] Section: ${r.section.toUpperCase()}\nBEFORE: ${r.original}\nAFTER:  ${r.fix}`)
+            .join("\n\n---\n\n");
         try {
             await navigator.clipboard.writeText(textToCopy);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
+            setCopiedAll(true);
+            setTimeout(() => setCopiedAll(false), 2000);
+        } catch {
+            // fallback
+        }
+    };
+
+    const handleCopySingle = async (text: string, idx: number) => {
+        try {
+            await navigator.clipboard.writeText(text);
+            setCopiedIdx(idx);
+            setTimeout(() => setCopiedIdx(null), 2000);
         } catch {
             // fallback
         }
     };
 
     const handleApply = () => {
-        if (onApplyToEditor && optimizedText) {
-            onApplyToEditor(optimizedText);
+        if (onApplyToEditor && (optimizedText || replacements.length > 0)) {
+            const targetText = optimizedText || replacements.map(r => `• ${r.fix}`).join("\n");
+            onApplyToEditor(targetText);
             setApplied(true);
             setTimeout(() => setApplied(false), 2500);
         }
     };
 
     const handleDownload = () => {
-        const textToDownload = displayMode === "original" ? originalText : optimizedText;
+        const textToDownload = optimizedText || replacements.map(r => `• ${r.fix}`).join("\n");
         if (!textToDownload) return;
         const blob = new Blob([textToDownload], { type: "text/plain;charset=utf-8" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = displayMode === "original" ? "original_resume.txt" : "optimized_resume.txt";
+        a.download = "optimized_resume.txt";
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         setTimeout(() => URL.revokeObjectURL(url), 1000);
     };
 
-    if (!originalText) {
-        return (
-            <div className="w-full h-full flex flex-col items-center justify-center p-8 text-center space-y-3">
-                <FileText className="w-10 h-10 text-muted-foreground/30" />
-                <p className="text-sm font-semibold text-foreground/70">Resume Text Not Available</p>
-                <p className="text-xs text-muted-foreground/50 max-w-sm">
-                    Select a resume from the left sidebar or upload a PDF to extract text and view the Before vs After comparison.
-                </p>
-                {onClose && (
-                    <button
-                        onClick={onClose}
-                        className="mt-2 px-3 py-1.5 rounded-lg bg-secondary text-xs font-medium hover:bg-secondary/70 transition-colors"
-                    >
-                        Back to PDF Preview
-                    </button>
-                )}
-            </div>
-        );
-    }
-
     return (
         <div className="w-full h-full flex flex-col overflow-hidden bg-background/50 rounded-xl border border-border/30 shadow-xl">
             {/* Top Toolbar */}
-            <div className="h-12 border-b border-border/20 px-3 md:px-4 flex items-center justify-between gap-2 flex-shrink-0 bg-card/70 backdrop-blur-xs">
+            <div className="h-12 border-b border-border/20 px-3 md:px-4 flex items-center justify-between gap-2 flex-shrink-0 bg-card/80 backdrop-blur-xs">
                 {/* Left: View Mode Toggle */}
                 <div className="flex items-center gap-1.5 sm:gap-2">
                     <div className="flex items-center bg-secondary/40 rounded-lg p-0.5 border border-border/20">
                         <button
                             type="button"
-                            onClick={() => setDisplayMode("optimized")}
-                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium transition-all ${
-                                displayMode === "optimized"
+                            onClick={() => setDisplayMode("split")}
+                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium transition-all cursor-pointer ${
+                                displayMode === "split"
                                     ? "bg-emerald-500/15 text-emerald-400 font-semibold shadow-xs border border-emerald-500/20"
                                     : "text-muted-foreground hover:text-foreground"
                             }`}
                         >
-                            <Sparkles className="w-3 h-3 text-emerald-400" />
-                            <span>With AI Fixes</span>
-                            <span className="hidden sm:inline-block text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-emerald-400 font-bold ml-0.5">
-                                {replacements.length}
-                            </span>
+                            <Columns className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>Resume PDF + AI Fixes</span>
+                            {replacements.length > 0 && (
+                                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-emerald-400 font-bold ml-0.5">
+                                    {replacements.length}
+                                </span>
+                            )}
                         </button>
                         <button
                             type="button"
-                            onClick={() => setDisplayMode("original")}
-                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium transition-all ${
-                                displayMode === "original"
+                            onClick={() => setDisplayMode("pdf")}
+                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium transition-all cursor-pointer ${
+                                displayMode === "pdf"
                                     ? "bg-background text-foreground shadow-xs font-semibold"
                                     : "text-muted-foreground hover:text-foreground"
                             }`}
                         >
-                            <span>Original</span>
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>Resume PDF Only</span>
                         </button>
                         <button
                             type="button"
-                            onClick={() => setDisplayMode("split")}
-                            className={`hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium transition-all ${
-                                displayMode === "split"
+                            onClick={() => setDisplayMode("fixes")}
+                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium transition-all cursor-pointer ${
+                                displayMode === "fixes"
                                     ? "bg-background text-foreground shadow-xs font-semibold"
                                     : "text-muted-foreground hover:text-foreground"
                             }`}
                         >
-                            <Columns className="w-3 h-3" />
-                            <span>Side-by-Side</span>
+                            <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>AI Fixes ({replacements.length})</span>
                         </button>
                     </div>
                 </div>
 
                 {/* Right: Actions & Close Button */}
                 <div className="flex items-center gap-1.5">
-                    {onApplyToEditor && (
+                    {onApplyToEditor && replacements.length > 0 && (
                         <button
                             type="button"
                             onClick={handleApply}
-                            className="h-7.5 px-2.5 flex items-center gap-1 rounded-md text-xs font-medium bg-primary/10 border border-primary/25 text-primary hover:bg-primary/20 transition-colors"
+                            className="h-7.5 px-2.5 flex items-center gap-1 rounded-md text-xs font-medium bg-primary/10 border border-primary/25 text-primary hover:bg-primary/20 transition-colors cursor-pointer"
                             title="Insert optimized text into the Edit Text tab"
                         >
                             {applied ? (
@@ -223,33 +226,37 @@ export function BeforeAfterDiffView({
                         </button>
                     )}
 
-                    <button
-                        type="button"
-                        onClick={handleCopy}
-                        className="h-7.5 px-2.5 flex items-center gap-1 rounded-md text-xs font-medium bg-secondary border border-border/40 hover:bg-secondary/70 transition-colors text-foreground"
-                        title="Copy text to clipboard"
-                    >
-                        {copied ? (
-                            <>
-                                <Check className="w-3 h-3 text-emerald-400" />
-                                <span className="hidden sm:inline">Copied!</span>
-                            </>
-                        ) : (
-                            <>
-                                <Copy className="w-3 h-3" />
-                                <span className="hidden sm:inline">Copy</span>
-                            </>
-                        )}
-                    </button>
+                    {replacements.length > 0 && (
+                        <>
+                            <button
+                                type="button"
+                                onClick={handleCopyAll}
+                                className="h-7.5 px-2.5 flex items-center gap-1 rounded-md text-xs font-medium bg-secondary border border-border/40 hover:bg-secondary/70 transition-colors text-foreground cursor-pointer"
+                                title="Copy all fixes to clipboard"
+                            >
+                                {copiedAll ? (
+                                    <>
+                                        <Check className="w-3 h-3 text-emerald-400" />
+                                        <span className="hidden sm:inline">Copied All!</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Copy className="w-3 h-3" />
+                                        <span className="hidden sm:inline">Copy All Fixes</span>
+                                    </>
+                                )}
+                            </button>
 
-                    <button
-                        type="button"
-                        onClick={handleDownload}
-                        className="h-7.5 w-7.5 flex items-center justify-center rounded-md text-xs bg-secondary border border-border/40 hover:bg-secondary/70 transition-colors text-foreground"
-                        title="Download text file"
-                    >
-                        <Download className="w-3 h-3" />
-                    </button>
+                            <button
+                                type="button"
+                                onClick={handleDownload}
+                                className="h-7.5 w-7.5 flex items-center justify-center rounded-md text-xs bg-secondary border border-border/40 hover:bg-secondary/70 transition-colors text-foreground cursor-pointer"
+                                title="Download optimized resume text"
+                            >
+                                <Download className="w-3 h-3" />
+                            </button>
+                        </>
+                    )}
 
                     {/* Prominent Dismiss / Close Button */}
                     {onClose && (
@@ -266,80 +273,248 @@ export function BeforeAfterDiffView({
                 </div>
             </div>
 
-            {/* Resume Document Canvas */}
-            <div className="flex-1 overflow-auto p-4 md:p-6 flex justify-center bg-secondary/5">
+            {/* Canvas Body */}
+            <div className="flex-1 overflow-hidden p-3 md:p-4 bg-secondary/5">
                 {displayMode === "split" ? (
-                    /* Side-by-Side Document Comparison */
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 w-full max-w-5xl h-full min-h-[500px]">
-                        {/* Original Resume Paper */}
-                        <div className="flex flex-col rounded-xl border border-border/30 bg-card shadow-md overflow-hidden">
-                            <div className="px-4 py-2.5 bg-secondary/30 border-b border-border/20 flex items-center justify-between">
-                                <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider font-mono">
-                                    Original Resume
-                                </span>
-                                <span className="text-[10px] text-red-400/80 font-mono">
-                                    {replacements.length} weak points identified
+                    /* Side-by-Side: Real PDF on Left, Before vs After Fixes on Right */
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 h-full overflow-hidden">
+                        {/* Left: Real PDF Viewer (No Extracted Text!) */}
+                        <div className="lg:col-span-7 flex flex-col rounded-xl border border-border/30 bg-card shadow-md overflow-hidden h-full">
+                            <div className="px-4 py-2 bg-secondary/30 border-b border-border/20 flex items-center justify-between flex-shrink-0">
+                                <div className="flex items-center gap-2">
+                                    <FileText className="w-3.5 h-3.5 text-primary" />
+                                    <span className="text-xs font-bold text-foreground tracking-tight">
+                                        Your Resume (Original PDF)
+                                    </span>
+                                </div>
+                                <span className="text-[10px] text-muted-foreground/60 font-mono">
+                                    Exact Visual Document
                                 </span>
                             </div>
-                            <div className="flex-1 p-5 md:p-6 overflow-auto whitespace-pre-wrap leading-relaxed text-xs text-foreground/80 font-sans select-text">
-                                {originalText}
+                            <div className="flex-1 overflow-hidden bg-background/50">
+                                {pdfUrl ? (
+                                    <iframe
+                                        src={pdfUrl}
+                                        title="Your Resume PDF"
+                                        className="w-full h-full border-none"
+                                        style={{ minHeight: "400px" }}
+                                    />
+                                ) : (
+                                    <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center space-y-2">
+                                        <Loader2 className="w-6 h-6 animate-spin text-primary/50" />
+                                        <p className="text-xs text-muted-foreground">Loading Resume PDF preview…</p>
+                                    </div>
+                                )}
                             </div>
                         </div>
 
-                        {/* Optimized Resume Paper */}
-                        <div className="flex flex-col rounded-xl border border-emerald-500/30 bg-card shadow-md overflow-hidden">
-                            <div className="px-4 py-2.5 bg-emerald-500/10 border-b border-emerald-500/20 flex items-center justify-between">
+                        {/* Right: AI Before vs After Fixes */}
+                        <div className="lg:col-span-5 flex flex-col rounded-xl border border-emerald-500/30 bg-card shadow-md overflow-hidden h-full">
+                            <div className="px-4 py-2 bg-emerald-500/10 border-b border-emerald-500/20 flex items-center justify-between flex-shrink-0">
                                 <div className="flex items-center gap-1.5">
                                     <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-                                    <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider font-mono">
-                                        With AI Fixes Applied
+                                    <span className="text-xs font-bold text-emerald-400">
+                                        AI Before vs After Improvements
                                     </span>
                                 </div>
-                                <span className="text-[10px] text-emerald-400 font-mono font-medium">
-                                    ✓ Quantified & Calibrated
+                                <span className="text-[10px] font-mono text-emerald-400/80">
+                                    {replacements.length} Fixes
                                 </span>
                             </div>
-                            <div className="flex-1 p-5 md:p-6 overflow-auto whitespace-pre-wrap leading-relaxed text-xs text-foreground font-sans select-text selection:bg-emerald-500/30">
-                                {optimizedText}
+
+                            <div className="flex-1 overflow-auto p-3 md:p-4 space-y-3">
+                                {replacements.length > 0 ? (
+                                    replacements.map((item, idx) => (
+                                        <div
+                                            key={idx}
+                                            className="rounded-xl border border-border/30 bg-background/60 p-3.5 space-y-2.5 shadow-xs hover:border-emerald-500/30 transition-colors"
+                                        >
+                                            <div className="flex items-center justify-between gap-2">
+                                                <span className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-md bg-secondary/80 text-muted-foreground font-semibold">
+                                                    {item.section}
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleCopySingle(item.fix, idx)}
+                                                    className="flex items-center gap-1 text-[11px] px-2 py-1 rounded bg-secondary/60 hover:bg-secondary text-foreground font-medium transition-colors cursor-pointer"
+                                                >
+                                                    {copiedIdx === idx ? (
+                                                        <>
+                                                            <Check className="w-3 h-3 text-emerald-400" />
+                                                            <span className="text-emerald-400">Copied!</span>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Copy className="w-3 h-3 text-muted-foreground" />
+                                                            <span>Copy Fix</span>
+                                                        </>
+                                                    )}
+                                                </button>
+                                            </div>
+
+                                            {/* Before */}
+                                            <div className="rounded-lg bg-rose-500/5 border border-rose-500/20 p-2.5 space-y-1">
+                                                <div className="flex items-center gap-1.5 text-[10px] font-bold font-mono uppercase tracking-wider text-rose-400">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                                                    <span>Before (In your resume)</span>
+                                                </div>
+                                                <p className="text-xs text-foreground/80 font-sans leading-relaxed select-text">
+                                                    "{item.original}"
+                                                </p>
+                                            </div>
+
+                                            {/* Critique if present */}
+                                            {item.critique && (
+                                                <p className="text-[11px] text-muted-foreground/75 italic leading-snug px-1">
+                                                    💬 {item.critique}
+                                                </p>
+                                            )}
+
+                                            {/* After */}
+                                            <div className="rounded-lg bg-emerald-500/8 border border-emerald-500/25 p-2.5 space-y-1">
+                                                <div className="flex items-center gap-1.5 text-[10px] font-bold font-mono uppercase tracking-wider text-emerald-400">
+                                                    <Sparkles className="w-3 h-3 text-emerald-400" />
+                                                    <span>After (AI Recruiter Rewrite)</span>
+                                                </div>
+                                                <p className="text-xs text-foreground font-medium font-sans leading-relaxed select-text">
+                                                    "{item.fix}"
+                                                </p>
+                                            </div>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="w-full h-full min-h-[300px] flex flex-col items-center justify-center p-6 text-center space-y-3">
+                                        <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+                                            <Sparkles className="w-6 h-6 text-emerald-400" />
+                                        </div>
+                                        <p className="text-sm font-bold text-foreground">No Deep Analysis Fixes Generated Yet</p>
+                                        <p className="text-xs text-muted-foreground/70 max-w-xs leading-relaxed">
+                                            Run Deep Analysis to review your resume against senior recruiter benchmarks and generate tailored Before vs After rewrites.
+                                        </p>
+                                        {onRunDeepAnalysis && (
+                                            <button
+                                                type="button"
+                                                onClick={onRunDeepAnalysis}
+                                                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 transition-opacity cursor-pointer shadow-sm"
+                                            >
+                                                <Layers className="w-3.5 h-3.5" />
+                                                <span>Run Deep Analysis</span>
+                                                <span className="text-[10px] opacity-70 font-mono">15 cr</span>
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
-                ) : (
-                    /* Single Formatted Resume Paper */
-                    <div className="w-full max-w-[740px]">
-                        <div className={`rounded-xl border shadow-xl bg-card overflow-hidden transition-all ${
-                            displayMode === "optimized" ? "border-emerald-500/30 ring-1 ring-emerald-500/15" : "border-border/40"
-                        }`}>
-                            {/* Document Header Banner */}
-                            <div className={`px-5 py-3 border-b flex items-center justify-between transition-colors ${
-                                displayMode === "optimized" ? "bg-emerald-500/10 border-emerald-500/20" : "bg-secondary/30 border-border/20"
-                            }`}>
-                                <div className="flex items-center gap-2">
-                                    {displayMode === "optimized" ? (
-                                        <>
-                                            <Sparkles className="w-4 h-4 text-emerald-400" />
-                                            <span className="text-xs font-bold text-emerald-400">
-                                                Resume Preview: With AI Improvements Applied
-                                            </span>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <FileText className="w-4 h-4 text-muted-foreground" />
-                                            <span className="text-xs font-bold text-foreground">
-                                                Resume Preview: Original Content
-                                            </span>
-                                        </>
-                                    )}
+                ) : displayMode === "pdf" ? (
+                    /* Full-width Real PDF Viewer */
+                    <div className="w-full h-full flex flex-col rounded-xl border border-border/30 bg-card shadow-md overflow-hidden">
+                        <div className="px-4 py-2 bg-secondary/30 border-b border-border/20 flex items-center justify-between flex-shrink-0">
+                            <span className="text-xs font-bold text-foreground">
+                                Your Resume (Original PDF)
+                            </span>
+                            <span className="text-[10px] text-muted-foreground/60 font-mono">
+                                Full-Width View
+                            </span>
+                        </div>
+                        <div className="flex-1 overflow-hidden bg-background/50">
+                            {pdfUrl ? (
+                                <iframe
+                                    src={pdfUrl}
+                                    title="Your Resume PDF"
+                                    className="w-full h-full border-none"
+                                />
+                            ) : (
+                                <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center space-y-2">
+                                    <Loader2 className="w-6 h-6 animate-spin text-primary/50" />
+                                    <p className="text-xs text-muted-foreground">Loading Resume PDF preview…</p>
                                 </div>
-                                <span className="text-[11px] font-mono text-muted-foreground/70">
-                                    {displayMode === "optimized" ? `${replacements.length} Fixes Incorporated` : "Unmodified"}
+                            )}
+                        </div>
+                    </div>
+                ) : (
+                    /* Full-width AI Fixes List */
+                    <div className="w-full h-full max-w-4xl mx-auto flex flex-col rounded-xl border border-emerald-500/30 bg-card shadow-md overflow-hidden">
+                        <div className="px-4 py-2 bg-emerald-500/10 border-b border-emerald-500/20 flex items-center justify-between flex-shrink-0">
+                            <div className="flex items-center gap-1.5">
+                                <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                                <span className="text-xs font-bold text-emerald-400">
+                                    All AI Before vs After Improvements ({replacements.length})
                                 </span>
                             </div>
+                        </div>
 
-                            {/* Resume Paper Body */}
-                            <div className="p-6 md:p-10 whitespace-pre-wrap text-sm leading-relaxed text-foreground font-sans select-text">
-                                {displayMode === "optimized" ? optimizedText : originalText}
-                            </div>
+                        <div className="flex-1 overflow-auto p-4 md:p-6 space-y-3">
+                            {replacements.length > 0 ? (
+                                replacements.map((item, idx) => (
+                                    <div
+                                        key={idx}
+                                        className="rounded-xl border border-border/30 bg-background/60 p-4 space-y-3 shadow-xs hover:border-emerald-500/30 transition-colors"
+                                    >
+                                        <div className="flex items-center justify-between gap-2">
+                                            <span className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-md bg-secondary/80 text-muted-foreground font-semibold">
+                                                {item.section}
+                                            </span>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleCopySingle(item.fix, idx)}
+                                                className="flex items-center gap-1 text-[11px] px-2.5 py-1 rounded bg-secondary/60 hover:bg-secondary text-foreground font-medium transition-colors cursor-pointer"
+                                            >
+                                                {copiedIdx === idx ? (
+                                                    <>
+                                                        <Check className="w-3 h-3 text-emerald-400" />
+                                                        <span className="text-emerald-400">Copied!</span>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Copy className="w-3 h-3 text-muted-foreground" />
+                                                        <span>Copy Fix</span>
+                                                    </>
+                                                )}
+                                            </button>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            {/* Before */}
+                                            <div className="rounded-lg bg-rose-500/5 border border-rose-500/20 p-3 space-y-1">
+                                                <div className="flex items-center gap-1.5 text-[10px] font-bold font-mono uppercase tracking-wider text-rose-400">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                                                    <span>Before (In your resume)</span>
+                                                </div>
+                                                <p className="text-xs text-foreground/80 font-sans leading-relaxed select-text">
+                                                    "{item.original}"
+                                                </p>
+                                            </div>
+
+                                            {/* After */}
+                                            <div className="rounded-lg bg-emerald-500/8 border border-emerald-500/25 p-3 space-y-1">
+                                                <div className="flex items-center gap-1.5 text-[10px] font-bold font-mono uppercase tracking-wider text-emerald-400">
+                                                    <Sparkles className="w-3 h-3 text-emerald-400" />
+                                                    <span>After (AI Recruiter Rewrite)</span>
+                                                </div>
+                                                <p className="text-xs text-foreground font-medium font-sans leading-relaxed select-text">
+                                                    "{item.fix}"
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {item.critique && (
+                                            <p className="text-[11px] text-muted-foreground/80 italic leading-snug px-1 pt-1 border-t border-border/10">
+                                                💬 Recruiter critique: {item.critique}
+                                            </p>
+                                        )}
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="w-full h-full min-h-[300px] flex flex-col items-center justify-center p-6 text-center space-y-3">
+                                    <Sparkles className="w-8 h-8 text-emerald-400/50" />
+                                    <p className="text-sm font-bold text-foreground">No Deep Analysis Fixes Available</p>
+                                    <p className="text-xs text-muted-foreground/70 max-w-xs leading-relaxed">
+                                        Run Deep Analysis in the sidebar to review your resume and generate fixes.
+                                    </p>
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}
