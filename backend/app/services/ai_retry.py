@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from typing import Callable, TypeVar, Awaitable
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,11 @@ _RETRYABLE_GROQ_MESSAGES = (
     "connection",
     "timeout",
     "rate_limit",
+    "rate limit",
+    "rate_limit_exceeded",
+    "429",
+    "tpm",
+    "tokens per minute",
     "service_unavailable",
     "internal_server_error",
     "502",
@@ -42,6 +48,25 @@ def _is_retryable(exc: Exception) -> bool:
     return any(kw in msg for kw in _RETRYABLE_GROQ_MESSAGES)
 
 
+def _calculate_retry_delay(exc: Exception, attempt: int, base_delay: float) -> float:
+    """
+    Calculates retry delay, dynamically extracting wait times requested by Groq (e.g. 429 TPM reset).
+    """
+    msg = str(exc).lower()
+    # Check if Groq specified an exact wait duration in the 429 message (e.g., "try again in 7.78s")
+    if "429" in msg or "rate limit" in msg or "rate_limit" in msg or "tpm" in msg:
+        match = re.search(r"try again in ([0-9.]+)s", msg)
+        if match:
+            try:
+                wait_sec = float(match.group(1))
+                return wait_sec + 1.0  # Buffer by 1s so token bucket has reset
+            except ValueError:
+                pass
+        return max(8.0, base_delay * (2 ** (attempt - 1)))
+
+    return base_delay * (2 ** (attempt - 1))
+
+
 async def with_ai_retry(
     fn: Callable[[], Awaitable[T]],
     *,
@@ -50,7 +75,7 @@ async def with_ai_retry(
     label: str = "AI call",
 ) -> T:
     """
-    Calls `fn()` up to `max_attempts` times with exponential backoff.
+    Calls `fn()` up to `max_attempts` times with exponential backoff and rate-limit awareness.
 
     Usage:
         result = await with_ai_retry(
@@ -73,7 +98,7 @@ async def with_ai_retry(
                 )
                 raise
 
-            delay = base_delay * (2 ** (attempt - 1))  # 1.5s, 3s, 6s
+            delay = _calculate_retry_delay(exc, attempt, base_delay)
             logger.warning(
                 "%s transient failure (attempt %d/%d), retrying in %.1fs: %s",
                 label, attempt, max_attempts, delay, exc

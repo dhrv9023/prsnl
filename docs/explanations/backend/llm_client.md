@@ -30,10 +30,10 @@ Initializes a single shared instance of `AsyncGroq` using the `settings.GROQ_API
 ### Model Selection
 **Lines:** 26–29  
 Defines two models:
-- **Primary:** `groq/compound-mini` — Groq's own fast model. Supports `response_format={"type": "json_object"}` natively, runs on Groq's LPU hardware (1–3s latency), and has no hard output-token-per-minute limits on the free tier. **100% free** on GroqCloud.
-- **Fallback:** `groq/compound` — Groq's higher-quality compound model, also free and also supports JSON mode. Used automatically if the primary model fails JSON validation.
+- **Primary:** `groq/compound-mini` — Groq's fast model. Supports `response_format={"type": "json_object"}` natively, runs on Groq's LPU hardware (1–3s latency), has a high **70,000 TPM limit** on the free tier, and is **100% free ($0)** on GroqCloud.
+- **Fallback:** `groq/compound-mini` — Also defaults to `groq/compound-mini` to avoid routing to low-TPM models like `llama-3.3-70b-versatile` (12k TPM) that trigger promotional rate limit warnings.
 
-> **Why not `openai/gpt-oss-20b`?** That model was the original choice but it returns HTTP 400 `json_validate_failed` on all `json_object` requests — it does not support that response format on Groq. Both compound models were tested and confirmed working.
+> **Why not `openai/gpt-oss-20b`?** That model was the original choice but it returns HTTP 400 `json_validate_failed` on all `json_object` requests — it does not support that response format on Groq. `groq/compound-mini` supports native JSON mode with high throughput.
 
 ### `_strip_think_tags` helper function
 **Lines:** 40–42  

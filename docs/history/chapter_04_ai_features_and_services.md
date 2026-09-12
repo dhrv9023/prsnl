@@ -8,17 +8,17 @@ All AI features share three pieces of infrastructure:
 
 ```python
 _groq_client = AsyncGroq(api_key=settings.GROQ_API_KEY)
-GROQ_CHAT_MODEL = "groq/compound-mini"       # primary (free, JSON mode)
-GROQ_FALLBACK_MODEL = "groq/compound"        # fallback (free, higher quality)
+GROQ_CHAT_MODEL = "groq/compound-mini"       # primary (100% free, 70k TPM, JSON mode)
+GROQ_FALLBACK_MODEL = "groq/compound-mini"   # fallback (100% free, avoids 12k TPM router)
 
 async def chat_complete(messages, temperature=0.3, response_format=None,
                          timeout=60, max_tokens=None, model=None) -> str:
     ...
 ```
 
-Single shared async client. All features call `chat_complete()` instead of creating their own clients. The model is `groq/compound-mini` — Groq's own compound model, free on GroqCloud, supports `response_format={"type": "json_object"}` natively, 1–3s latency.
+Single shared async client. All features call `chat_complete()` instead of creating their own clients. The model is `groq/compound-mini` — Groq's fast, 100% free model on GroqCloud with 70,000 TPM limit, supporting `response_format={"type": "json_object"}` natively with 1–3s latency.
 
-> **Model History:** Started with `llama-3.3-70b-versatile` (deprecated on Groq), then switched to `openai/gpt-oss-20b` (broken — returns HTTP 400 on all JSON-mode requests), then settled on `groq/compound-mini` + `groq/compound` fallback (September 2026). Always test JSON mode support before switching models.
+> **Model History:** Started with `llama-3.3-70b-versatile` (deprecated on Groq), then switched to `openai/gpt-oss-20b` (broken — returns HTTP 400 on all JSON-mode requests), then tested `groq/compound` (routes under the hood to `llama-3.3-70b-versatile` with low 12k TPM limit), then settled on `groq/compound-mini` (September 2026, 70k TPM, 100% free). Always test JSON mode support and rate limit headers before switching models.
 
 ### 2. `ai_retry.py` — Retry Utility
 

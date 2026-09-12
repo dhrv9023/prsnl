@@ -4,12 +4,11 @@ Groq Whisper is also used for voice transcription in interview.py.
 
 Primary model: groq/compound-mini
   - Supports response_format={"type": "json_object"} natively
-  - ~1-3s latency, no OTPM limit issues on free tier
-  - Replaces broken openai/gpt-oss-20b (HTTP 400 on all JSON-mode requests)
+  - ~1-3s latency, 70,000 TPM limit, 100% free on GroqCloud
+  - Replaces broken openai/gpt-oss-20b and low-TPM 12k compound router
 
-Fallback model: groq/compound
-  - Used automatically if primary model fails JSON validation
-  - Higher quality responses, also supports JSON mode
+Fallback model: groq/compound-mini
+  - 100% free model, avoids routing to 12,000 TPM llama-3.3-70b-versatile
 """
 import re
 import logging
@@ -22,11 +21,11 @@ logger = logging.getLogger(__name__)
 # Single shared async Groq client
 _groq_client = AsyncGroq(api_key=settings.GROQ_API_KEY)
 
-# Primary model — supports json_object response_format natively
+# Primary model — supports json_object response_format natively (100% free, 70,000 TPM limit)
 GROQ_CHAT_MODEL = getattr(settings, "GROQ_CHAT_MODEL", "groq/compound-mini")
 
-# Fallback model — higher quality, used when primary fails JSON validation
-GROQ_FALLBACK_MODEL = getattr(settings, "GROQ_FALLBACK_MODEL", "groq/compound")
+# Fallback model — 100% free
+GROQ_FALLBACK_MODEL = getattr(settings, "GROQ_FALLBACK_MODEL", "groq/compound-mini")
 
 
 def _strip_code_fences(text: str) -> str:

@@ -116,6 +116,7 @@ OUTPUT SPECIFICATION — ABSOLUTE MANDATE:
 - Absolutely NO conversational prose, introductory text, or concluding notes.
 - Absolutely NO Markdown fences (do not wrap in ```json or ```).
 - All strings must be properly JSON-escaped.
+- CRITICAL: Never put unescaped raw double quotes (") inside JSON string values. For quoting resume lines, code, or phrases, ALWAYS use single quotes (') or backticks (`). Raw unescaped double quotes cause fatal JSON parsing errors.
 
 Expected JSON Structure:
 {
@@ -208,6 +209,7 @@ def extract_json_payload(text: str) -> dict:
     """
     Safely extracts and parses a JSON dictionary from LLM output.
     Supports markdown fences, conversational prose, and think tags.
+    Handles unescaped control characters and trailing commas before failing.
     Raises json.JSONDecodeError or ValueError on failure.
     """
     if not text or not isinstance(text, str):
@@ -215,35 +217,51 @@ def extract_json_payload(text: str) -> dict:
 
     cleaned = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
 
+    def _try_parse(raw: str) -> dict | None:
+        if not raw:
+            return None
+        # 1. Direct parse with strict=False (allows unescaped control characters like tabs/newlines)
+        try:
+            val = json.loads(raw, strict=False)
+            if isinstance(val, dict):
+                return val
+            if isinstance(val, list) and val and isinstance(val[0], dict):
+                return val[0]
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+        # 2. Syntax cleanup: remove trailing commas before closing braces/brackets
+        try:
+            cleaned_raw = re.sub(r",\s*([}\]])", r"\1", raw)
+            val = json.loads(cleaned_raw, strict=False)
+            if isinstance(val, dict):
+                return val
+            if isinstance(val, list) and val and isinstance(val[0], dict):
+                return val[0]
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+        return None
+
     # 1. Look for markdown code fence blocks (```json ... ``` or ``` ... ```)
     fence_match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", cleaned, flags=re.IGNORECASE)
     if fence_match:
-        candidate = fence_match.group(1).strip()
-        try:
-            parsed = json.loads(candidate)
-            if isinstance(parsed, dict):
-                return parsed
-        except json.JSONDecodeError:
-            pass
+        res = _try_parse(fence_match.group(1).strip())
+        if res is not None:
+            return res
 
-    # 2. Try direct json.loads on cleaned text
-    try:
-        parsed = json.loads(cleaned)
-        if isinstance(parsed, dict):
-            return parsed
-        if isinstance(parsed, list) and parsed and isinstance(parsed[0], dict):
-            return parsed[0]
-    except json.JSONDecodeError:
-        pass
+    # 2. Try direct parse on cleaned text
+    res = _try_parse(cleaned)
+    if res is not None:
+        return res
 
     # 3. Search for outermost curly braces: first '{' to last '}'
     first_brace = cleaned.find("{")
     last_brace = cleaned.rfind("}")
     if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
-        candidate = cleaned[first_brace : last_brace + 1].strip()
-        parsed = json.loads(candidate)
-        if isinstance(parsed, dict):
-            return parsed
+        res = _try_parse(cleaned[first_brace : last_brace + 1].strip())
+        if res is not None:
+            return res
 
     raise json.JSONDecodeError("No valid JSON object found in LLM response", text, 0)
 
@@ -359,28 +377,27 @@ async def generate_deep_analysis(
         )
 
     # ── 3. Controlled recovery pass (single-pass repair) ───────────────────────
-    recovery_prompt = (
-        "Your previous response was invalid. It failed parsing or schema validation:\n"
-        f"Error: {type(first_error).__name__}: {first_error}\n\n"
-        "You MUST return ONLY a single, strictly valid JSON object matching the schema.\n"
-        "Required top-level keys: summary (string), overall_feedback (\"Excellent\"|\"Good\"|\"Fair\"|\"Poor\"), "
-        "sections (object with contact, profile_summary, experience, skills, education, projects, formatting), "
-        "action_items (array of 5 strings).\n"
-        "DO NOT write any prose or markdown fences. Output RAW JSON starting with '{' and ending with '}'."
+    repair_prompt = (
+        f"The following JSON response failed validation ({type(first_error).__name__}: {first_error}).\n\n"
+        "Fix all syntax errors (unescaped quotes, trailing commas, missing brackets) and return the corrected complete JSON object.\n"
+        "Required top-level keys: summary, overall_feedback, sections, action_items.\n"
+        "Output RAW JSON ONLY starting with '{' and ending with '}'. No prose, no markdown fences.\n\n"
+        f"{completion}"
     )
 
     try:
         recovery_completion = await with_ai_retry(
             lambda: chat_complete(
                 messages=[
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": user_message},
-                    {"role": "assistant", "content": completion[:1500]},
-                    {"role": "user", "content": recovery_prompt},
+                    {
+                        "role": "system",
+                        "content": "You are a JSON repair specialist. You receive malformed JSON and output ONLY valid, RFC-8259 compliant JSON matching the required keys. Never include markdown fences or conversational text.",
+                    },
+                    {"role": "user", "content": repair_prompt},
                 ],
                 temperature=0.0,
                 response_format={"type": "json_object"},
-                timeout=90,
+                timeout=60,
             ),
             label="deep_analysis_recovery",
         )

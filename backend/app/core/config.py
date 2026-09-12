@@ -13,8 +13,8 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
     ENVIRONMENT: Literal["development", "production"] = "development"
     GROQ_API_KEY: str                          # kept for Whisper STT only
-    GROQ_CHAT_MODEL: str = "groq/compound-mini"  # primary: fast, json_object support, no OTPM limit
-    GROQ_FALLBACK_MODEL: str = "groq/compound"   # fallback: higher quality, also supports json_object
+    GROQ_CHAT_MODEL: str = "groq/compound-mini"  # primary: fast, 100% free, 70k TPM, json_object support
+    GROQ_FALLBACK_MODEL: str = "groq/compound-mini"   # fallback: 100% free, avoids 12k TPM router
     OPENROUTER_API_KEY: str = ""               # used for all LLM features
     OPENROUTER_MODEL: str = "nvidia/nemotron-3-super"
     SUPABASE_URL: str

@@ -175,9 +175,53 @@ class TestJSONExtractionAndValidation:
         for sec in ["contact", "profile_summary", "experience", "skills", "education", "projects", "formatting"]:
             assert sec in validated.sections
 
+    def test_extract_json_with_trailing_commas(self):
+        """JSON with trailing commas in arrays or objects is cleaned and parsed."""
+        raw = '{"summary": "Test summary", "overall_feedback": "Good", "sections": {}, "action_items": ["Item 1",], }'
+        parsed = extract_json_payload(raw)
+        assert parsed["summary"] == "Test summary"
+        assert parsed["action_items"] == ["Item 1"]
+
+    def test_extract_json_with_unescaped_newlines_and_tabs(self):
+        """JSON with unescaped control characters in strings parses without JSONDecodeError."""
+        raw = '{\n  "summary": "Line 1\nLine 2\tTabbed",\n  "overall_feedback": "Good",\n  "sections": {},\n  "action_items": []\n}'
+        parsed = extract_json_payload(raw)
+        assert "Line 1" in parsed["summary"]
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# UNIT TESTS: CONTROLLED RECOVERY MECHANISM
+# UNIT TESTS: AI RETRY & RATE LIMIT HANDLING
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TestAIRetryRateLimiting:
+    def test_rate_limit_messages_detected_as_retryable(self):
+        from app.services.ai_retry import _is_retryable
+
+        groq_429_err = Exception(
+            "RateLimitError: Error code: 429 - {'error': {'message': \"Rate limit reached for model 'groq/compound-mini' "
+            "in organization 'org_123' service tier 'on_demand' on tokens per minute (TPM): Limit 70000, Used 69000, "
+            "Requested 4000. Please try again in 7.78s.\", 'type': 'compound', 'code': 'rate_limit_exceeded'}}"
+        )
+        assert _is_retryable(groq_429_err) is True
+
+    def test_dynamic_delay_parsed_from_groq_429_message(self):
+        from app.services.ai_retry import _calculate_retry_delay
+
+        groq_429_err = Exception(
+            "Rate limit reached for model 'groq/compound-mini'. Please try again in 7.78s. Upgrade to Dev Tier..."
+        )
+        delay = _calculate_retry_delay(groq_429_err, attempt=1, base_delay=1.5)
+        # 7.78 + 1.0s buffer = 8.78s
+        assert pytest.approx(delay, 0.01) == 8.78
+
+    def test_standard_exponential_delay_for_generic_errors(self):
+        from app.services.ai_retry import _calculate_retry_delay
+
+        err = Exception("502 Bad Gateway: upstream connect error")
+        delay1 = _calculate_retry_delay(err, attempt=1, base_delay=1.5)
+        delay2 = _calculate_retry_delay(err, attempt=2, base_delay=1.5)
+        assert delay1 == 1.5
+        assert delay2 == 3.0
 # ═══════════════════════════════════════════════════════════════════════════════
 
 class TestDeepAnalysisRecovery:
