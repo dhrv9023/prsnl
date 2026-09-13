@@ -5,7 +5,7 @@ from xml.sax.saxutils import escape
 from reportlab.lib.pagesizes import letter, A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable, KeepTogether
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable, KeepTogether, Table, TableStyle
 
 SECTION_KEYWORDS = {
     "summary", "professional summary", "profile", "about me", "executive summary",
@@ -303,101 +303,106 @@ def _build_styles(template_id: str) -> dict:
         header_size = 10
         header_case = lambda t: t.upper()  # noqa: E731
     else:  # "classic"
-        accent = colors.HexColor("#0F172A")
-        name_color = colors.HexColor("#0F172A")
-        title_color = colors.HexColor("#475569")
-        header_color = colors.HexColor("#0F172A")
-        body_color = colors.HexColor("#334155")
-        meta_color = colors.HexColor("#475569")
-        name_size = 18
-        header_size = 10.5
-        header_case = lambda t: t.upper()  # noqa: E731
+        accent = colors.black
+        name_color = colors.black
+        title_color = colors.black
+        header_color = colors.black
+        body_color = colors.black
+        meta_color = colors.black
+        name_size = 20
+        header_size = 11
+        header_case = lambda t: t  # noqa: E731
+
+    is_classic = template_id == "classic"
 
     return {
         "name": ParagraphStyle(
             "RName",
             parent=styles["Normal"],
-            fontName="Helvetica-Bold",
+            fontName="Times-Bold" if is_classic else "Helvetica-Bold",
             fontSize=name_size,
             leading=name_size + 4,
             textColor=name_color,
+            alignment=1 if is_classic else 0,
             spaceAfter=2,
         ),
         "title": ParagraphStyle(
             "RTitle",
             parent=styles["Normal"],
-            fontName="Helvetica",
+            fontName="Times-Roman" if is_classic else "Helvetica",
             fontSize=10,
             leading=14,
             textColor=title_color,
+            alignment=1 if is_classic else 0,
             spaceAfter=2,
         ),
         "contact": ParagraphStyle(
             "RContact",
             parent=styles["Normal"],
-            fontName="Helvetica",
-            fontSize=8.5,
-            leading=12,
+            fontName="Times-Roman" if is_classic else "Helvetica",
+            fontSize=9 if is_classic else 8.5,
+            leading=13 if is_classic else 12,
             textColor=meta_color,
-            spaceAfter=8,
+            alignment=1 if is_classic else 0,
+            spaceAfter=6 if is_classic else 8,
         ),
         "section": ParagraphStyle(
             "RSection",
             parent=styles["Normal"],
-            fontName="Helvetica-Bold",
+            fontName="Times-Bold" if is_classic else "Helvetica-Bold",
             fontSize=header_size,
             leading=14,
             textColor=header_color,
-            spaceBefore=10,
-            spaceAfter=2,
+            spaceBefore=8 if is_classic else 10,
+            spaceAfter=1 if is_classic else 2,
             keepWithNext=True,
         ),
         "entry_header": ParagraphStyle(
             "REntryHeader",
             parent=styles["Normal"],
-            fontName="Helvetica-Bold",
-            fontSize=9.5,
+            fontName="Times-Bold" if is_classic else "Helvetica-Bold",
+            fontSize=10 if is_classic else 9.5,
             leading=13,
-            textColor=colors.HexColor("#1E293B"),
-            spaceBefore=5,
+            textColor=colors.black if is_classic else colors.HexColor("#1E293B"),
+            spaceBefore=3 if is_classic else 5,
             spaceAfter=1,
             keepWithNext=True,
         ),
         "entry_meta": ParagraphStyle(
             "REntryMeta",
             parent=styles["Normal"],
-            fontName="Helvetica-Oblique",
-            fontSize=8.5,
+            fontName="Times-Italic" if is_classic else "Helvetica-Oblique",
+            fontSize=9 if is_classic else 8.5,
             leading=12,
-            textColor=meta_color,
-            spaceAfter=3,
+            textColor=colors.black if is_classic else meta_color,
+            spaceAfter=2 if is_classic else 3,
             keepWithNext=True,
         ),
         "body": ParagraphStyle(
             "RBody",
             parent=styles["Normal"],
-            fontName="Helvetica",
-            fontSize=9,
-            leading=13,
+            fontName="Times-Roman" if is_classic else "Helvetica",
+            fontSize=9.5 if is_classic else 9,
+            leading=13.5 if is_classic else 13,
             textColor=body_color,
-            spaceAfter=3,
+            spaceAfter=2 if is_classic else 3,
         ),
         "bullet": ParagraphStyle(
             "RBullet",
             parent=styles["Normal"],
-            fontName="Helvetica",
-            fontSize=8.5,
+            fontName="Times-Roman" if is_classic else "Helvetica",
+            fontSize=9 if is_classic else 8.5,
             leading=12.5,
             textColor=body_color,
             leftIndent=14,
             firstLineIndent=-10,
-            spaceAfter=2.5,
+            spaceAfter=1.5 if is_classic else 2.5,
         ),
         "skills_label": ParagraphStyle(
             "RSkillsLabel",
             parent=styles["Normal"],
-            fontName="Helvetica-Bold",
-            fontSize=8.5,
+            fontName="Times-Bold" if is_classic else "Helvetica-Bold",
+            fontSize=9 if is_classic else 8.5,
             leading=12,
             textColor=body_color,
             spaceAfter=2,
@@ -448,10 +453,10 @@ def _section_divider(styles: dict) -> list:
         return [
             HRFlowable(
                 width="100%",
-                thickness=0.75,
-                color=colors.HexColor("#CBD5E1"),
-                spaceBefore=1,
-                spaceAfter=4,
+                thickness=0.8,
+                color=colors.black,
+                spaceBefore=0.5,
+                spaceAfter=3,
             )
         ]
 
@@ -465,23 +470,40 @@ def _render_section_header(title: str, styles: dict) -> list:
     ]
 
 
+def _format_markdown_bold(text: str) -> str:
+    """Escapes XML and converts markdown **word** to <b>word</b> for ReportLab."""
+    escaped = _s(text)
+    return re.sub(r"\*\*(.*?)\*\*", r"<b>\1</b>", escaped)
+
+
 def _render_bullets(bullets: list[dict], styles: dict) -> list:
     """Render a list of ResumeBullet dicts as indented bullet paragraphs."""
     flowables = []
     for b in bullets:
         text = (b.get("text") or "").strip()
         if text:
-            flowables.append(Paragraph(f"&bull; {_s(text)}", styles["bullet"]))
+            flowables.append(Paragraph(f"&bull; {_format_markdown_bold(text)}", styles["bullet"]))
     return flowables
 
 
-def _render_contact_line(basics: dict) -> str:
+def _render_contact_line(basics: dict, template_id: str = "classic") -> str:
     """Build a pipe-separated contact string from basics fields."""
     parts = []
-    for field in ("email", "phone", "location", "linkedin", "github", "portfolio"):
-        val = (basics.get(field) or "").strip()
-        if val:
-            parts.append(_s(val))
+    if template_id == "classic":
+        for field in ("location", "phone", "email"):
+            val = (basics.get(field) or "").strip()
+            if val:
+                parts.append(_s(val))
+        for field, label in (("linkedin", "LinkedIn"), ("github", "GitHub"), ("portfolio", "Portfolio")):
+            val = (basics.get(field) or "").strip()
+            if val:
+                url = val if val.startswith("http") else f"https://{val}"
+                parts.append(f'<a href="{url}" color="black">{label}</a>')
+    else:
+        for field in ("email", "phone", "location", "linkedin", "github", "portfolio"):
+            val = (basics.get(field) or "").strip()
+            if val:
+                parts.append(_s(val))
     return " &nbsp;|&nbsp; ".join(parts)
 
 
@@ -491,9 +513,10 @@ def _render_summary(basics: dict, styles: dict) -> list:
     summary = (basics.get("summary") or "").strip()
     if not summary:
         return []
+    header_name = "Summary" if styles.get("_template") == "classic" else "Professional Summary"
     return [
-        *_render_section_header("Professional Summary", styles),
-        Paragraph(_s(summary), styles["body"]),
+        *_render_section_header(header_name, styles),
+        Paragraph(_format_markdown_bold(summary), styles["body"]),
     ]
 
 
@@ -501,40 +524,62 @@ def _render_experience(items: list[dict], styles: dict) -> list:
     if not items:
         return []
     flowables: list = [*_render_section_header("Experience", styles)]
+    is_classic = styles.get("_template") == "classic"
     for item in items:
         company = _s(item.get("company") or "")
         role = _s(item.get("role") or "")
         location = _s(item.get("location") or "")
         start = _s(item.get("start_date") or "")
         end = _s("Present" if item.get("current") else item.get("end_date") or "")
-
-        # Compose meta line: "Company  •  Location  |  Start – End"
-        meta_parts = [p for p in [company, location] if p]
         date_range = " \u2013 ".join(p for p in [start, end] if p)
-        meta_line = "  \u0026nbsp;\u0026bull;\u0026nbsp;  ".join(meta_parts)
-        if date_range:
-            meta_line = (
-                f"{meta_line}   <i>{date_range}</i>" if meta_line else f"<i>{date_range}</i>"
-            )
 
         all_bullets = _render_bullets(item.get("bullets") or [], styles)
 
-        # Keep role+meta+first bullet together to prevent orphaned section headers
-        anchor = [
-            Paragraph(role, styles["entry_header"]),
-            Paragraph(meta_line, styles["entry_meta"]),
-        ] + all_bullets[:1]
-        flowables.append(KeepTogether(anchor))
-        flowables.extend(all_bullets[1:])  # remaining bullets flow freely
+        if is_classic:
+            left_parts = []
+            if role:
+                left_parts.append(f"<b>{role}</b>")
+            if company:
+                left_parts.append(f"— <b>{company}</b>" if role else f"<b>{company}</b>")
+            if location:
+                left_parts.append(f", {location}")
+            left_html = " ".join(left_parts)
+            right_html = f'<para align="right">{date_range}</para>' if date_range else ""
+
+            p_left = Paragraph(left_html, styles["entry_header"])
+            p_right = Paragraph(right_html, styles["entry_meta"])
+            table = Table([[p_left, p_right]], colWidths=[410, 130])
+            table.setStyle(TableStyle([
+                ('VALIGN', (0,0), (-1,-1), 'BOTTOM'),
+                ('LEFTPADDING', (0,0), (-1,-1), 0),
+                ('RIGHTPADDING', (0,0), (-1,-1), 0),
+                ('TOPPADDING', (0,0), (-1,-1), 1),
+                ('BOTTOMPADDING', (0,0), (-1,-1), 1),
+            ]))
+            flowables.append(KeepTogether([table] + all_bullets[:1]))
+            flowables.extend(all_bullets[1:])
+        else:
+            meta_parts = [p for p in [company, location] if p]
+            meta_line = "  &nbsp;&bull;&nbsp;  ".join(meta_parts)
+            if date_range:
+                meta_line = (
+                    f"{meta_line}   <i>{date_range}</i>" if meta_line else f"<i>{date_range}</i>"
+                )
+            anchor = [
+                Paragraph(role, styles["entry_header"]),
+                Paragraph(meta_line, styles["entry_meta"]),
+            ] + all_bullets[:1]
+            flowables.append(KeepTogether(anchor))
+            flowables.extend(all_bullets[1:])
 
     return flowables
-
 
 
 def _render_education(items: list[dict], styles: dict) -> list:
     if not items:
         return []
     flowables: list = [*_render_section_header("Education", styles)]
+    is_classic = styles.get("_template") == "classic"
     for item in items:
         institution = _s(item.get("institution") or "")
         degree = _s(item.get("degree") or "")
@@ -544,35 +589,58 @@ def _render_education(items: list[dict], styles: dict) -> list:
         end = _s(item.get("end_date") or "")
         gpa = _s(item.get("gpa") or "")
 
-        degree_line = f"{degree} {field}".strip() if field else degree
-        meta_parts = [p for p in [institution, location] if p]
+        degree_line = f"{degree} in {field}".strip() if field else degree
+        if gpa and ("%" in degree_line or "gpa" in degree_line.lower()):
+            pass
+        elif gpa:
+            degree_line = f"{degree_line} — {gpa}"
         date_range = " – ".join(p for p in [start, end] if p)
-        if gpa:
-            date_range = f"{date_range}   GPA: {gpa}".strip("   ")
-        meta_line = "  &nbsp;&bull;&nbsp;  ".join(meta_parts)
-        if date_range:
-            meta_line = f"{meta_line}   <i>{date_range}</i>" if meta_line else f"<i>{date_range}</i>"
 
-        flowables.extend([
-            KeepTogether([
-                Paragraph(degree_line, styles["entry_header"]),
-                Paragraph(meta_line, styles["entry_meta"]),
-            ]),
-            *_render_bullets(item.get("bullets") or [], styles),
-        ])
+        if is_classic:
+            p_left = Paragraph(f"<b>{degree_line}</b>", styles["entry_header"])
+            p_right = Paragraph(f'<para align="right">{date_range}</para>', styles["entry_meta"])
+            table = Table([[p_left, p_right]], colWidths=[410, 130])
+            table.setStyle(TableStyle([
+                ('VALIGN', (0,0), (-1,-1), 'BOTTOM'),
+                ('LEFTPADDING', (0,0), (-1,-1), 0),
+                ('RIGHTPADDING', (0,0), (-1,-1), 0),
+                ('TOPPADDING', (0,0), (-1,-1), 1),
+                ('BOTTOMPADDING', (0,0), (-1,-1), 1),
+            ]))
+            inst_line = f"{institution}{', ' + location if location else ''}"
+            entry = [table, Paragraph(inst_line, styles["body"])]
+            flowables.append(KeepTogether(entry))
+        else:
+            meta_parts = [p for p in [institution, location] if p]
+            if gpa:
+                date_range = f"{date_range}   GPA: {gpa}".strip("   ")
+            meta_line = "  &nbsp;&bull;&nbsp;  ".join(meta_parts)
+            if date_range:
+                meta_line = f"{meta_line}   <i>{date_range}</i>" if meta_line else f"<i>{date_range}</i>"
+
+            flowables.extend([
+                KeepTogether([
+                    Paragraph(degree_line, styles["entry_header"]),
+                    Paragraph(meta_line, styles["entry_meta"]),
+                ]),
+                *_render_bullets(item.get("bullets") or [], styles),
+            ])
     return flowables
 
 
 def _render_skills(categories: list[dict], styles: dict) -> list:
     if not categories:
         return []
-    flowables: list = [*_render_section_header("Skills", styles)]
+    is_classic = styles.get("_template") == "classic"
+    header_name = "Technical Skills" if is_classic else "Skills"
+    flowables: list = [*_render_section_header(header_name, styles)]
     for cat in categories:
         label = _s(cat.get("category") or "")
         items = [_s(i) for i in (cat.get("items") or []) if i]
         if not items:
             continue
-        items_str = ",  ".join(items)
+        sep = " &middot; " if is_classic else ",  "
+        items_str = sep.join(items)
         if label and label.lower() not in ("general", ""):
             line = f"<b>{label}:</b>  {items_str}"
         else:
@@ -585,26 +653,51 @@ def _render_projects(items: list[dict], styles: dict) -> list:
     if not items:
         return []
     flowables: list = [*_render_section_header("Projects", styles)]
+    is_classic = styles.get("_template") == "classic"
     for item in items:
         name = _s(item.get("name") or "")
+        desc = _s(item.get("description") or "")
         link = _s(item.get("link") or "")
         techs = [_s(t) for t in (item.get("technologies") or []) if t]
 
-        title_line = f"<b>{name}</b>"
-        if link:
-            title_line += f"  —  <i>{link}</i>"
+        if is_classic:
+            left_html = f"<b>{name}</b>"
+            if desc:
+                left_html += f" — <b>{desc}</b>"
+            right_html = f'<para align="right"><i>{link}</i></para>' if link else ""
+            p_left = Paragraph(left_html, styles["entry_header"])
+            p_right = Paragraph(right_html, styles["entry_meta"])
+            table = Table([[p_left, p_right]], colWidths=[410, 130])
+            table.setStyle(TableStyle([
+                ('VALIGN', (0,0), (-1,-1), 'BOTTOM'),
+                ('LEFTPADDING', (0,0), (-1,-1), 0),
+                ('RIGHTPADDING', (0,0), (-1,-1), 0),
+                ('TOPPADDING', (0,0), (-1,-1), 1),
+                ('BOTTOMPADDING', (0,0), (-1,-1), 1),
+            ]))
+            entry = [table]
+            if techs:
+                tech_line = ", ".join(techs)
+                entry.append(Paragraph(f"<i>{tech_line}</i>", styles["entry_meta"]))
+            bullets = _render_bullets(item.get("bullets") or [], styles)
+            flowables.append(KeepTogether(entry + bullets[:1]))
+            flowables.extend(bullets[1:])
+        else:
+            title_line = f"<b>{name}</b>"
+            if link:
+                title_line += f"  —  <i>{link}</i>"
 
-        meta_parts = []
-        if techs:
-            meta_parts.append(", ".join(techs))
-        meta_line = " &nbsp;|&nbsp; ".join(meta_parts) if meta_parts else ""
+            meta_parts = []
+            if techs:
+                meta_parts.append(", ".join(techs))
+            meta_line = " &nbsp;|&nbsp; ".join(meta_parts) if meta_parts else ""
 
-        entry = [Paragraph(title_line, styles["entry_header"])]
-        if meta_line:
-            entry.append(Paragraph(meta_line, styles["entry_meta"]))
-        bullets = _render_bullets(item.get("bullets") or [], styles)
-        flowables.append(KeepTogether(entry + bullets[:1]))
-        flowables.extend(bullets[1:])
+            entry = [Paragraph(title_line, styles["entry_header"])]
+            if meta_line:
+                entry.append(Paragraph(meta_line, styles["entry_meta"]))
+            bullets = _render_bullets(item.get("bullets") or [], styles)
+            flowables.append(KeepTogether(entry + bullets[:1]))
+            flowables.extend(bullets[1:])
     return flowables
 
 
@@ -612,18 +705,39 @@ def _render_certifications(items: list[dict], styles: dict) -> list:
     if not items:
         return []
     flowables: list = [*_render_section_header("Certifications", styles)]
+    is_classic = styles.get("_template") == "classic"
     for item in items:
         name = _s(item.get("name") or "")
         issuer = _s(item.get("issuer") or "")
         date = _s(item.get("date") or "")
-        meta_parts = [p for p in [issuer, date] if p]
-        meta_line = "  &nbsp;&bull;&nbsp;  ".join(meta_parts)
-        flowables.extend([
-            KeepTogether([
-                Paragraph(name, styles["entry_header"]),
-                Paragraph(meta_line, styles["entry_meta"]) if meta_line else Spacer(1, 2),
+
+        if is_classic:
+            cert_text = name
+            if issuer and issuer.lower() not in name.lower():
+                cert_text = f"{name} — {issuer}"
+            if date:
+                p_left = Paragraph(cert_text, styles["body"])
+                p_right = Paragraph(f'<para align="right">{date}</para>', styles["entry_meta"])
+                table = Table([[p_left, p_right]], colWidths=[420, 120])
+                table.setStyle(TableStyle([
+                    ('VALIGN', (0,0), (-1,-1), 'BOTTOM'),
+                    ('LEFTPADDING', (0,0), (-1,-1), 0),
+                    ('RIGHTPADDING', (0,0), (-1,-1), 0),
+                    ('TOPPADDING', (0,0), (-1,-1), 0.5),
+                    ('BOTTOMPADDING', (0,0), (-1,-1), 0.5),
+                ]))
+                flowables.append(table)
+            else:
+                flowables.append(Paragraph(cert_text, styles["body"]))
+        else:
+            meta_parts = [p for p in [issuer, date] if p]
+            meta_line = "  &nbsp;&bull;&nbsp;  ".join(meta_parts)
+            flowables.extend([
+                KeepTogether([
+                    Paragraph(name, styles["entry_header"]),
+                    Paragraph(meta_line, styles["entry_meta"]) if meta_line else Spacer(1, 2),
+                ])
             ])
-        ])
     return flowables
 
 
@@ -686,7 +800,7 @@ def render_structured_resume_pdf(resume_data: dict, template_id: str = "classic"
     # ── Document header ──────────────────────────────────────────────────────
     name = (basics.get("name") or "").strip()
     title_text = (basics.get("title") or "").strip()
-    contact_line = _render_contact_line(basics)
+    contact_line = _render_contact_line(basics, template_id=template_id)
 
     if name:
         story.append(Paragraph(_s(name), styles["name"]))

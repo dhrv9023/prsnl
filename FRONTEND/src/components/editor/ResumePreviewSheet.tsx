@@ -69,10 +69,11 @@ export const ResumePreviewSheet: React.FC<ResumePreviewSheetProps> = ({
   const isModern = templateId === "modern";
   const isMinimal = templateId === "minimal";
   const isTechnical = templateId === "technical";
+  const isClassic = templateId === "classic" || (!isModern && !isMinimal && !isTechnical);
 
-  let accentColor = "text-slate-900";
-  let dividerColor = "border-slate-300";
-  let headerClass = "uppercase text-[12px] font-bold tracking-wider";
+  let accentColor = "text-black";
+  let dividerColor = "border-black";
+  let headerClass = "font-serif font-bold text-[12.5px] text-black tracking-normal";
 
   if (isModern) {
     accentColor = "text-blue-600";
@@ -88,38 +89,102 @@ export const ResumePreviewSheet: React.FC<ResumePreviewSheetProps> = ({
     headerClass = "uppercase text-[12px] font-extrabold tracking-wide text-slate-900";
   }
 
-  // ── Contact Line Helper ───────────────────────────────────────────────────
+  // ── Helper: Render Markdown Bold (**word**) ──────────────────────────────
+  const renderMarkdownBold = (text: string | undefined): React.ReactNode => {
+    if (!text) return null;
+    const parts = text.split(/(\*\*.*?\*\*)/g);
+    return parts.map((part, index) => {
+      if (part.startsWith("**") && part.endsWith("**") && part.length >= 4) {
+        return (
+          <strong key={index} className="font-bold text-inherit">
+            {part.slice(2, -2)}
+          </strong>
+        );
+      }
+      return part;
+    });
+  };
 
-  const contactItems = [
-    basics.email,
-    basics.phone,
-    basics.location,
-    basics.linkedin?.replace(/^https?:\/\/(www\.)?/, ""),
-    basics.github?.replace(/^https?:\/\/(www\.)?/, ""),
-    basics.portfolio?.replace(/^https?:\/\/(www\.)?/, ""),
-  ].filter(Boolean);
+  // ── Contact Line Helper ───────────────────────────────────────────────────
+  interface ContactEntry {
+    label: string;
+    url?: string;
+  }
+
+  const contactEntries: ContactEntry[] = [];
+  if (isClassic) {
+    if (basics.location) contactEntries.push({ label: basics.location });
+    if (basics.phone) contactEntries.push({ label: basics.phone });
+    if (basics.email) contactEntries.push({ label: basics.email, url: `mailto:${basics.email}` });
+    if (basics.linkedin) {
+      const url = basics.linkedin.startsWith("http") ? basics.linkedin : `https://${basics.linkedin}`;
+      contactEntries.push({ label: "LinkedIn", url });
+    }
+    if (basics.github) {
+      const url = basics.github.startsWith("http") ? basics.github : `https://${basics.github}`;
+      contactEntries.push({ label: "GitHub", url });
+    }
+    if (basics.portfolio) {
+      const url = basics.portfolio.startsWith("http") ? basics.portfolio : `https://${basics.portfolio}`;
+      contactEntries.push({ label: "Portfolio", url });
+    }
+  } else {
+    if (basics.email) contactEntries.push({ label: basics.email, url: `mailto:${basics.email}` });
+    if (basics.phone) contactEntries.push({ label: basics.phone });
+    if (basics.location) contactEntries.push({ label: basics.location });
+    if (basics.linkedin) {
+      contactEntries.push({
+        label: basics.linkedin.replace(/^https?:\/\/(www\.)?/, ""),
+        url: basics.linkedin.startsWith("http") ? basics.linkedin : `https://${basics.linkedin}`,
+      });
+    }
+    if (basics.github) {
+      contactEntries.push({
+        label: basics.github.replace(/^https?:\/\/(www\.)?/, ""),
+        url: basics.github.startsWith("http") ? basics.github : `https://${basics.github}`,
+      });
+    }
+    if (basics.portfolio) {
+      contactEntries.push({
+        label: basics.portfolio.replace(/^https?:\/\/(www\.)?/, ""),
+        url: basics.portfolio.startsWith("http") ? basics.portfolio : `https://${basics.portfolio}`,
+      });
+    }
+  }
 
   // ── Section Renderers ─────────────────────────────────────────────────────
 
-  const renderSectionHeader = (title: string) => (
-    <div className="mb-2 mt-3.5 first:mt-0">
-      <h3 className={`${accentColor} ${headerClass}`}>
-        {title}
-      </h3>
-      <div
-        className={`mt-0.5 border-b ${
-          isModern ? "border-b-2" : isTechnical ? "border-b-2" : "border-b"
-        } ${dividerColor}`}
-      />
-    </div>
-  );
+  const renderSectionHeader = (title: string) => {
+    const displayTitle = isClassic
+      ? title === "Professional Summary"
+        ? "Summary"
+        : title === "Skills"
+        ? "Technical Skills"
+        : title
+      : title;
+
+    return (
+      <div className={`mb-1 ${isClassic ? "mt-2.5" : "mt-3.5"} first:mt-0`}>
+        <h3 className={`${accentColor} ${headerClass}`}>
+          {displayTitle}
+        </h3>
+        <div
+          className={`mt-0.5 border-b ${
+            isModern ? "border-b-2" : isTechnical ? "border-b-2" : "border-b"
+          } ${dividerColor}`}
+        />
+      </div>
+    );
+  };
 
   const renderSummary = () => {
     if (!basics.summary?.trim()) return null;
     return (
-      <div key="summary" className="mb-3">
+      <div key="summary" className="mb-2.5">
         {renderSectionHeader("Professional Summary")}
-        <p className="text-slate-700 text-justify">{basics.summary}</p>
+        <p className={`text-justify ${isClassic ? "text-black font-serif text-[10.5px] leading-[1.38]" : "text-slate-700"}`}>
+          {renderMarkdownBold(basics.summary)}
+        </p>
       </div>
     );
   };
@@ -127,41 +192,63 @@ export const ResumePreviewSheet: React.FC<ResumePreviewSheetProps> = ({
   const renderExperience = () => {
     if (!experience || experience.length === 0) return null;
     return (
-      <div key="experience" className="mb-3">
+      <div key="experience" className="mb-2.5">
         {renderSectionHeader("Experience")}
-        <div className="space-y-3">
-          {experience.map((exp) => (
-            <div key={exp.id} className="space-y-0.5">
-              <div className="flex items-baseline justify-between">
-                <span className="font-bold text-slate-900 text-[12.5px]">
-                  {exp.role || "Role"}
-                </span>
-                <span className="text-[11px] text-slate-600 italic">
-                  {[exp.start_date, exp.current ? "Present" : exp.end_date]
-                    .filter(Boolean)
-                    .join(" – ")}
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5 text-[11px] text-slate-600 font-medium">
-                <span>{exp.company}</span>
-                {exp.location && (
+        <div className="space-y-2">
+          {experience.map((exp) => {
+            const dateRange = [exp.start_date, exp.current ? "Present" : exp.end_date]
+              .filter(Boolean)
+              .join(" – ");
+
+            return (
+              <div key={exp.id} className="space-y-0.5">
+                {isClassic ? (
+                  <div className="flex items-baseline justify-between font-serif text-[11px]">
+                    <div>
+                      <span className="font-bold text-black">{exp.role || "Role"}</span>
+                      {exp.company && (
+                        <>
+                          <span className="text-black"> — </span>
+                          <span className="font-bold text-black">{exp.company}</span>
+                        </>
+                      )}
+                      {exp.location && <span className="text-neutral-700">, {exp.location}</span>}
+                    </div>
+                    {dateRange && <span className="text-black shrink-0 ml-2 text-[10.5px]">{dateRange}</span>}
+                  </div>
+                ) : (
                   <>
-                    <span>&bull;</span>
-                    <span>{exp.location}</span>
+                    <div className="flex items-baseline justify-between">
+                      <span className="font-bold text-slate-900 text-[12.5px]">
+                        {exp.role || "Role"}
+                      </span>
+                      <span className="text-[11px] text-slate-600 italic">
+                        {dateRange}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-[11px] text-slate-600 font-medium">
+                      <span>{exp.company}</span>
+                      {exp.location && (
+                        <>
+                          <span>&bull;</span>
+                          <span>{exp.location}</span>
+                        </>
+                      )}
+                    </div>
                   </>
                 )}
+                {exp.bullets && exp.bullets.length > 0 && (
+                  <ul className={`list-disc pl-5 space-y-0.5 ${isClassic ? "text-black font-serif text-[10.5px] leading-[1.35] mt-0.5" : "mt-1 text-slate-700"}`}>
+                    {exp.bullets.map((b) => (
+                      <li key={b.id} className="pl-0.5">
+                        {renderMarkdownBold(b.text)}
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
-              {exp.bullets && exp.bullets.length > 0 && (
-                <ul className="mt-1 list-disc pl-4 space-y-0.5 text-slate-700">
-                  {exp.bullets.map((b) => (
-                    <li key={b.id} className="pl-0.5">
-                      {b.text}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     );
@@ -170,36 +257,69 @@ export const ResumePreviewSheet: React.FC<ResumePreviewSheetProps> = ({
   const renderEducation = () => {
     if (!education || education.length === 0) return null;
     return (
-      <div key="education" className="mb-3">
+      <div key="education" className="mb-2.5">
         {renderSectionHeader("Education")}
-        <div className="space-y-2">
-          {education.map((edu) => (
-            <div key={edu.id} className="space-y-0.5">
-              <div className="flex items-baseline justify-between">
-                <span className="font-bold text-slate-900 text-[12px]">
-                  {[edu.degree, edu.field_of_study].filter(Boolean).join(" in ")}
-                </span>
-                <span className="text-[11px] text-slate-600 italic">
-                  {[edu.start_date, edu.end_date].filter(Boolean).join(" – ")}
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5 text-[11px] text-slate-600">
-                <span>{edu.institution}</span>
-                {edu.location && (
+        <div className="space-y-1.5">
+          {education.map((edu) => {
+            const degreeLine = [edu.degree, edu.field_of_study].filter(Boolean).join(" in ");
+            const dateRange = [edu.start_date, edu.end_date].filter(Boolean).join(" – ");
+            const hasGpaInDegree = degreeLine.includes("%") || degreeLine.toLowerCase().includes("gpa");
+            const fullDegreeTitle = edu.gpa && !hasGpaInDegree
+              ? `${degreeLine} — ${edu.gpa}`
+              : degreeLine;
+
+            return (
+              <div key={edu.id} className="space-y-0.5">
+                {isClassic ? (
                   <>
-                    <span>&bull;</span>
-                    <span>{edu.location}</span>
+                    <div className="flex items-baseline justify-between font-serif text-[11px]">
+                      <span className="font-bold text-black">{fullDegreeTitle}</span>
+                      {dateRange && <span className="text-black shrink-0 ml-2 text-[10.5px]">{dateRange}</span>}
+                    </div>
+                    <div className="font-serif text-[10.5px] text-black">
+                      {edu.institution}
+                      {edu.location ? `, ${edu.location}` : ""}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-baseline justify-between">
+                      <span className="font-bold text-slate-900 text-[12px]">
+                        {degreeLine}
+                      </span>
+                      <span className="text-[11px] text-slate-600 italic">
+                        {dateRange}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-[11px] text-slate-600">
+                      <span>{edu.institution}</span>
+                      {edu.location && (
+                        <>
+                          <span>&bull;</span>
+                          <span>{edu.location}</span>
+                        </>
+                      )}
+                      {edu.gpa && (
+                        <>
+                          <span>&bull;</span>
+                          <span className="font-medium text-slate-800">GPA: {edu.gpa}</span>
+                        </>
+                      )}
+                    </div>
                   </>
                 )}
-                {edu.gpa && (
-                  <>
-                    <span>&bull;</span>
-                    <span className="font-medium text-slate-800">GPA: {edu.gpa}</span>
-                  </>
+                {edu.bullets && edu.bullets.length > 0 && (
+                  <ul className={`list-disc pl-5 space-y-0.5 ${isClassic ? "text-black font-serif text-[10.5px] leading-[1.35] mt-0.5" : "mt-1 text-slate-700"}`}>
+                    {edu.bullets.map((b) => (
+                      <li key={b.id} className="pl-0.5">
+                        {renderMarkdownBold(b.text)}
+                      </li>
+                    ))}
+                  </ul>
                 )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     );
@@ -208,15 +328,24 @@ export const ResumePreviewSheet: React.FC<ResumePreviewSheetProps> = ({
   const renderSkills = () => {
     if (!skills || skills.length === 0) return null;
     return (
-      <div key="skills" className="mb-3">
+      <div key="skills" className="mb-2.5">
         {renderSectionHeader("Skills")}
-        <div className="space-y-1">
+        <div className="space-y-0.5">
           {skills.map((cat) => (
-            <div key={cat.id} className="flex items-baseline gap-1.5 text-slate-800">
-              <span className="font-bold text-slate-900 shrink-0">
+            <div
+              key={cat.id}
+              className={`flex items-baseline gap-1 ${
+                isClassic
+                  ? "font-serif text-[10.5px] leading-[1.4] text-black"
+                  : "text-slate-800"
+              }`}
+            >
+              <span className={`font-bold shrink-0 ${isClassic ? "text-black" : "text-slate-900"}`}>
                 {cat.category}:
               </span>
-              <span>{cat.items?.join(", ")}</span>
+              <span>
+                {isClassic ? cat.items?.join(" · ") : cat.items?.join(", ")}
+              </span>
             </div>
           ))}
         </div>
@@ -227,33 +356,71 @@ export const ResumePreviewSheet: React.FC<ResumePreviewSheetProps> = ({
   const renderProjects = () => {
     if (!projects || projects.length === 0) return null;
     return (
-      <div key="projects" className="mb-3">
+      <div key="projects" className="mb-2.5">
         {renderSectionHeader("Projects")}
-        <div className="space-y-2.5">
+        <div className="space-y-2">
           {projects.map((proj) => (
             <div key={proj.id} className="space-y-0.5">
-              <div className="flex items-baseline justify-between">
-                <div className="flex items-center gap-1.5">
-                  <span className="font-bold text-slate-900 text-[12px]">
-                    {proj.name}
-                  </span>
-                  {proj.link && (
-                    <span className="text-[10px] text-blue-600 italic">
-                      — {proj.link.replace(/^https?:\/\//, "")}
-                    </span>
+              {isClassic ? (
+                <>
+                  <div className="flex items-baseline justify-between font-serif text-[11px]">
+                    <div>
+                      <span className="font-bold text-black">{proj.name}</span>
+                      {proj.description && (
+                        <>
+                          <span className="text-black"> — </span>
+                          <span className="font-bold text-black">{proj.description}</span>
+                        </>
+                      )}
+                    </div>
+                    {proj.link && (
+                      <a
+                        href={proj.link.startsWith("http") ? proj.link : `https://${proj.link}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[10px] text-black hover:underline shrink-0 ml-2"
+                      >
+                        {proj.link.replace(/^https?:\/\/(www\.)?/, "")}
+                      </a>
+                    )}
+                  </div>
+                  {proj.technologies && proj.technologies.length > 0 && (
+                    <div className="font-serif italic text-[10.5px] text-black">
+                      {proj.technologies.join(", ")}
+                    </div>
                   )}
-                </div>
-              </div>
-              {proj.technologies && proj.technologies.length > 0 && (
-                <div className="text-[10.5px] text-slate-500 font-medium">
-                  {proj.technologies.join(" | ")}
-                </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-baseline justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold text-slate-900 text-[12px]">
+                        {proj.name}
+                      </span>
+                      {proj.description && (
+                        <span className="text-[11px] text-slate-600">
+                          — {proj.description}
+                        </span>
+                      )}
+                      {proj.link && (
+                        <span className="text-[10px] text-blue-600 italic">
+                          ({proj.link.replace(/^https?:\/\/(www\.)?/, "")})
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {proj.technologies && proj.technologies.length > 0 && (
+                    <div className="text-[10.5px] text-slate-500 font-medium">
+                      {proj.technologies.join(" | ")}
+                    </div>
+                  )}
+                </>
               )}
               {proj.bullets && proj.bullets.length > 0 && (
-                <ul className="mt-0.5 list-disc pl-4 space-y-0.5 text-slate-700">
+                <ul className={`list-disc pl-5 space-y-0.5 ${isClassic ? "text-black font-serif text-[10.5px] leading-[1.35] mt-0.5" : "mt-0.5 text-slate-700"}`}>
                   {proj.bullets.map((b) => (
                     <li key={b.id} className="pl-0.5">
-                      {b.text}
+                      {renderMarkdownBold(b.text)}
                     </li>
                   ))}
                 </ul>
@@ -268,24 +435,35 @@ export const ResumePreviewSheet: React.FC<ResumePreviewSheetProps> = ({
   const renderCertifications = () => {
     if (!certifications || certifications.length === 0) return null;
     return (
-      <div key="certifications" className="mb-3">
+      <div key="certifications" className="mb-2.5">
         {renderSectionHeader("Certifications")}
-        <div className="space-y-1">
-          {certifications.map((cert) => (
-            <div key={cert.id} className="flex items-baseline justify-between">
-              <span className="font-semibold text-slate-900 text-[11.5px]">
-                {cert.name}{" "}
-                <span className="font-normal text-slate-600">
-                  {cert.issuer ? `— ${cert.issuer}` : ""}
+        <div className="space-y-0.5">
+          {certifications.map((cert) => {
+            const hasIssuerInName = cert.issuer && cert.name.toLowerCase().includes(cert.issuer.toLowerCase());
+            const displayCert = cert.issuer && !hasIssuerInName
+              ? `${cert.name} — ${cert.issuer}`
+              : cert.name;
+
+            return (
+              <div
+                key={cert.id}
+                className={`flex items-baseline justify-between ${
+                  isClassic
+                    ? "font-serif text-[10.5px] leading-[1.4] text-black"
+                    : "text-[11.5px]"
+                }`}
+              >
+                <span className={isClassic ? "text-black" : "font-semibold text-slate-900"}>
+                  {displayCert}
                 </span>
-              </span>
-              {cert.date && (
-                <span className="text-[11px] text-slate-600 italic">
-                  {cert.date}
-                </span>
-              )}
-            </div>
-          ))}
+                {cert.date && (
+                  <span className={`shrink-0 ml-2 ${isClassic ? "text-black font-serif text-[10.5px]" : "text-[11px] text-slate-600 italic"}`}>
+                    {cert.date}
+                  </span>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
     );
@@ -431,14 +609,22 @@ export const ResumePreviewSheet: React.FC<ResumePreviewSheetProps> = ({
         ) : (
           /* Live HTML Sheet (styled to exact ATS standards) */
           <div
-            style={{ transform: `scale(${zoom / 100})`, transformOrigin: "top center" }}
-            className={`w-full max-w-[800px] min-h-[1050px] bg-white text-slate-900 rounded-sm shadow-2xl transition-transform duration-100 ${marginClass} ${fontSizeClass} font-sans`}
+            style={{
+              transform: `scale(${zoom / 100})`,
+              transformOrigin: "top center",
+              fontFamily: isClassic ? '"Times New Roman", Times, Georgia, serif' : undefined,
+            }}
+            className={`w-full max-w-[800px] min-h-[1050px] bg-white rounded-sm shadow-2xl transition-transform duration-100 ${marginClass} ${fontSizeClass} ${
+              isClassic ? "font-serif text-black" : "font-sans text-slate-900"
+            }`}
           >
             {/* Header / Name */}
-            <div className={`mb-3 ${isMinimal ? "text-center" : ""}`}>
+            <div className={`mb-3 ${isClassic || isMinimal ? "text-center" : ""}`}>
               <h1
-                className={`font-bold tracking-tight text-slate-950 ${
-                  isModern
+                className={`font-bold tracking-tight ${
+                  isClassic
+                    ? "text-[22px] font-serif text-black uppercase tracking-wide"
+                    : isModern
                     ? "text-2xl text-slate-900"
                     : isMinimal
                     ? "text-xl uppercase tracking-widest text-slate-900"
@@ -449,7 +635,7 @@ export const ResumePreviewSheet: React.FC<ResumePreviewSheetProps> = ({
               >
                 {basics.name || "Candidate Name"}
               </h1>
-              {basics.title && (
+              {!isClassic && basics.title && (
                 <div
                   className={`mt-0.5 font-medium ${
                     isModern
@@ -464,16 +650,31 @@ export const ResumePreviewSheet: React.FC<ResumePreviewSheetProps> = ({
                   {basics.title}
                 </div>
               )}
-              {contactItems.length > 0 && (
+              {contactEntries.length > 0 && (
                 <div
-                  className={`mt-1 text-[11px] text-slate-600 flex flex-wrap items-center gap-x-2 gap-y-0.5 ${
-                    isMinimal ? "justify-center" : ""
+                  className={`mt-1 text-[11px] flex flex-wrap items-center gap-x-2 gap-y-0.5 ${
+                    isClassic
+                      ? "justify-center text-black font-serif text-[10.5px]"
+                      : isMinimal
+                      ? "justify-center text-slate-600"
+                      : "text-slate-600"
                   }`}
                 >
-                  {contactItems.map((item, idx) => (
+                  {contactEntries.map((item, idx) => (
                     <React.Fragment key={idx}>
-                      {idx > 0 && <span className="text-slate-400">|</span>}
-                      <span>{item}</span>
+                      {idx > 0 && <span className={isClassic ? "text-black" : "text-slate-400"}>|</span>}
+                      {item.url ? (
+                        <a
+                          href={item.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className={`${isClassic ? "text-black hover:underline" : "hover:underline text-inherit"}`}
+                        >
+                          {item.label}
+                        </a>
+                      ) : (
+                        <span>{item.label}</span>
+                      )}
                     </React.Fragment>
                   ))}
                 </div>

@@ -97,10 +97,13 @@ You are a precise resume parser. Extract the resume text into a valid JSON objec
 }
 
 RULES:
-1. Extract ALL information VERBATIM. Never hallucinate or infer.
-2. Do NOT generate ID fields (they are auto-assigned by the system).
-3. If a section is absent, use an empty array [].
-4. Return ONLY valid raw JSON. No markdown or backticks.
+1. Extract ALL information accurately. Never hallucinate or invent companies, degrees, or skills.
+2. If there is NO explicit headline or job title right under the candidate's name, leave "title" as empty string (""). Do NOT copy the first line of the summary into "title".
+3. Do NOT generate ID fields (they are auto-assigned by the system).
+4. Preserve the exact order of sections in "meta.section_order" as they appear in the candidate's resume (e.g. ["summary", "experience", "projects", "skills", "education", "certifications"]).
+5. If a section is absent, use an empty array [].
+6. You may preserve or apply markdown bold `**keyword**` on key technical skills, metrics, and technologies in bullets and summary text (e.g. `**Python**`, `**FastAPI**`, `**Docker**`).
+7. Return ONLY valid raw JSON. No conversational text or markdown code fences.
 """
 
 
