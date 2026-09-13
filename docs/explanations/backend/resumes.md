@@ -34,7 +34,15 @@ Returns all resumes for the authenticated user, ordered by upload date (newest f
 
 ### Get Single Resume (`GET /{resume_id}`)
 
-Returns full details for a specific resume including the extracted text content. Validates that the resume belongs to the authenticated user (ownership check).
+Returns full details for a specific resume including the extracted text content. Validates that the resume belongs to the authenticated user (ownership check). Additionally generates a 1-hour valid signed URL (`pdf_url`) from Supabase Storage (`Resumes` bucket), enabling the frontend iframe to preview the original PDF without cross-origin or auth-header issues.
+
+### Optimized PDF Compilation (`GET / POST /{resume_id}/optimized_pdf`)
+
+Compiles and streams an ATS-optimized PDF resume:
+1. Resolves base resume text (from optional request body or DB `parsed_content.raw_text`, falling back to downloading from storage).
+2. Extracts structured critique replacements from the user's latest `deep_analysis` record in `ai_analyses` (or uses custom replacements supplied in the request body).
+3. Invokes `generate_resume_pdf(resume_text, replacements)` via ReportLab Platypus.
+4. Returns an `inline` `application/pdf` response with `no-cache` headers.
 
 ### Delete Endpoint (`DELETE /{resume_id}`)
 

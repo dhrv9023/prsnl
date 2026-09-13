@@ -1,4 +1,4 @@
-# September 2026 Updates Summary (v1.0.3 & v1.0.4)
+# September 2026 Updates Summary (v1.0.3, v1.0.4, v1.0.5 & v1.0.6)
 
 [← Back to Documentation Hub](../README.md) · [← History Index](./INDEX.md)
 
@@ -6,9 +6,12 @@
 
 ## Overview
 
-In September 2026, Kareerist underwent two major upgrade cycles:
+In September 2026, Kareerist underwent four major upgrade cycles:
 1. **v1.0.3 Bug Fix Release:** Implemented automated credit refunds on AI failure, fixed mobile background scroll bleed-through on auth modals, and added slow-loading status indicators.
 2. **v1.0.4 Security Hardening & Repository Restructuring:** Completed comprehensive QA pentest audit remediations, expanded the automated test suite to 37 passing unit tests, and restructured the monorepo into a unified documentation hub under `docs/`.
+3. **v1.0.5 Launch Readiness & Hardening:** Enforced reverse-proxy HTTPS, secret exposure build guards, GDPR cookie consent, per-route SEO, admin telemetry, and WCAG AA contrast.
+4. **v1.0.6 Resume Diff, Signed URL Streaming & ATS PDF Compilation:** Added in-situ PDF Before vs. After diff visualizer, 1-hour signed URL preview streaming from Supabase Storage, ReportLab Platypus ATS PDF compiler with AI replacements, and expanded test suite to 71 automated tests.
+
 
 ---
 
@@ -121,4 +124,37 @@ In September 2026, Kareerist underwent two major upgrade cycles:
 
 ### K. Unified Primary Call to Action
 - Standardized the Navbar, Hero, and FinalCTA around **"Start Free Analysis"** with supporting trust microcopy (*"100 Free Credits on Signup • No Credit Card Required"*).
+
+---
+
+## 5. In-Situ Resume Diff, Signed URL Streaming & ATS PDF Compilation (v1.0.6 — September 13, 2026)
+
+### A. In-Situ Resume Diff Visualizer (`ResumeDiffView`)
+- **Problem:** After running Deep Analysis, candidates had to read textual critiques in the right accordion panel and manually cross-reference them with their resume, making it difficult to visualize the impact of recommended bullet improvements.
+- **Solution:** Implemented `ResumeDiffView` embedded directly into the central canvas of `ResumeAnalysis.tsx`:
+  - Renders side-by-side or inline Before vs. After comparisons of weak bullet points and their AI-improved counterparts.
+  - Linked to a dedicated "Open Diff View" action button in `DeepAnalysisPanel.tsx`.
+  - Includes dismiss and view toggle controls (`preview`, `diff`, `edit`).
+
+### B. Supabase Storage Signed URL Streaming
+- **Problem:** In previous iterations, selecting a saved resume from the sidebar either rendered raw extracted text or attempted to load local object URLs that failed across browser sessions.
+- **Solution:** In `backend/app/api/v1/endpoints/resumes.py`, updated `get_resume` to dynamically request a 1-hour valid signed URL from Supabase Storage (`supabase.storage.from_("Resumes").create_signed_url(file_path, 3600)`).
+- **Result:** The canvas renders an embedded `iframe` pointing to `pdf_url` with zero CORS hurdles or JWT header requirements, giving candidates pixel-perfect previews of their uploaded PDF documents with a dedicated "Download PDF" action.
+
+### C. ATS Optimized Resume PDF Generator (`resume_pdf_generator.py`)
+- **Architecture:** Built an in-house document generation pipeline using ReportLab Platypus (`backend/app/services/resume_pdf_generator.py`):
+  - `parse_issue_string(text)`: Parses structured critique strings (`Original bullet → Critique → Fix: ...`).
+  - `apply_replacements(text, replacements)`: Surgically swaps weak bullet points in the resume with their AI fixes while handling whitespace normalization, regex variations, and bullet prefixes.
+  - `generate_resume_pdf(resume_text, replacements)`: Formats the document with standardized ATS fonts (Helvetica), structured section headers (Experience, Education, Skills, Projects), divider rules, and clean margins.
+- **API Endpoints:** Added `POST /api/v1/resumes/{resume_id}/optimized_pdf` and `GET /api/v1/resumes/{resume_id}/optimized_pdf` to dynamically generate and download the optimized PDF resume.
+
+### D. Analysis Workspace UI & Ergonomics
+- **Canvas Preservation:** Added collapsible / minimize controls for the analysis panel, preventing canvas squishing on standard laptop viewports.
+- **Workspace Focus:** Cleaned up manual text edit controls from the default canvas view to maintain an uncluttered IDE workflow focused on PDF inspection and deep analysis results.
+
+### E. Test Suite Expansion to 71 Automated Tests
+- Added `backend/tests/test_resume_pdf_generator.py` (5 tests) verifying issue string parsing, text replacement logic, section header heuristics, and the PDF generation endpoint.
+- Added comprehensive recovery and rate-limiting tests in `backend/tests/test_deep_analysis.py` (29 tests) verifying dynamic delay parsing from 429 errors, malformed JSON recovery, and atomic credit refund guarantees.
+- Combined with `test_critical_paths.py` (37 tests), the entire backend test suite now verifies **71 tests passing (100% pass rate)**.
+
 

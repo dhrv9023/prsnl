@@ -298,6 +298,17 @@ export function BeforeAfterDiffView({
                         )}
                     </button>
 
+                    {resumeId && (
+                        <a
+                            href={`/resumes/${resumeId}/editor`}
+                            className="h-7.5 px-2.5 flex items-center gap-1.5 rounded-md text-xs font-semibold bg-primary/15 border border-primary/30 text-primary hover:bg-primary/25 transition-colors cursor-pointer shadow-xs"
+                            title="Open in Kareerist Resume Editor to customize sections and layout"
+                        >
+                            <Sparkles className="w-3.5 h-3.5 text-primary" />
+                            <span className="hidden sm:inline">Open Editor</span>
+                        </a>
+                    )}
+
                     {onApplyToEditor && replacements.length > 0 && (
                         <button
                             type="button"

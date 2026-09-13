@@ -24,7 +24,7 @@ import {
     Download, Zap, RotateCcw, LogOut,
     PanelLeft, FileSearch, ChartBar, ArrowLeft,
     Maximize, Minimize, Brain, Layers, ChevronDown,
-    PanelRightClose, PanelRightOpen,
+    PanelRightClose, PanelRightOpen, Sparkles,
 } from "lucide-react";
 
 // ─── Custom Select ────────────────────────────────────────────────────────────
@@ -575,6 +575,16 @@ export default function ResumeAnalysis() {
                             <Download className="w-3 h-3" />
                             <span className="hidden sm:inline">Download</span>
                         </button>
+                    )}
+                    {resumeId && (
+                        <Link
+                            to={`/resumes/${resumeId}/editor`}
+                            className="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-semibold bg-primary/15 border border-primary/25 text-primary hover:bg-primary/25 transition-colors cursor-pointer"
+                            title="Open in Kareerist Resume Editor to customize sections and formatting"
+                        >
+                            <Sparkles className="w-3 h-3 text-primary" />
+                            <span>Edit Resume</span>
+                        </Link>
                     )}
                 </div>
             </div>

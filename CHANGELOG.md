@@ -6,6 +6,32 @@ All notable changes to Kareerist are documented here.
 
 ---
 
+## [1.0.6] - September 13, 2026 — In-Situ PDF Resume Diff, Signed URL Previews & ATS Optimized PDF Generator
+
+### Added & Enhanced
+
+- **In-Situ PDF Resume Diff & Before-vs-After Visualizer**
+  - Added interactive side-by-side Before vs. After diff component (`ResumeDiffView`) in `FRONTEND/src/pages/ResumeAnalysis.tsx` allowing candidates to review AI-generated bullet fixes side-by-side with original text.
+  - Added "Open Diff View" trigger inside `DeepAnalysisPanel.tsx` with dedicated dismiss and mode controls.
+
+- **Supabase Storage Signed URL Streaming for Resume Previews**
+  - In `backend/app/api/v1/endpoints/resumes.py` (`get_resume`), added dynamic creation of 1-hour valid Supabase signed URLs (`pdf_url`).
+  - Saved resume selection automatically displays original PDF documents in the canvas iframe without cross-origin authentication issues or broken local object URLs.
+
+- **ATS Optimized PDF Resume Generator (ReportLab Platypus)**
+  - Implemented `backend/app/services/resume_pdf_generator.py` incorporating `parse_issue_string()`, `apply_replacements()`, and `generate_resume_pdf()`.
+  - Added endpoints `POST /api/v1/resumes/{resume_id}/optimized_pdf` and `GET /api/v1/resumes/{resume_id}/optimized_pdf` to compile ATS-compliant PDF resumes incorporating AI replacements from deep analysis.
+
+- **Analysis Workspace UI & Layout Enhancements**
+  - Added minimize and expand controls for the analysis panel in `ResumeAnalysis.tsx`, preventing canvas squishing on desktop viewports.
+  - Streamlined manual text editor controls from the primary analysis canvas to prioritize high-fidelity PDF previews.
+
+- **Test Suite Expansion to 71 Passing Tests**
+  - Added `backend/tests/test_resume_pdf_generator.py` (5 tests) covering issue parsing, text replacement algorithms, section header detection, and the `/optimized_pdf` endpoint.
+  - Expanded `backend/tests/test_deep_analysis.py` (29 tests) covering AI retry rate-limiting, recovery from malformed JSON, provider failures, and single-deduction invariants.
+  - Automated test suite now runs 71 tests passing with 100% pass rate.
+
+
 ## [1.0.5] - September 9, 2026 — Production Launch Readiness, SEO, Admin Telemetry & Security Hardening
 
 ### Added & Enhanced

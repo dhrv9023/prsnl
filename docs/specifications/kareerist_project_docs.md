@@ -298,6 +298,12 @@ All business logic lives in `backend/app/services/`. The API endpoints in `app/a
 - `sanitize_user_text()` strips potential prompt injection from user-provided resume/JD text
 - Removes instruction-like patterns before inserting into prompts
 
+### `resume_pdf_generator.py` — ATS Resume PDF Generator & Replacement Engine
+- Uses ReportLab Platypus (`SimpleDocTemplate`, `Paragraph`, `Spacer`, `HRFlowable`)
+- Parses structured AI critiques (`parse_issue_string` for format: `Original bullet → Critique → Fix: ...`)
+- Replaces weak bullets with improved versions (`apply_replacements`) using normalized string matching, bullet prefix stripping, and regex whitespace tolerance
+- Generates clean, ATS-compliant single-column PDF documents with standardized Helvetica typography, header dividers, and proper margins
+
 ---
 
 ## 6. Backend — API Endpoints
@@ -319,7 +325,8 @@ Base URL: `https://<render-url>/api/v1/` (prod) or `http://localhost:8000/api/v1
 |---|---|---|
 | POST | `/resumes/upload` | Upload PDF, extract text via pypdf, store in Supabase Storage |
 | GET | `/resumes/list` | List user's resumes (id, filename, created_at) |
-| GET | `/resumes/{id}` | Get specific resume details |
+| GET | `/resumes/{id}` | Get specific resume details + 1-hour signed URL (`pdf_url`) for preview |
+| GET/POST | `/resumes/{id}/optimized_pdf` | Compile ATS-optimized PDF resume via ReportLab with AI replacements |
 
 ### AI Analysis `/analysis`
 | Method | Path | Notes |
@@ -401,16 +408,17 @@ Renders the full marketing page composed of:
 ### `/resume-analysis` — Resume Analysis
 **The core tool. Three-panel layout:**
 - **Left sidebar (240px)**: Saved resume selector + drag-drop upload + job description textarea + action buttons + Hiring Intel inputs (role, experience level)
-- **Center canvas**: PDF preview via iframe OR extracted text editor (Edit Text mode)
-- **Right panel**: Tabbed analysis results:
+- **Center canvas**: High-fidelity PDF preview via signed Supabase Storage URL iframe, in-situ Before vs. After diff viewer (`ResumeDiffView`), or fallback text mode
+- **Right panel**: Tabbed analysis results with minimize/expand panel toggles:
   - ATS Score tab — CircularGauge + breakdown bars (general mode) or match score (JD mode)
-  - Deep Analysis tab — DeepAnalysisPanel
+  - Deep Analysis tab — DeepAnalysisPanel (includes "Open Diff View" action trigger)
   - Hiring Intel tab — HiringIntelPanel
 
 **Key behaviors:**
-- Saved resumes load on mount from `/resumes/list`
+- Saved resumes load on mount from `/resumes/list`; selecting one retrieves a 1-hour signed URL from `/resumes/{id}` for instant canvas PDF rendering
+- In-situ Before vs. After diff allows users to compare original weak bullets with AI suggestions directly on the canvas
 - Duplicate filename detection on upload (blocks re-upload with same name)
-- `isExpanded` state collapses/expands the right panel on desktop
+- Analysis panel can be collapsed/minimized to prevent squishing the central PDF preview on desktop screens
 - Mobile uses bottom tabs: Controls / Canvas / Analysis
 - Credit checks happen before each action; insufficient credits shows warning
 
@@ -774,9 +782,9 @@ VITE_SUPABASE_ANON_KEY=
 
 3. **Hinglish toggle** — A `HinglishToggle` UI component exists and is used in the Interview setup. When enabled, interview questions and evaluations are generated in Hinglish (Hindi-English mix). Implementation in `ai_interview.py` via a language parameter passed to prompts. The feature is real and works.
 
-4. **PDF edit mode is local-only** — The "Edit Text" mode in Resume Analysis shows extracted text in an editable textarea. Changes are NOT sent to the server or used in analysis. The original parsed text stored in the DB is always used for AI calls.
+4. **PDF edit mode vs. Automated ATS compilation** — The legacy "Edit Text" mode shows extracted text locally, but the primary pipeline now provides automated ATS resume generation via ReportLab in `resume_pdf_generator.py` and the `/resumes/{id}/optimized_pdf` endpoint, which surgically applies AI replacements.
 
-5. **Cover letter PDF is client-side** — jsPDF runs entirely in the browser. No server-side PDF generation for cover letters (contrast with ReportLab which exists in the backend but is not used for this).
+5. **PDF generation split** — Cover letter PDF generation is handled client-side via jsPDF, while ATS optimized resume PDF compilation is handled server-side via ReportLab Platypus (`backend/app/services/resume_pdf_generator.py`).
 
 6. **Vite proxy in dev** — `vite.config.ts` has proxy rules for `/api` -> `localhost:8000`. Production uses `VITE_API_BASE`.
 
@@ -786,7 +794,7 @@ VITE_SUPABASE_ANON_KEY=
 
 9. **Admin routes are client-guarded only** — The backend does properly guard admin routes, but the frontend's `/admin` route is accessible to any authenticated user who knows the URL — it just will not work without `is_admin: true` in the backend response.
 
-10. **Tests cover backend only** — 22 pytest tests in `backend/tests/`. No frontend tests.
+10. **Test suite coverage** — 71 automated pytest unit and integration tests across `test_critical_paths.py` (37 tests), `test_deep_analysis.py` (29 tests), and `test_resume_pdf_generator.py` (5 tests). No frontend tests.
 
 ---
 

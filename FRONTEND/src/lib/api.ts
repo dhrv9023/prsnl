@@ -6,6 +6,13 @@
 // HttpOnly cookies are sent automatically because of "credentials: include"
 // ─────────────────────────────────────────────────────────────────────────────
 
+import type {
+    StructuredResume,
+    ResumeEditorPayload,
+    BulletRewriteRequest,
+    BulletRewriteResponse,
+} from "../types/resumeEditor";
+
 const API_BASE = import.meta.env.VITE_API_BASE ?? "";
 const BASE = `${API_BASE}/api/v1`;
 
@@ -725,8 +732,73 @@ export async function apiGetOptimizedResumePdf(
     return await res.blob();
 }
 
+// ── Resume Editor API (Phase 3/4) ───────────────────────────────────────────
+
+export async function apiGetResumeEditor(resumeId: string): Promise<ResumeEditorPayload> {
+    return request<ResumeEditorPayload>(`/resumes/${resumeId}/editor`);
+}
+
+export async function apiSaveResumeEditorDraft(
+    resumeId: string,
+    structuredContent: StructuredResume
+): Promise<{ ok: boolean; resume_id: string }> {
+    return request<{ ok: boolean; resume_id: string }>(`/resumes/${resumeId}/editor`, {
+        method: "PUT",
+        body: JSON.stringify(structuredContent),
+    });
+}
+
+export async function apiExportResumePdf(resumeId: string): Promise<Blob> {
+    const csrfToken = getCsrfToken();
+    const csrfHeaders: Record<string, string> = csrfToken ? { "X-CSRF-Token": csrfToken } : {};
+    const authHeaders = getAuthHeaders();
+
+    let res = await fetch(`${BASE}/resumes/${resumeId}/export_pdf`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+            ...DEV_BYPASS_HEADERS,
+            ...csrfHeaders,
+            ...authHeaders,
+        },
+    });
+
+    if (res.status === 401) {
+        const newAccessToken = await tryRefreshSession();
+        if (newAccessToken) {
+            res = await fetch(`${BASE}/resumes/${resumeId}/export_pdf`, {
+                method: "POST",
+                credentials: "include",
+                headers: {
+                    ...DEV_BYPASS_HEADERS,
+                    ...csrfHeaders,
+                    "Authorization": `Bearer ${newAccessToken}`,
+                },
+            });
+        }
+    }
+
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Failed to export resume PDF" }));
+        throw new Error(err.detail || "Failed to export resume PDF");
+    }
+
+    return await res.blob();
+}
+
+export async function apiRewriteBullet(
+    resumeId: string,
+    payload: BulletRewriteRequest
+): Promise<BulletRewriteResponse> {
+    return request<BulletRewriteResponse>(`/resumes/${resumeId}/rewrite_bullet`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+    });
+}
+
 
 // ── Daily credit grant ────────────────────────────────────────────────────────
+
 
 export interface DailyGrantResult {
     granted: boolean;

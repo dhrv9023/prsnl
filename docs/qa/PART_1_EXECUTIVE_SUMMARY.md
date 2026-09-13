@@ -25,7 +25,7 @@ During the **September 6, 2026 comprehensive remediation on the `testing_new` br
 - Audio file MIME type and extension allowlist validation.
 - Hardened prompt injection sanitizer with NFKC unicode normalization and multi-pass tag stripping.
 
-The platform test suite now runs 37 automated tests passing in 1.53s, and the frontend builds cleanly with zero errors in 3.83s.
+The platform test suite now runs 71 automated tests passing across 3 suites (critical paths, deep analysis recovery, and ReportLab PDF compilation), and the frontend builds cleanly with zero errors.
 
 ---
 

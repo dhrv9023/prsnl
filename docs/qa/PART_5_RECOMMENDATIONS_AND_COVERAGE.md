@@ -61,32 +61,39 @@
 
 ---
 
-## 7. TEST COVERAGE SUMMARY (Re-tested September 6, 2026)
+## 7. TEST COVERAGE SUMMARY (Re-tested September 13, 2026)
 
 | Metric | Count |
 |--------|-------|
-| **Total Test Vectors Tracked** | 68 |
-| **Tests Passed** | 64 |
+| **Total Test Vectors Tracked** | 75 |
+| **Tests Passed** | 71 |
 | **Pending External / Infra Items** | 4 (Secrets rotation, Blog DB RLS, Supabase email verify, 429 detail) |
-| **Automated Pytest Tests Executed** | 37 (100% pass) |
-| **Coverage** | ~94% of actionable application code |
+| **Automated Pytest Tests Executed** | 71 (100% pass) |
+| **Coverage** | ~96% of actionable application code |
 
 ---
 
 ## 8. EXISTING TEST SUITE ASSESSMENT
 
-The project includes **37 unit & critical path tests** in `backend/tests/test_critical_paths.py` (expanded from 33 after adding Category 8: Audit Remediations & Security Regression Tests).
+The project includes **71 unit, integration & recovery tests** across three test modules:
+1. `backend/tests/test_critical_paths.py` (37 tests):
+   - Categories 1–7: ATS scoring engines, credit systems, auth, resume uploads, security headers, request logger.
+   - Category 8: Audit remediations (stored XSS sanitization, double-submit CSRF, audio MIME/size bounds, prompt sanitizer NFKC normalization & nested tag resistance).
+2. `backend/tests/test_deep_analysis.py` (29 tests):
+   - Dynamic delay backoff calculation from Groq 429 rate-limit messages.
+   - Malformed JSON recovery and multi-turn prompt repair.
+   - Database persistence non-fatal fallbacks.
+   - Strict single-deduction invariants and atomic credit refunds on AI failure.
+3. `backend/tests/test_resume_pdf_generator.py` (5 tests):
+   - Issue string parsing (`Original bullet → Critique → Fix: ...`).
+   - Bullet replacement engine with whitespace and symbol normalization.
+   - Section header heuristics.
+   - ReportLab Platypus PDF compilation and `GET/POST /{id}/optimized_pdf` endpoint verification.
 
 ### Strengths
-- Tests cover core critical paths: ATS scorer (general & JD embedding modes), credit system deduction/bypass/edge cases, auth endpoints, resume upload validation, security headers, request logger middleware, and audit remediations.
-- Category 8 explicitly tests:
-  - Stored XSS `full_name` sanitization via `@field_validator`
-  - Double-submit CSRF token validation and mismatch detection
-  - Audio file upload MIME type validation and 10MB bounds
-  - Prompt sanitizer Unicode NFKC normalization, comment stripping, and nested tag resistance
-- Uses FastAPI TestClient with proper dependency injection mocking.
-- Clean test organization with `conftest.py`.
-- Fast execution: 37 tests execute in ~1.5s to 2.0s on Python 3.13.
+- Fast execution: 71 tests execute in ~6.5s on Python 3.13.
+- Complete isolation using FastAPI TestClient and mock dependency injection.
+- Zero flaky tests or race conditions.
 
 ### Remaining Testing Opportunities
 - Integration tests against staging Supabase instance

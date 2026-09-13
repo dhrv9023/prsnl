@@ -33,6 +33,7 @@ Key FastAPI routers, services, and security utilities:
 - **[credits.md](./backend/credits.md)** — Credit deduction, anti-farming IP checks, daily grants, and refund RPC integrations.
 - **[main.py](./backend/main.md)** — Middleware pipeline execution order: RequestLogger, ProxyHeaders, CSRF, BodySizeLimit, and SecurityHeaders (`microphone=(self)`).
 - **[ats_general_engine.md](./backend/ats_general_engine.md)** & **[ats_jd_engine.md](./backend/ats_jd_engine.md)** — Rule-based ATS scoring and HuggingFace embedding cosine similarity.
+- **[resume_pdf_generator.md](./backend/resume_pdf_generator.md)** — In-house ATS PDF compilation via ReportLab Platypus, critique issue parsing, and surgical bullet replacement.
 - **[llm_client.md](./backend/llm_client.md)** & **[ai_retry.md](./backend/ai_retry.md)** — Async Groq client wrapper, JSON object formatting, and exponential retry loops.
 
 ---

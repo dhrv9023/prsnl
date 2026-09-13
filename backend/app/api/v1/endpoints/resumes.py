@@ -12,7 +12,12 @@ from app.api.dependencies import CurrentUser
 from app.core.config import settings
 from app.core.rate_limit import ats_rate_key, limiter
 from app.db.supabase import get_db
-from app.services.resume_pdf_generator import generate_resume_pdf, parse_issue_string
+from app.services.resume_pdf_generator import generate_resume_pdf, parse_issue_string, render_structured_resume_pdf
+from app.services.resume_parser import parse_raw_text_to_structured
+from app.services.credits import deduct_feature_credits, refund_feature_credits
+from app.services.llm_client import chat_complete
+from app.services.ai_retry import with_ai_retry
+from app.schemas.resume_editor import StructuredResume
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -308,3 +313,378 @@ async def get_optimized_resume_pdf(
             "Cache-Control": "no-cache",
         }
     )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Resume Editor Endpoints (Phase 3)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class BulletRewriteRequest(BaseModel):
+    bullet_text: str
+    role_context: str
+    instruction: str = ""
+
+
+# ── Endpoint 1: GET editor state ──────────────────────────────────────────────
+
+@router.get("/{resume_id}/editor")
+async def get_resume_editor(resume_id: str, user: CurrentUser):
+    """
+    Fetch the structured editor state for a resume.
+
+    On first access (structured_content is NULL), parses raw_text into a
+    StructuredResume via Groq and persists the result. Subsequent calls return
+    the stored structured_content directly.
+
+    Also returns any existing Deep Analysis issues (for the AI Fix sidebar),
+    enriched with a best-effort bullet_id match.
+
+    Ownership: resumes.user_id must match the authenticated user.
+    Credits: FREE — no deduction.
+    """
+    supabase = await get_db()
+
+    # 1. Fetch resume — ownership isolation enforced by eq("user_id")
+    data = await supabase.table("resumes") \
+        .select("id, file_url, parsed_content, structured_content, created_at") \
+        .eq("id", resume_id) \
+        .eq("user_id", user.id) \
+        .execute()
+
+    if not data.data:
+        raise HTTPException(status_code=404, detail="Resume not found")
+
+    row = data.data[0]
+
+    # 2. Lazy parse: if structured_content is NULL, parse now and persist
+    structured_content = row.get("structured_content")
+    if not structured_content:
+        raw_text = ""
+        try:
+            raw_text = (row.get("parsed_content") or {}).get("raw_text") or ""
+        except (TypeError, AttributeError):
+            pass
+
+        logger.info("editor: lazy-parsing resume %s for user %s", resume_id, user.id)
+        structured_content = await parse_raw_text_to_structured(raw_text)
+
+        # Persist so next open is instant (fire-and-forget; non-fatal on failure)
+        try:
+            await supabase.table("resumes") \
+                .update({"structured_content": structured_content}) \
+                .eq("id", resume_id) \
+                .eq("user_id", user.id) \
+                .execute()
+        except Exception as exc:
+            logger.warning(
+                "editor: failed to persist structured_content for resume %s: %s",
+                resume_id, exc
+            )
+
+    # 3. Fetch latest Deep Analysis issues (best-effort; no 404 if absent)
+    analysis_issues: list[dict] = []
+    try:
+        analyses = await supabase.table("ai_analyses") \
+            .select("output_data") \
+            .eq("resume_id", resume_id) \
+            .eq("user_id", str(user.id)) \
+            .eq("analysis_type", "deep_analysis") \
+            .order("created_at", desc=True) \
+            .limit(1) \
+            .execute()
+
+        if analyses.data:
+            output = analyses.data[0].get("output_data") or {}
+            raw_issues = output.get("issues") or []
+
+            # Build a flat text→id lookup for bullet matching
+            bullet_text_to_id: dict[str, str] = {}
+            experience = (structured_content or {}).get("experience") or []
+            for exp in experience:
+                for b in (exp.get("bullets") or []):
+                    txt = (b.get("text") or "").strip().lower()
+                    if txt:
+                        bullet_text_to_id[txt] = b.get("id", "")
+
+            import uuid as _uuid
+            for issue in raw_issues:
+                original_lower = (issue.get("original") or "").strip().lower()
+                matched_bullet_id: str | None = bullet_text_to_id.get(original_lower)
+                analysis_issues.append({
+                    "id": str(_uuid.uuid4()),
+                    "section": issue.get("section", ""),
+                    "original": issue.get("original", ""),
+                    "critique": issue.get("critique", ""),
+                    "fix": issue.get("fix", ""),
+                    "matched_bullet_id": matched_bullet_id,
+                })
+    except Exception as exc:
+        logger.warning(
+            "editor: failed to fetch analysis issues for resume %s: %s", resume_id, exc
+        )
+
+    # 4. Build signed URL for the original PDF
+    file_path = row.get("file_url") or ""
+    signed_url = ""
+    if file_path:
+        try:
+            signed = await supabase.storage.from_("Resumes").create_signed_url(file_path, 3600)
+            signed_url = (signed or {}).get("signedUrl") or (signed or {}).get("signedURL") or file_path
+        except Exception as e:
+            logger.warning("editor: failed to create signed URL for resume %s: %s", resume_id, e)
+            signed_url = file_path
+
+    return {
+        "id": resume_id,
+        "structured_content": structured_content,
+        "analysis_issues": analysis_issues,
+        "file_url": signed_url,
+        "last_saved": row.get("created_at"),
+    }
+
+
+# ── Endpoint 2: PUT editor (autosave + explicit save) ─────────────────────────
+
+@router.put("/{resume_id}/editor")
+async def save_resume_editor(resume_id: str, user: CurrentUser, body: dict):
+    """
+    Persist the structured editor state for a resume.
+
+    Called by both the debounced autosave (every 2 seconds of inactivity)
+    and the explicit "Save Changes" button. The payload is the full
+    StructuredResume JSON document.
+
+    Validates the payload against the StructuredResume Pydantic model before
+    writing, ensuring the database always holds a schema-valid document.
+
+    Ownership: enforced by eq("user_id").
+    Credits: FREE — no deduction.
+    """
+    supabase = await get_db()
+
+    # 1. Verify ownership before writing
+    exists = await supabase.table("resumes") \
+        .select("id") \
+        .eq("id", resume_id) \
+        .eq("user_id", user.id) \
+        .execute()
+
+    if not exists.data:
+        raise HTTPException(status_code=404, detail="Resume not found")
+
+    # 2. Validate payload against StructuredResume schema
+    try:
+        validated = StructuredResume.model_validate(body)
+        structured_dict = validated.to_editor_dict()
+    except Exception as exc:
+        logger.warning(
+            "editor save: payload validation failed for resume %s: %s", resume_id, exc
+        )
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid resume structure: {exc}",
+        )
+
+    # 3. Persist
+    try:
+        await supabase.table("resumes") \
+            .update({"structured_content": structured_dict}) \
+            .eq("id", resume_id) \
+            .eq("user_id", user.id) \
+            .execute()
+    except Exception as exc:
+        logger.error(
+            "editor save: DB update failed for resume %s: %s", resume_id, exc
+        )
+        raise HTTPException(status_code=500, detail="Failed to save resume changes.")
+
+    return {"ok": True, "resume_id": resume_id}
+
+
+# ── Endpoint 3: POST export_pdf ───────────────────────────────────────────────
+
+@router.post("/{resume_id}/export_pdf")
+async def export_structured_resume_pdf(resume_id: str, user: CurrentUser):
+    """
+    Render the stored StructuredResume to a clean, ATS-optimised PDF
+    using the template and layout settings in structured_content.meta.
+
+    Falls back gracefully if structured_content is NULL (returns 409 with a
+    clear instruction to open the editor first).
+
+    Ownership: enforced by eq("user_id").
+    Credits: FREE — export is not an AI operation.
+    """
+    supabase = await get_db()
+
+    data = await supabase.table("resumes") \
+        .select("structured_content") \
+        .eq("id", resume_id) \
+        .eq("user_id", user.id) \
+        .execute()
+
+    if not data.data:
+        raise HTTPException(status_code=404, detail="Resume not found")
+
+    structured_content = data.data[0].get("structured_content")
+    if not structured_content:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "This resume has not been opened in the editor yet. "
+                "Open it in the Resume Editor to generate a structured PDF."
+            ),
+        )
+
+    # Read template from the document's own meta (respects user's choice)
+    template_id = (structured_content.get("meta") or {}).get("template_id") or "classic"
+
+    try:
+        pdf_bytes = render_structured_resume_pdf(structured_content, template_id=template_id)
+    except Exception as exc:
+        logger.error(
+            "export_pdf: render failed for resume %s (template=%s): %s",
+            resume_id, template_id, exc
+        )
+        raise HTTPException(status_code=500, detail="Failed to render resume PDF.")
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": 'attachment; filename="kareerist_resume.pdf"',
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+# ── Endpoint 4: POST rewrite_bullet ──────────────────────────────────────────
+
+_BULLET_REWRITE_SYSTEM = """\
+You are an elite resume writing coach. Rewrite the provided resume bullet point to be \
+highly impactful, quantified where possible, action-verb-led, and ATS-friendly.
+
+Rules:
+1. Start with a strong past-tense action verb (e.g. Architected, Reduced, Delivered).
+2. Include a measurable outcome if any numbers can be inferred from context.
+3. Keep to a single sentence under 25 words.
+4. Do NOT invent metrics that aren't supported by the context.
+5. Return ONLY the rewritten bullet text — no quotes, no explanation, no prefix.
+"""
+
+@router.post("/{resume_id}/rewrite_bullet")
+@limiter.limit(settings.RATE_LIMIT_ANALYSIS, key_func=ats_rate_key)
+async def rewrite_bullet(
+    request: Request,
+    resume_id: str,
+    user: CurrentUser,
+    body: BulletRewriteRequest,
+):
+    """
+    AI-powered bullet rewrite — rewrites a single resume bullet for maximum impact.
+
+    Validates resume ownership, deducts 3 credits, calls Groq, and returns the
+    rewritten bullet. Credits are refunded if the Groq call fails.
+
+    Credit cost: 3
+    Rate limit: inherits RATE_LIMIT_ANALYSIS setting.
+    """
+    if not body.bullet_text.strip():
+        raise HTTPException(status_code=400, detail="bullet_text must not be empty")
+
+    supabase = await get_db()
+
+    # 1. Verify ownership
+    exists = await supabase.table("resumes") \
+        .select("id") \
+        .eq("id", resume_id) \
+        .eq("user_id", user.id) \
+        .execute()
+
+    if not exists.data:
+        raise HTTPException(status_code=404, detail="Resume not found")
+
+    # 2. Deduct 3 credits before AI call
+    BULLET_COST = 3
+    skip_credits = (
+        settings.ENVIRONMENT == "development"
+        and getattr(settings, "DEV_BYPASS_USER_ID", None)
+        and request.headers.get("X-Dev-Bypass") == "1"
+    )
+    credits_deducted = False
+
+    if not skip_credits:
+        await deduct_feature_credits(
+            supabase=supabase,
+            user_id=str(user.id),
+            feature="rewrite_bullet",
+            cost=BULLET_COST,
+        )
+        credits_deducted = True
+
+    # 3. Call Groq with retry
+    user_content = (
+        f"Role context: {body.role_context.strip()}\n\n"
+        f"Bullet to rewrite: {body.bullet_text.strip()}"
+    )
+    if body.instruction.strip():
+        user_content += f"\n\nAdditional instruction: {body.instruction.strip()}"
+
+    try:
+        rewritten = await with_ai_retry(
+            lambda: chat_complete(
+                messages=[
+                    {"role": "system", "content": _BULLET_REWRITE_SYSTEM},
+                    {"role": "user", "content": user_content},
+                ],
+                temperature=0.5,
+                max_tokens=80,
+                timeout=30,
+            ),
+            label="rewrite_bullet",
+            max_attempts=3,
+        )
+        rewritten = rewritten.strip().strip('"').strip("'")
+
+        if not rewritten:
+            raise ValueError("LLM returned an empty response")
+
+    except Exception as exc:
+        # Refund on failure
+        if credits_deducted:
+            try:
+                await refund_feature_credits(
+                    supabase,
+                    str(user.id),
+                    "rewrite_bullet",
+                    BULLET_COST,
+                    "ai_failure_refund",
+                )
+            except Exception as ref_err:
+                logger.error(
+                    "rewrite_bullet: refund failed for user %s: %s", user.id, ref_err
+                )
+
+        logger.error("rewrite_bullet failed for resume %s: %s", resume_id, exc)
+        raise HTTPException(
+            status_code=502,
+            detail="AI bullet rewrite failed — your credits have been refunded. Please try again.",
+        )
+
+    # 4. Fetch remaining credits to return in the response (best-effort)
+    credits_remaining = 0
+    try:
+        profile = await supabase.table("profiles") \
+            .select("remaining_credits") \
+            .eq("id", str(user.id)) \
+            .limit(1) \
+            .execute()
+        if profile.data:
+            credits_remaining = profile.data[0].get("remaining_credits", 0)
+    except Exception:
+        pass
+
+    return {
+        "rewritten_bullet": rewritten,
+        "credits_remaining": credits_remaining,
+    }

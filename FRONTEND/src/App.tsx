@@ -66,6 +66,7 @@ const InterviewHistory = lazyWithRetry(() => import("./pages/InterviewHistory"))
 const Contact = lazyWithRetry(() => import("./pages/Contact"));
 const PrivacyPolicy = lazyWithRetry(() => import("./pages/PrivacyPolicy"));
 const TermsOfService = lazyWithRetry(() => import("./pages/TermsOfService"));
+const ResumeEditor = lazyWithRetry(() => import("./pages/ResumeEditor"));
 
 const queryClient = new QueryClient();
 
@@ -91,6 +92,8 @@ const App = () => (
                 <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/admin" element={<AdminPage />} />
                 <Route path="/resume-analysis" element={<ResumeAnalysis />} />
+                <Route path="/resumes/:id/editor" element={<ResumeEditor />} />
+                <Route path="/resume-editor/:id" element={<ResumeEditor />} />
                 <Route path="/interview" element={<AIInterview />} />
                 <Route path="/cover-letter" element={<CoverLetter />} />
                 <Route path="/credits" element={<CreditsPage />} />

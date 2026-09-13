@@ -25,8 +25,14 @@ This folder documents everything about the Kareerist project — what it is, how
 
 ## Recent Updates
 
-### **[September 2026 Updates Summary (v1.0.3, v1.0.4 & v1.0.5)](./UPDATES_SEP_2026.md)** ⭐ **LATEST**
+### **[September 2026 Updates Summary (v1.0.3, v1.0.4, v1.0.5 & v1.0.6)](./UPDATES_SEP_2026.md)** ⭐ **LATEST**
 Comprehensive summary of all changes made in September 2026:
+- In-Situ Resume Diff & ATS PDF Compilation (v1.0.6):
+  - In-situ PDF Before vs. After diff visualizer (`ResumeDiffView`) directly on analysis canvas
+  - 1-hour signed URL streaming from Supabase Storage for high-fidelity PDF previews
+  - ReportLab Platypus ATS PDF compiler with AI replacements (`/optimized_pdf`)
+  - Analysis panel minimize and expand controls to prevent canvas squishing
+  - Test suite expansion to 71 automated tests passing across 3 suites
 - Production Launch Readiness (v1.0.5):
   - Frontend private secret exposure protection (Vite build-time guard)
   - Reverse-proxy HTTPS enforcement (`x-forwarded-proto`) and HSTS preload headers

@@ -14,7 +14,9 @@ Kareerist is a full-stack AI-powered career toolkit built for job seekers who wa
 |---|---|---|
 | **ATS Match Score** | Score your resume against a job description using cosine similarity + rule-based signals | 5 |
 | **Deep Analysis** | LLM-powered critique — strengths, weaknesses, missing keywords, actionable fixes | 15 |
+| **In-Situ Resume Diff** | Side-by-side Before vs. After comparison of weak bullets against AI improvements | Free |
 | **Hiring Intelligence** | 9-section recruiter-realistic report on how your profile reads to a hiring manager | 25 |
+| **ATS Resume Export** | Generate ATS-optimized PDF resume embedding AI improvements via ReportLab | Free |
 | **AI Mock Interview** | 6-question adaptive interview with per-answer evaluation, voice input, and a final report | 25 |
 | **Cover Letter Generator** | Role-targeted cover letter from your resume + JD | 10 |
 | **AI Humanizer** | Strips AI tone from cover letters, makes them sound like you | 15 |
@@ -115,6 +117,7 @@ Auth          POST /api/v1/auth/signup | /login | /logout | GET /me
               POST /api/v1/auth/oauth/session (PKCE code exchange)
               POST /api/v1/auth/refresh
 Resumes       POST /api/v1/resumes/upload | GET /list | /{id}
+              GET/POST /api/v1/resumes/{id}/optimized_pdf
 ATS Score     POST /api/ats/score
 AI Analysis   POST /api/v1/analysis/deep | /hiring-intel
 Interview     POST /api/v1/interview/start | GET /session | POST /end
@@ -238,7 +241,7 @@ cd backend
 pytest tests/ -v
 ```
 
-37 automated unit tests covering ATS scoring engines, credit systems, authentication, resume ingestion, security headers, XSS prevention, permissions policies, and prompt sanitization.
+71 automated unit and integration tests covering ATS scoring engines, credit systems, authentication, resume ingestion, deep analysis recovery, ReportLab PDF compilation, security headers, XSS prevention, permissions policies, and prompt sanitization.
 
 ---
 
