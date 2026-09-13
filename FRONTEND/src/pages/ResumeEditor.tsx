@@ -99,7 +99,7 @@ const ResumeEditor: React.FC = () => {
             </p>
           </div>
           <div className="flex items-center justify-center gap-2 pt-2">
-            <Link to="/resumes">
+            <Link to="/resume-analysis">
               <Button variant="outline" size="sm" className="text-xs gap-1.5">
                 <ArrowLeft className="h-3.5 w-3.5" /> Back to Resumes
               </Button>

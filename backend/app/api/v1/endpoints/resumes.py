@@ -2,7 +2,9 @@
 import io
 import logging
 import time
+import uuid
 from pathlib import Path
+from typing import Optional
 
 from fastapi import APIRouter, UploadFile, File, HTTPException, Request, Response
 from pydantic import BaseModel
@@ -323,6 +325,73 @@ class BulletRewriteRequest(BaseModel):
     bullet_text: str
     role_context: str
     instruction: str = ""
+
+
+class CreateResumeRequest(BaseModel):
+    title: str = "John Doe - Resume"
+    template_id: str = "classic"
+    use_mock_data: bool = True
+
+
+# ── Endpoint 0: POST create new resume (template / mock) ─────────────────────
+
+@router.post("/create")
+async def create_resume_from_scratch(
+    user: CurrentUser,
+    body: Optional[CreateResumeRequest] = None,
+):
+    """
+    Create a new resume document with starter content (defaulting to the John Doe mock template).
+    Immediately returns the new resume ID so the client can navigate to /resumes/{id}/editor.
+    """
+    req = body or CreateResumeRequest()
+    supabase = await get_db()
+    new_id = str(uuid.uuid4())
+
+    valid_template = req.template_id if req.template_id in ("classic", "modern", "minimal", "technical") else "classic"
+    if req.use_mock_data:
+        mock_doc = StructuredResume.create_john_doe_mock(template_id=valid_template)
+        structured = mock_doc.to_editor_dict()
+        raw_text = (
+            f"{mock_doc.basics.name}\n"
+            f"{mock_doc.basics.title}\n"
+            f"{mock_doc.basics.email} | {mock_doc.basics.phone} | {mock_doc.basics.location}\n\n"
+            f"{mock_doc.basics.summary}"
+        )
+    else:
+        empty_doc = StructuredResume.create_empty()
+        empty_doc.meta.template_id = valid_template
+        structured = empty_doc.to_editor_dict()
+        raw_text = ""
+
+    filename = (req.title or "John Doe - Resume").strip()
+    if not filename.lower().endswith(".pdf"):
+        filename = f"{filename}.pdf"
+
+    payload = {
+        "id": new_id,
+        "user_id": user.id,
+        "original_filename": filename,
+        "file_url": "",
+        "parsed_content": {
+            "raw_text": raw_text,
+            "sections": {},
+        },
+        "structured_content": structured,
+    }
+
+    try:
+        await supabase.table("resumes").insert(payload).execute()
+    except Exception as exc:
+        logger.error("create_resume failed for user %s: %s", user.id, exc)
+        raise HTTPException(status_code=500, detail="Failed to create new resume.")
+
+    return {
+        "id": new_id,
+        "resume_id": new_id,
+        "original_filename": filename,
+        "message": "Resume created successfully.",
+    }
 
 
 # ── Endpoint 1: GET editor state ──────────────────────────────────────────────

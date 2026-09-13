@@ -92,6 +92,8 @@ const App = () => (
                 <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/admin" element={<AdminPage />} />
                 <Route path="/resume-analysis" element={<ResumeAnalysis />} />
+                <Route path="/resumes" element={<ResumeAnalysis />} />
+                <Route path="/resumes/:id" element={<ResumeAnalysis />} />
                 <Route path="/resumes/:id/editor" element={<ResumeEditor />} />
                 <Route path="/resume-editor/:id" element={<ResumeEditor />} />
                 <Route path="/interview" element={<AIInterview />} />

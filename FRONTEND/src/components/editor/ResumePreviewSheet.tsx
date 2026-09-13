@@ -67,8 +67,26 @@ export const ResumePreviewSheet: React.FC<ResumePreviewSheetProps> = ({
       : "text-[12px] leading-[1.4]";
 
   const isModern = templateId === "modern";
-  const accentColor = isModern ? "text-blue-600" : "text-slate-900";
-  const dividerColor = isModern ? "border-blue-600" : "border-slate-300";
+  const isMinimal = templateId === "minimal";
+  const isTechnical = templateId === "technical";
+
+  let accentColor = "text-slate-900";
+  let dividerColor = "border-slate-300";
+  let headerClass = "uppercase text-[12px] font-bold tracking-wider";
+
+  if (isModern) {
+    accentColor = "text-blue-600";
+    dividerColor = "border-blue-600";
+    headerClass = "capitalize text-[12px] font-bold tracking-wider";
+  } else if (isMinimal) {
+    accentColor = "text-slate-700";
+    dividerColor = "border-slate-200";
+    headerClass = "uppercase text-[11px] font-semibold tracking-[0.2em] text-slate-700";
+  } else if (isTechnical) {
+    accentColor = "text-teal-700";
+    dividerColor = "border-teal-700";
+    headerClass = "uppercase text-[12px] font-extrabold tracking-wide text-slate-900";
+  }
 
   // ── Contact Line Helper ───────────────────────────────────────────────────
 
@@ -85,14 +103,14 @@ export const ResumePreviewSheet: React.FC<ResumePreviewSheetProps> = ({
 
   const renderSectionHeader = (title: string) => (
     <div className="mb-2 mt-3.5 first:mt-0">
-      <h3
-        className={`text-[12px] font-bold tracking-wider ${accentColor} ${
-          isModern ? "capitalize" : "uppercase"
-        }`}
-      >
+      <h3 className={`${accentColor} ${headerClass}`}>
         {title}
       </h3>
-      <div className={`mt-0.5 border-b ${isModern ? "border-b-2" : "border-b"} ${dividerColor}`} />
+      <div
+        className={`mt-0.5 border-b ${
+          isModern ? "border-b-2" : isTechnical ? "border-b-2" : "border-b"
+        } ${dividerColor}`}
+      />
     </div>
   );
 
@@ -417,10 +435,16 @@ export const ResumePreviewSheet: React.FC<ResumePreviewSheetProps> = ({
             className={`w-full max-w-[800px] min-h-[1050px] bg-white text-slate-900 rounded-sm shadow-2xl transition-transform duration-100 ${marginClass} ${fontSizeClass} font-sans`}
           >
             {/* Header / Name */}
-            <div className="mb-3">
+            <div className={`mb-3 ${isMinimal ? "text-center" : ""}`}>
               <h1
                 className={`font-bold tracking-tight text-slate-950 ${
-                  isModern ? "text-2xl text-slate-900" : "text-xl text-slate-900"
+                  isModern
+                    ? "text-2xl text-slate-900"
+                    : isMinimal
+                    ? "text-xl uppercase tracking-widest text-slate-900"
+                    : isTechnical
+                    ? "text-xl text-slate-950 font-extrabold"
+                    : "text-xl text-slate-900"
                 }`}
               >
                 {basics.name || "Candidate Name"}
@@ -428,14 +452,24 @@ export const ResumePreviewSheet: React.FC<ResumePreviewSheetProps> = ({
               {basics.title && (
                 <div
                   className={`mt-0.5 font-medium ${
-                    isModern ? "text-blue-600 text-[13px]" : "text-slate-600 text-[12px]"
+                    isModern
+                      ? "text-blue-600 text-[13px] font-semibold"
+                      : isMinimal
+                      ? "text-slate-600 text-[11px] uppercase tracking-wider"
+                      : isTechnical
+                      ? "text-teal-700 text-[12px] font-bold"
+                      : "text-slate-600 text-[12px]"
                   }`}
                 >
                   {basics.title}
                 </div>
               )}
               {contactItems.length > 0 && (
-                <div className="mt-1 text-[11px] text-slate-600 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                <div
+                  className={`mt-1 text-[11px] text-slate-600 flex flex-wrap items-center gap-x-2 gap-y-0.5 ${
+                    isMinimal ? "justify-center" : ""
+                  }`}
+                >
                   {contactItems.map((item, idx) => (
                     <React.Fragment key={idx}>
                       {idx > 0 && <span className="text-slate-400">|</span>}

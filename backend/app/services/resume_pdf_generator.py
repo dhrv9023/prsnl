@@ -260,11 +260,15 @@ def _build_styles(template_id: str) -> dict:
     """
     Returns a dict of named ParagraphStyle objects for the given template.
 
-    Two templates are supported:
-      "classic" — Traditional single-column ATS layout, bold uppercase headers,
-                  Helvetica/Helvetica-Bold, maximum ATS compatibility.
-      "modern"  — Contemporary single-column layout, coloured section headers,
-                  sans-serif, compact metadata row.
+    Supported templates:
+      "classic"   — Traditional single-column ATS layout, bold uppercase headers,
+                    Helvetica/Helvetica-Bold, maximum ATS compatibility.
+      "modern"    — Contemporary single-column layout, coloured section headers,
+                    sans-serif, compact metadata row.
+      "minimal"   — Minimalist executive layout, refined charcoal palette,
+                    hairline dividers, generous whitespace.
+      "technical" — High-density Ivy League / engineering layout, solid accent rules,
+                    compact spacing maximizing bullet room.
     """
     styles = getSampleStyleSheet()
 
@@ -277,7 +281,27 @@ def _build_styles(template_id: str) -> dict:
         meta_color = colors.HexColor("#64748B")
         name_size = 22
         header_size = 10
-        header_case = lambda t: t  # noqa: E731  — preserve original case for modern
+        header_case = lambda t: t  # noqa: E731
+    elif template_id == "minimal":
+        accent = colors.HexColor("#475569")   # Slate charcoal
+        name_color = colors.HexColor("#0F172A")
+        title_color = colors.HexColor("#64748B")
+        header_color = colors.HexColor("#334155")
+        body_color = colors.HexColor("#334155")
+        meta_color = colors.HexColor("#64748B")
+        name_size = 20
+        header_size = 9.5
+        header_case = lambda t: t.upper()  # noqa: E731
+    elif template_id == "technical":
+        accent = colors.HexColor("#0D9488")   # Deep teal / engineering accent
+        name_color = colors.HexColor("#0F172A")
+        title_color = colors.HexColor("#0D9488")
+        header_color = colors.HexColor("#0F172A")
+        body_color = colors.HexColor("#1E293B")
+        meta_color = colors.HexColor("#475569")
+        name_size = 18
+        header_size = 10
+        header_case = lambda t: t.upper()  # noqa: E731
     else:  # "classic"
         accent = colors.HexColor("#0F172A")
         name_color = colors.HexColor("#0F172A")
@@ -287,7 +311,7 @@ def _build_styles(template_id: str) -> dict:
         meta_color = colors.HexColor("#475569")
         name_size = 18
         header_size = 10.5
-        header_case = lambda t: t.upper()  # noqa: E731  — uppercase section titles
+        header_case = lambda t: t.upper()  # noqa: E731
 
     return {
         "name": ParagraphStyle(
@@ -386,7 +410,8 @@ def _build_styles(template_id: str) -> dict:
 
 def _section_divider(styles: dict) -> list:
     """Return the appropriate section divider flowables for the template."""
-    if styles["_template"] == "modern":
+    tmpl = styles["_template"]
+    if tmpl == "modern":
         # Thin coloured rule (blue accent)
         return [
             HRFlowable(
@@ -395,6 +420,28 @@ def _section_divider(styles: dict) -> list:
                 color=styles["_accent"],
                 spaceBefore=1,
                 spaceAfter=4,
+            )
+        ]
+    elif tmpl == "minimal":
+        # Subtle hairline separator
+        return [
+            HRFlowable(
+                width="100%",
+                thickness=0.5,
+                color=colors.HexColor("#CBD5E1"),
+                spaceBefore=1,
+                spaceAfter=4,
+            )
+        ]
+    elif tmpl == "technical":
+        # Crisp solid rule for engineering density
+        return [
+            HRFlowable(
+                width="100%",
+                thickness=1.0,
+                color=styles["_accent"],
+                spaceBefore=1,
+                spaceAfter=3,
             )
         ]
     else:  # classic

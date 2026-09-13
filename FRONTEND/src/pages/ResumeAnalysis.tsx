@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { useCreditContext } from "@/contexts/CreditContext";
 import {
     apiUploadResume,
     apiListResumes,
     apiGetResume,
+    apiCreateResume,
     apiGetAtsScore,
     apiGetDeepAnalysis,
     apiGetHiringIntel,
@@ -25,6 +26,7 @@ import {
     PanelLeft, FileSearch, ChartBar, ArrowLeft,
     Maximize, Minimize, Brain, Layers, ChevronDown,
     PanelRightClose, PanelRightOpen, Sparkles,
+    PenTool, FilePlus, Edit3,
 } from "lucide-react";
 
 // ─── Custom Select ────────────────────────────────────────────────────────────
@@ -180,6 +182,12 @@ export default function ResumeAnalysis() {
     const [isExpanded, setIsExpanded] = useState(false);
     const [analysisPanelOpen, setAnalysisPanelOpen] = useState(true);
 
+    const { id: routeResumeId } = useParams<{ id?: string }>();
+    const [searchParams] = useSearchParams();
+    const queryResumeId = searchParams.get("resume_id");
+    const targetResumeId = routeResumeId || queryResumeId;
+    const [creatingResume, setCreatingResume] = useState(false);
+
     // ── Saved resume list (shared across all features) ────────────────────────
     const [savedResumes, setSavedResumes] = useState<ResumeListItem[]>([]);
     const [loadingResumes, setLoadingResumes] = useState(false);
@@ -202,6 +210,18 @@ export default function ResumeAnalysis() {
     const [deepLoading, setDeepLoading] = useState(false);
     const [deepResult, setDeepResult] = useState<DeepAnalysisResult | null>(null);
 
+    const handleCreateResume = async () => {
+        try {
+            setCreatingResume(true);
+            const res = await apiCreateResume("Untitled Resume");
+            navigate(`/resumes/${res.id}/editor`);
+        } catch (err: any) {
+            setError(err.message || "Failed to create resume");
+        } finally {
+            setCreatingResume(false);
+        }
+    };
+
     // ── Load saved resumes on mount ───────────────────────────────────────────
     useEffect(() => {
         if (!auth.isAuthenticated) return;
@@ -209,11 +229,14 @@ export default function ResumeAnalysis() {
         apiListResumes()
             .then((items) => {
                 setSavedResumes(items);
-                if (items.length > 0 && !selectedSavedId) {
-                    const firstId = items[0].id;
-                    setSelectedSavedId(firstId);
-                    setResumeId(firstId);
-                    apiGetResume(firstId).then((r) => {
+                const toSelect = (targetResumeId && items.some((i) => i.id === targetResumeId))
+                    ? targetResumeId
+                    : (items.length > 0 && !selectedSavedId ? items[0].id : targetResumeId);
+
+                if (toSelect) {
+                    setSelectedSavedId(toSelect);
+                    setResumeId(toSelect);
+                    apiGetResume(toSelect).then((r) => {
                         const raw = r.parsed_content?.raw_text || "";
                         setResumeText(raw);
                         if (r.pdf_url) {
@@ -225,7 +248,7 @@ export default function ResumeAnalysis() {
             .catch(() => { /* non-fatal */ })
             .finally(() => setLoadingResumes(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [auth.isAuthenticated]);
+    }, [auth.isAuthenticated, targetResumeId]);
 
     // When user selects a saved resume, use it directly (no re-upload needed)
     function selectSavedResume(id: string) {
@@ -404,45 +427,74 @@ export default function ResumeAnalysis() {
                             <div className="h-8 bg-secondary/20 rounded-lg animate-pulse" />
                         ) : (
                             savedResumes.map((r) => (
-                                <button
-                                    key={r.id}
-                                    type="button"
-                                    onClick={() => selectSavedResume(r.id)}
-                                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-colors text-left ${
-                                        selectedSavedId === r.id
-                                            ? "bg-primary/10 border border-primary/30 text-foreground"
-                                            : "bg-secondary/20 border border-border/20 text-muted-foreground hover:bg-secondary/40 hover:text-foreground"
-                                    }`}
-                                >
-                                    <FileText className="w-3.5 h-3.5 flex-shrink-0" />
-                                    <span className="truncate">{r.original_filename}</span>
-                                    {selectedSavedId === r.id && (
-                                        <span className="ml-auto text-[9px] font-bold text-primary/70 uppercase tracking-wider flex-shrink-0">Active</span>
-                                    )}
-                                </button>
+                                <div key={r.id} className="flex items-center gap-1">
+                                    <button
+                                        type="button"
+                                        onClick={() => selectSavedResume(r.id)}
+                                        className={`flex-1 min-w-0 flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-colors text-left truncate ${
+                                            selectedSavedId === r.id
+                                                ? "bg-primary/10 border border-primary/30 text-foreground font-medium"
+                                                : "bg-secondary/20 border border-border/20 text-muted-foreground hover:bg-secondary/40 hover:text-foreground"
+                                        }`}
+                                    >
+                                        <FileText className="w-3.5 h-3.5 flex-shrink-0" />
+                                        <span className="truncate">{r.original_filename}</span>
+                                        {selectedSavedId === r.id && (
+                                            <span className="ml-auto text-[9px] font-bold text-primary/70 uppercase tracking-wider flex-shrink-0">Active</span>
+                                        )}
+                                    </button>
+                                    <Link
+                                        to={`/resumes/${r.id}/editor`}
+                                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-border/30 bg-secondary/20 text-muted-foreground hover:bg-primary/10 hover:border-primary/30 hover:text-primary transition-colors flex-shrink-0"
+                                        title="Edit in Resume Builder"
+                                    >
+                                        <PenTool className="w-3.5 h-3.5" />
+                                    </Link>
+                                </div>
                             ))
                         )}
                     </div>
                 </div>
             )}
 
-            {/* Upload new resume */}
-            <div
-                onDragOver={onDragOver}
-                onDragLeave={onDragLeave}
-                onDrop={onDrop}
-                onClick={() => fileInputRef.current?.click()}
-                className={`group flex items-center gap-2.5 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-150 border ${isDragOver
-                    ? "border-primary/50 bg-primary/10"
-                    : "border-dashed border-border/40 hover:border-border/60 hover:bg-secondary/30"
-                    }`}
-            >
-                <Upload className="w-4 h-4 text-muted-foreground/50 group-hover:text-muted-foreground transition-colors flex-shrink-0" />
-                <span className="text-xs text-muted-foreground/70 group-hover:text-muted-foreground transition-colors leading-tight">
-                    {file ? `New: ${file.name}` : savedResumes.length > 0 ? "Upload another PDF" : "Upload Resume"}
-                </span>
-                <input ref={fileInputRef} type="file" accept=".pdf" className="hidden"
-                    onChange={(e) => { const f = e.target.files?.[0]; if (f) acceptFile(f); }} />
+            {/* Actions: Upload PDF & Create New Resume */}
+            <div className="space-y-1.5 pt-1">
+                {/* Upload new resume */}
+                <div
+                    onDragOver={onDragOver}
+                    onDragLeave={onDragLeave}
+                    onDrop={onDrop}
+                    onClick={() => fileInputRef.current?.click()}
+                    className={`group flex items-center gap-2.5 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-150 border ${isDragOver
+                        ? "border-primary/50 bg-primary/10"
+                        : "border-dashed border-border/40 hover:border-border/60 hover:bg-secondary/30"
+                        }`}
+                >
+                    <Upload className="w-4 h-4 text-muted-foreground/50 group-hover:text-muted-foreground transition-colors flex-shrink-0" />
+                    <span className="text-xs text-muted-foreground/70 group-hover:text-muted-foreground transition-colors leading-tight">
+                        {file ? `New: ${file.name}` : savedResumes.length > 0 ? "Upload another PDF" : "Upload Resume"}
+                    </span>
+                    <input ref={fileInputRef} type="file" accept=".pdf" className="hidden"
+                        onChange={(e) => { const f = e.target.files?.[0]; if (f) acceptFile(f); }} />
+                </div>
+
+                {/* Create Resume from Scratch (John Doe template) */}
+                <button
+                    type="button"
+                    onClick={handleCreateResume}
+                    disabled={creatingResume}
+                    className="w-full group flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer transition-all duration-150 border border-border/40 bg-secondary/15 hover:border-primary/40 hover:bg-primary/5 text-xs text-muted-foreground hover:text-foreground"
+                    title="Start from scratch with ATS-optimized starter template"
+                >
+                    {creatingResume ? (
+                        <Loader2 className="w-4 h-4 text-primary animate-spin flex-shrink-0" />
+                    ) : (
+                        <FilePlus className="w-4 h-4 text-primary/70 group-hover:text-primary transition-colors flex-shrink-0" />
+                    )}
+                    <span className="leading-tight font-medium">
+                        {creatingResume ? "Creating Resume..." : "Create Resume from Scratch"}
+                    </span>
+                </button>
             </div>
 
             {/* Job description */}
@@ -550,6 +602,16 @@ export default function ResumeAnalysis() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                    {(selectedSavedId || resumeId) && (
+                        <Link
+                            to={`/resumes/${selectedSavedId || resumeId}/editor`}
+                            className="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-semibold bg-secondary/30 border border-border/40 text-foreground hover:bg-secondary/60 hover:border-primary/40 hover:text-primary transition-colors cursor-pointer"
+                            title="Open in Resume Builder"
+                        >
+                            <PenTool className="w-3.5 h-3.5 text-primary" />
+                            <span className="hidden sm:inline">Edit in Editor</span>
+                        </Link>
+                    )}
                     {showAnalysisPanel && !analysisPanelOpen && (
                         <button
                             onClick={() => setAnalysisPanelOpen(true)}

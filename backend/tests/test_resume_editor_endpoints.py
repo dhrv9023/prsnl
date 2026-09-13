@@ -632,3 +632,43 @@ class TestRewriteBullet:
             result = raw.strip().strip('"').strip("'")
             assert result == exp, f"Stripping failed: {raw!r} → {result!r} (expected {exp!r})"
 
+
+# ── Test Class 5: POST /api/v1/resumes/create ──────────────────────────────
+
+class TestCreateResumeEndpoint:
+    def setup_method(self):
+        _override_auth()
+
+    def teardown_method(self):
+        _clear_auth()
+
+    @pytest.mark.parametrize("template_id", ["classic", "modern", "minimal", "technical"])
+    def test_create_resume_with_all_templates_and_mock_data(self, template_id: str):
+        supabase = _make_supabase_mock()
+        with patch("app.api.v1.endpoints.resumes.get_db", new_callable=AsyncMock, return_value=supabase):
+            with TestClient(app) as client:
+                resp = client.post(
+                    "/api/v1/resumes/create",
+                    json={
+                        "title": f"John Doe ({template_id})",
+                        "template_id": template_id,
+                        "use_mock_data": True,
+                    },
+                )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "id" in data
+        assert "resume_id" in data
+        assert data["original_filename"] == f"John Doe ({template_id}).pdf"
+        assert supabase.table.called
+
+    def test_create_resume_unauthenticated_fails(self):
+        _clear_auth()
+        with TestClient(app) as client:
+            resp = client.post(
+                "/api/v1/resumes/create",
+                json={"title": "Test"},
+            )
+        assert resp.status_code in (401, 403)
+
+

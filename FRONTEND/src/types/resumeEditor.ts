@@ -105,7 +105,7 @@ export const ALL_SECTION_KEYS: SectionKey[] = [
 ];
 
 /** Available ATS-safe resume templates. */
-export type TemplateId = "classic" | "modern";
+export type TemplateId = "classic" | "modern" | "minimal" | "technical";
 
 /** Body font-size scale. */
 export type FontSize = "compact" | "medium" | "large";
@@ -193,29 +193,128 @@ export interface BulletRewriteResponse {
 // ── Editor UI state helpers ───────────────────────────────────────────────────
 
 /**
- * Creates a minimal, schema-valid empty StructuredResume for the
- * "create from scratch" flow.
+ * Creates a schema-valid StructuredResume populated with professional
+ * John Doe mock data for the "create from scratch" flow.
  */
 export function createEmptyResume(): StructuredResume {
+  return getJohnDoeMockResume();
+}
+
+export function getJohnDoeMockResume(templateId: TemplateId = "classic"): StructuredResume {
   return {
     basics: {
-      name: "",
-      title: "",
-      email: "",
-      phone: "",
-      location: "",
-      linkedin: "",
-      github: "",
-      portfolio: "",
-      summary: "",
+      name: "John Doe",
+      title: "Senior Full-Stack Software Engineer",
+      email: "john.doe@example.com",
+      phone: "+1 (555) 234-5678",
+      location: "San Francisco, CA",
+      linkedin: "https://linkedin.com/in/johndoe",
+      github: "https://github.com/johndoe",
+      portfolio: "https://johndoe.dev",
+      summary:
+        "High-impact Full-Stack Engineer with 6+ years of experience designing and scaling resilient cloud applications and distributed systems. Expert in TypeScript, Python, React, FastAPI, and Kubernetes. Proven track record of improving latency by 40% and leading engineering teams to deliver mission-critical software.",
     },
-    experience: [],
-    education: [],
-    skills: [],
-    projects: [],
-    certifications: [],
+    experience: [
+      {
+        id: newId(),
+        company: "TechCorp Solutions",
+        role: "Senior Full-Stack Engineer",
+        location: "San Francisco, CA",
+        start_date: "Jan 2022",
+        end_date: "Present",
+        current: true,
+        bullets: [
+          createBullet(
+            "Architected and deployed real-time data streaming pipeline processing 15M+ events daily with 99.99% uptime."
+          ),
+          createBullet(
+            "Spearheaded backend migration from monolithic architecture to FastAPI microservices, reducing P99 API latency by 42%."
+          ),
+          createBullet(
+            "Mentored 5 junior and mid-level engineers in distributed system design, clean architecture, and automated test coverage."
+          ),
+        ],
+      },
+      {
+        id: newId(),
+        company: "DataFlow Inc",
+        role: "Software Engineer",
+        location: "San Jose, CA",
+        start_date: "Jun 2019",
+        end_date: "Dec 2021",
+        current: false,
+        bullets: [
+          createBullet(
+            "Engineered responsive React web dashboard adopted by 25,000+ monthly active enterprise customers."
+          ),
+          createBullet(
+            "Optimized complex PostgreSQL aggregation queries, decreasing average dashboard load times from 3.2s to 650ms."
+          ),
+          createBullet(
+            "Implemented automated CI/CD pipeline using GitHub Actions and Docker, accelerating release cycle by 3x."
+          ),
+        ],
+      },
+    ],
+    education: [
+      {
+        id: newId(),
+        institution: "University of California, Berkeley",
+        degree: "Bachelor of Science",
+        field_of_study: "Computer Science",
+        location: "Berkeley, CA",
+        start_date: "2015",
+        end_date: "2019",
+        gpa: "3.8 / 4.0",
+        bullets: [
+          createBullet(
+            "Dean's Honors List (all 8 semesters); Course Leader for Data Structures & Algorithms."
+          ),
+        ],
+      },
+    ],
+    skills: [
+      {
+        id: newId(),
+        category: "Languages",
+        items: ["TypeScript", "JavaScript", "Python", "Go", "SQL", "HTML/CSS"],
+      },
+      {
+        id: newId(),
+        category: "Frameworks & Libs",
+        items: ["React", "Next.js", "FastAPI", "Node.js", "TailwindCSS", "Redux"],
+      },
+      {
+        id: newId(),
+        category: "Cloud & DevOps",
+        items: ["AWS (ECS, S3, RDS)", "Docker", "Kubernetes", "PostgreSQL", "Redis", "Git"],
+      },
+    ],
+    projects: [
+      {
+        id: newId(),
+        name: "CloudMetrics Monitor",
+        description: "Open-source observability toolkit for Kubernetes container metrics.",
+        link: "https://github.com/johndoe/cloudmetrics",
+        technologies: ["Go", "React", "Prometheus", "Docker"],
+        bullets: [
+          createBullet(
+            "Built real-time container metrics visualizer with custom alerting engine; garnered 1,200+ GitHub stars."
+          ),
+        ],
+      },
+    ],
+    certifications: [
+      {
+        id: newId(),
+        name: "AWS Certified Solutions Architect – Associate",
+        issuer: "Amazon Web Services",
+        date: "2023",
+        url: "https://aws.amazon.com/verification",
+      },
+    ],
     meta: {
-      template_id: "classic",
+      template_id: templateId,
       font_size: "medium",
       margins: "normal",
       section_order: [...ALL_SECTION_KEYS],

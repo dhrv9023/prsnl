@@ -229,6 +229,21 @@ class TestTemplateDifferences:
         modern = render_structured_resume_pdf(_sample_resume(template="modern"))
         assert classic != modern, "Classic and modern templates must produce distinct PDFs"
 
+    def test_all_four_templates_produce_valid_and_distinct_outputs(self):
+        classic = render_structured_resume_pdf(_sample_resume(template="classic"))
+        modern = render_structured_resume_pdf(_sample_resume(template="modern"))
+        minimal = render_structured_resume_pdf(_sample_resume(template="minimal"))
+        technical = render_structured_resume_pdf(_sample_resume(template="technical"))
+
+        for pdf, tpl in [(classic, "classic"), (modern, "modern"), (minimal, "minimal"), (technical, "technical")]:
+            assert pdf[:5] == b"%PDF-", f"Template {tpl} did not produce valid PDF"
+            text = _extract_text(pdf)
+            assert "Alice Sharma" in text, f"Template {tpl} text extraction failed"
+
+        # All 4 outputs should be distinct PDFs
+        outputs = {classic, modern, minimal, technical}
+        assert len(outputs) == 4, "All four templates must produce distinct PDFs"
+
     def test_unknown_template_falls_back_to_classic(self):
         """An unrecognised template_id should silently fall back to 'classic'."""
         data = _sample_resume()

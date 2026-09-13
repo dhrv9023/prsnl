@@ -63,8 +63,8 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
         {/* Left: Navigation & Document Title */}
         <div className="flex items-center gap-3">
           <Link
-            to={`/resumes/${resumeId}`}
-            className="flex items-center gap-1.5 text-xs text-muted-foreground transition hover:text-foreground"
+            to={`/resume-analysis?resume_id=${resumeId}`}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground transition hover:text-foreground font-medium py-1 px-2 rounded-md hover:bg-secondary/40"
             title="Back to Analysis"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -108,7 +108,7 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
         </div>
 
         {/* Center: Template & Typography Controls */}
-        <div className="hidden lg:flex items-center gap-2 rounded-lg border border-border/30 bg-secondary/15 p-1 text-xs">
+        <div className="hidden lg:flex items-center gap-2.5 rounded-lg border border-border/40 bg-secondary/25 p-1 text-xs shadow-xs">
           {/* Template Selector */}
           <div className="flex items-center gap-1">
             <button
@@ -116,8 +116,8 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
               onClick={() => onUpdateMeta({ template_id: "classic" })}
               className={`rounded px-2.5 py-1 text-xs font-medium transition ${
                 templateId === "classic"
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
+                  ? "bg-primary text-primary-foreground shadow-sm font-semibold"
+                  : "text-muted-foreground hover:text-foreground hover:bg-secondary/40"
               }`}
             >
               Classic ATS
@@ -127,41 +127,67 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
               onClick={() => onUpdateMeta({ template_id: "modern" })}
               className={`rounded px-2.5 py-1 text-xs font-medium transition ${
                 templateId === "modern"
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
+                  ? "bg-primary text-primary-foreground shadow-sm font-semibold"
+                  : "text-muted-foreground hover:text-foreground hover:bg-secondary/40"
               }`}
             >
               Modern Tech
             </button>
+            <button
+              type="button"
+              onClick={() => onUpdateMeta({ template_id: "minimal" })}
+              className={`rounded px-2.5 py-1 text-xs font-medium transition ${
+                templateId === "minimal"
+                  ? "bg-primary text-primary-foreground shadow-sm font-semibold"
+                  : "text-muted-foreground hover:text-foreground hover:bg-secondary/40"
+              }`}
+            >
+              Minimalist
+            </button>
+            <button
+              type="button"
+              onClick={() => onUpdateMeta({ template_id: "technical" })}
+              className={`rounded px-2.5 py-1 text-xs font-medium transition ${
+                templateId === "technical"
+                  ? "bg-primary text-primary-foreground shadow-sm font-semibold"
+                  : "text-muted-foreground hover:text-foreground hover:bg-secondary/40"
+              }`}
+            >
+              Technical
+            </button>
           </div>
 
-          <div className="h-3 w-px bg-border/40" />
+          <div className="h-4 w-px bg-border/50" />
 
           {/* Margins */}
-          <select
-            value={margins}
-            onChange={(e) => onUpdateMeta({ margins: e.target.value as Margins })}
-            className="rounded bg-transparent px-1.5 py-0.5 text-xs text-muted-foreground outline-none hover:text-foreground"
-            title="Page Margins"
-          >
-            <option value="compact">Compact Margins</option>
-            <option value="normal">Normal Margins</option>
-            <option value="spacious">Spacious Margins</option>
-          </select>
+          <div className="flex items-center">
+            <select
+              value={margins}
+              onChange={(e) => onUpdateMeta({ margins: e.target.value as Margins })}
+              className="rounded-md border border-border/60 bg-background/90 px-2.5 py-1 text-xs font-medium text-foreground shadow-xs outline-none focus:ring-1 focus:ring-primary hover:border-primary/50 transition cursor-pointer"
+              title="Page Margins"
+            >
+              <option value="compact" className="bg-popover text-popover-foreground py-1">Compact Margins</option>
+              <option value="normal" className="bg-popover text-popover-foreground py-1">Normal Margins</option>
+              <option value="spacious" className="bg-popover text-popover-foreground py-1">Spacious Margins</option>
+            </select>
+          </div>
 
-          <div className="h-3 w-px bg-border/40" />
+          <div className="h-4 w-px bg-border/50" />
 
           {/* Font Size */}
-          <select
-            value={fontSize}
-            onChange={(e) => onUpdateMeta({ font_size: e.target.value as FontSize })}
-            className="rounded bg-transparent px-1.5 py-0.5 text-xs text-muted-foreground outline-none hover:text-foreground"
-            title="Body Font Size"
-          >
-            <option value="compact">Compact Font</option>
-            <option value="medium">Medium Font</option>
-            <option value="large">Large Font</option>
-          </select>
+          <div className="flex items-center">
+            <select
+              value={fontSize}
+              onChange={(e) => onUpdateMeta({ font_size: e.target.value as FontSize })}
+              className="rounded-md border border-border/60 bg-background/90 px-2.5 py-1 text-xs font-medium text-foreground shadow-xs outline-none focus:ring-1 focus:ring-primary hover:border-primary/50 transition cursor-pointer"
+              title="Body Font Size"
+            >
+              <option value="compact" className="bg-popover text-popover-foreground py-1">Compact Font</option>
+              <option value="medium" className="bg-popover text-popover-foreground py-1">Medium Font</option>
+              <option value="large" className="bg-popover text-popover-foreground py-1">Large Font</option>
+            </select>
+          </div>
         </div>
 
         {/* Right: View Toggles, AI Fixes, Save & Export */}

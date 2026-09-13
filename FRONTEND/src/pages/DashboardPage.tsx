@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuthContext } from "@/contexts/AuthContext";
-import { apiGetDashboard, apiGetInterviewHistory, apiListResumes, type DashboardSummary, type AnalysisHistoryItem, type HiringIntelResponse, type DeepAnalysisResult, type InterviewHistoryItem, type ResumeListItem } from "@/lib/api";
+import { apiGetDashboard, apiGetInterviewHistory, apiListResumes, apiCreateResume, type DashboardSummary, type AnalysisHistoryItem, type HiringIntelResponse, type DeepAnalysisResult, type InterviewHistoryItem, type ResumeListItem } from "@/lib/api";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { CreditCard } from "@/components/ui/CreditDisplay";
@@ -124,10 +124,12 @@ function ResumeDropdown({
     resumes,
     selectedId,
     onSelect,
+    onCreateResume,
 }: {
     resumes: ResumeListItem[];
-    selectedId: string;
+    selectedId: string | null;
     onSelect: (id: string) => void;
+    onCreateResume?: () => void;
 }) {
     const [open, setOpen] = useState(false);
     const ref = useRef<HTMLDivElement>(null);
@@ -155,37 +157,66 @@ function ResumeDropdown({
                 <ChevronDown className={`w-3 h-3 flex-shrink-0 text-muted-foreground/50 transition-transform ${open ? "rotate-180" : ""}`} />
             </button>
             {open && (
-                <div className="absolute right-0 top-full mt-1 z-50 w-64 rounded-xl border border-border/40 bg-popover shadow-xl overflow-hidden">
+                <div className="absolute right-0 top-full mt-1 z-50 w-72 rounded-xl border border-border/40 bg-popover shadow-xl overflow-hidden">
                     <div className="px-3 py-2 border-b border-border/20">
                         <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground/50">Select Resume</p>
                     </div>
-                    <div className="max-h-48 overflow-y-auto">
+                    <div className="max-h-56 overflow-y-auto">
                         {resumes.map((r) => (
-                            <button
+                            <div
                                 key={r.id}
-                                type="button"
-                                onClick={() => { onSelect(r.id); setOpen(false); }}
-                                className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-left text-xs transition-colors hover:bg-secondary/60 ${
-                                    r.id === selectedId ? "bg-primary/10 text-primary font-semibold" : "text-foreground/80"
+                                className={`flex items-center justify-between px-3 py-2 text-xs transition-colors hover:bg-secondary/60 ${
+                                    r.id === selectedId ? "bg-primary/10" : ""
                                 }`}
                             >
-                                <FileText className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground/40" />
-                                <span className="truncate">{r.original_filename}</span>
-                                {r.id === selectedId && (
-                                    <span className="ml-auto text-[9px] text-primary/60 uppercase tracking-wider flex-shrink-0">Active</span>
-                                )}
-                            </button>
+                                <button
+                                    type="button"
+                                    onClick={() => { onSelect(r.id); setOpen(false); }}
+                                    className="flex-1 min-w-0 flex items-center gap-2 text-left"
+                                >
+                                    <FileText className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground/40" />
+                                    <span className={`truncate ${r.id === selectedId ? "text-primary font-semibold" : "text-foreground/80"}`}>
+                                        {r.original_filename}
+                                    </span>
+                                </button>
+                                <div className="flex items-center gap-1.5 ml-2 flex-shrink-0">
+                                    {r.id === selectedId && (
+                                        <span className="text-[9px] text-primary/60 uppercase tracking-wider font-semibold">Active</span>
+                                    )}
+                                    <Link
+                                        to={`/resumes/${r.id}/editor`}
+                                        onClick={() => setOpen(false)}
+                                        className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                                        title="Edit in Resume Builder"
+                                    >
+                                        <PenTool className="w-3.5 h-3.5" />
+                                    </Link>
+                                </div>
+                            </div>
                         ))}
                     </div>
-                    <div className="px-3 py-2 border-t border-border/20">
+                    <div className="px-3 py-2.5 border-t border-border/20 flex items-center justify-between bg-secondary/10">
                         <Link
                             to="/resume-analysis"
                             onClick={() => setOpen(false)}
-                            className="flex items-center gap-1.5 text-[10px] text-primary/70 hover:text-primary transition-colors"
+                            className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
                         >
                             <Upload className="w-3 h-3" />
-                            Upload new resume
+                            Upload
                         </Link>
+                        {onCreateResume && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setOpen(false);
+                                    onCreateResume();
+                                }}
+                                className="flex items-center gap-1 text-[11px] text-primary font-medium hover:underline transition-colors"
+                            >
+                                <Sparkles className="w-3 h-3" />
+                                Create New
+                            </button>
+                        )}
                     </div>
                 </div>
             )}
@@ -446,6 +477,15 @@ const DashboardPage = () => {
     const [selectedResumeId, setSelectedResumeId] = useState<string>("");
     const [showAllAnalyses, setShowAllAnalyses] = useState(false);
 
+    const handleCreateResume = async () => {
+        try {
+            const res = await apiCreateResume("Untitled Resume");
+            navigate(`/resumes/${res.id}/editor`);
+        } catch (e: any) {
+            setError(e.message || "Failed to create resume");
+        }
+    };
+
     // Auth gate: redirect if not logged in
     useEffect(() => {
         if (!auth.isLoading && !auth.isAuthenticated) {
@@ -585,19 +625,34 @@ const DashboardPage = () => {
                                             resumes={resumes}
                                             selectedId={selectedResumeId}
                                             onSelect={setSelectedResumeId}
+                                            onCreateResume={handleCreateResume}
                                         />
                                     )}
                                 </div>
                                 <div className="px-6 pb-6 pt-4">
                                     {hasAnalyzed && insightSummary ? (
-                                        <InsightWithHinglish
-                                            key={selectedResumeId}
-                                            insightTitle={insightTitle}
-                                            insightSummary={insightSummary}
-                                            intelData={intelData ?? null}
-                                            deepData={deepData ?? null}
-                                            resumeName={selectedResumeName}
-                                        />
+                                        <div>
+                                            <InsightWithHinglish
+                                                key={selectedResumeId}
+                                                insightTitle={insightTitle}
+                                                insightSummary={insightSummary}
+                                                intelData={intelData ?? null}
+                                                deepData={deepData ?? null}
+                                                resumeName={selectedResumeName}
+                                            />
+                                            {selectedResumeId && (
+                                                <div className="mt-4 pt-3 border-t border-border/15 flex items-center justify-between">
+                                                    <p className="text-xs text-muted-foreground/60">Customize and fine-tune your bullets for ATS pass-rate</p>
+                                                    <Link
+                                                        to={`/resumes/${selectedResumeId}/editor`}
+                                                        className="inline-flex items-center gap-1.5 h-8 px-3 bg-secondary/40 border border-border/40 text-foreground rounded-lg text-xs font-semibold hover:bg-secondary/70 hover:text-primary hover:border-primary/40 transition-colors"
+                                                    >
+                                                        <PenTool className="w-3 h-3 text-primary" />
+                                                        <span>Open Resume Editor</span>
+                                                    </Link>
+                                                </div>
+                                            )}
+                                        </div>
                                     ) : hasAnalyzed && !insightSummary && selectedResumeId ? (
                                         <div className="py-4">
                                             <div className="flex items-center gap-3 mb-3">
@@ -606,16 +661,25 @@ const DashboardPage = () => {
                                                 </div>
                                                 <div>
                                                     <p className="text-sm font-medium text-foreground/70">No analysis for this resume yet</p>
-                                                    <p className="text-xs text-muted-foreground/50">Run Deep Analysis or Hiring Intel on this resume</p>
+                                                    <p className="text-xs text-muted-foreground/50">Run Deep Analysis or edit your resume in the editor</p>
                                                 </div>
                                             </div>
-                                            <Link
-                                                to="/resume-analysis"
-                                                className="inline-flex items-center gap-2 h-9 px-4 bg-primary text-primary-foreground rounded-lg text-sm font-semibold hover:opacity-90 transition-opacity"
-                                            >
-                                                <Brain className="w-3.5 h-3.5" />
-                                                Analyze This Resume
-                                            </Link>
+                                            <div className="flex items-center gap-2">
+                                                <Link
+                                                    to={`/resumes/${selectedResumeId}/editor`}
+                                                    className="inline-flex items-center gap-1.5 h-9 px-3.5 bg-secondary/40 border border-border/40 text-foreground rounded-lg text-xs font-semibold hover:bg-secondary/70 hover:text-primary hover:border-primary/40 transition-colors"
+                                                >
+                                                    <PenTool className="w-3.5 h-3.5 text-primary" />
+                                                    <span>Edit in Editor</span>
+                                                </Link>
+                                                <Link
+                                                    to="/resume-analysis"
+                                                    className="inline-flex items-center gap-2 h-9 px-4 bg-primary text-primary-foreground rounded-lg text-sm font-semibold hover:opacity-90 transition-opacity"
+                                                >
+                                                    <Brain className="w-3.5 h-3.5" />
+                                                    Analyze This Resume
+                                                </Link>
+                                            </div>
                                         </div>
                                     ) : (
                                         <div className="py-4">
@@ -624,17 +688,27 @@ const DashboardPage = () => {
                                                     <FileText className="w-5 h-5 text-muted-foreground/40" />
                                                 </div>
                                                 <div>
-                                                    <p className="text-sm font-medium text-foreground/70">No insights yet</p>
-                                                    <p className="text-xs text-muted-foreground/50">Run Deep Analysis or Hiring Intel to unlock</p>
+                                                    <p className="text-sm font-medium text-foreground/70">No resumes yet</p>
+                                                    <p className="text-xs text-muted-foreground/50">Create an ATS-friendly resume from scratch or upload a PDF</p>
                                                 </div>
                                             </div>
-                                            <Link
-                                                to="/resume-analysis"
-                                                className="inline-flex items-center gap-2 h-9 px-4 bg-primary text-primary-foreground rounded-lg text-sm font-semibold hover:opacity-90 transition-opacity"
-                                            >
-                                                <Brain className="w-3.5 h-3.5" />
-                                                Analyze Resume
-                                            </Link>
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={handleCreateResume}
+                                                    className="inline-flex items-center gap-1.5 h-9 px-3.5 bg-secondary/40 border border-border/40 text-foreground rounded-lg text-xs font-semibold hover:bg-secondary/70 hover:text-primary hover:border-primary/40 transition-colors cursor-pointer"
+                                                >
+                                                    <Sparkles className="w-3.5 h-3.5 text-primary" />
+                                                    <span>Create New Resume</span>
+                                                </button>
+                                                <Link
+                                                    to="/resume-analysis"
+                                                    className="inline-flex items-center gap-2 h-9 px-4 bg-primary text-primary-foreground rounded-lg text-sm font-semibold hover:opacity-90 transition-opacity"
+                                                >
+                                                    <Upload className="w-3.5 h-3.5" />
+                                                    Upload Resume
+                                                </Link>
+                                            </div>
                                         </div>
                                     )}
                                 </div>

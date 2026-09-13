@@ -734,6 +734,16 @@ export async function apiGetOptimizedResumePdf(
 
 // ── Resume Editor API (Phase 3/4) ───────────────────────────────────────────
 
+export async function apiCreateResume(
+    title: string = "John Doe - Resume",
+    templateId: string = "classic"
+): Promise<{ id: string; resume_id: string; original_filename: string }> {
+    return request<{ id: string; resume_id: string; original_filename: string }>("/resumes/create", {
+        method: "POST",
+        body: JSON.stringify({ title, template_id: templateId, use_mock_data: true }),
+    });
+}
+
 export async function apiGetResumeEditor(resumeId: string): Promise<ResumeEditorPayload> {
     return request<ResumeEditorPayload>(`/resumes/${resumeId}/editor`);
 }
