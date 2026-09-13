@@ -345,11 +345,22 @@ async def get_resume_editor(resume_id: str, user: CurrentUser):
     supabase = await get_db()
 
     # 1. Fetch resume — ownership isolation enforced by eq("user_id")
-    data = await supabase.table("resumes") \
-        .select("id, file_url, parsed_content, structured_content, created_at") \
-        .eq("id", resume_id) \
-        .eq("user_id", user.id) \
-        .execute()
+    try:
+        data = await supabase.table("resumes") \
+            .select("id, file_url, parsed_content, structured_content, created_at") \
+            .eq("id", resume_id) \
+            .eq("user_id", user.id) \
+            .execute()
+    except Exception as exc:
+        if "structured_content" in str(exc):
+            logger.warning("editor: structured_content column missing in Supabase, falling back to lazy parse: %s", exc)
+            data = await supabase.table("resumes") \
+                .select("id, file_url, parsed_content, created_at") \
+                .eq("id", resume_id) \
+                .eq("user_id", user.id) \
+                .execute()
+        else:
+            raise
 
     if not data.data:
         raise HTTPException(status_code=404, detail="Resume not found")
@@ -496,6 +507,14 @@ async def save_resume_editor(resume_id: str, user: CurrentUser, body: dict):
         logger.error(
             "editor save: DB update failed for resume %s: %s", resume_id, exc
         )
+        if "structured_content" in str(exc):
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "Database migration pending: 'structured_content' column has not been added to Supabase yet. "
+                    "Please run the migration in supabase/migrations/20260913000001_add_structured_content_to_resumes.sql in your Supabase SQL Editor."
+                ),
+            )
         raise HTTPException(status_code=500, detail="Failed to save resume changes.")
 
     return {"ok": True, "resume_id": resume_id}
@@ -517,11 +536,22 @@ async def export_structured_resume_pdf(resume_id: str, user: CurrentUser):
     """
     supabase = await get_db()
 
-    data = await supabase.table("resumes") \
-        .select("structured_content") \
-        .eq("id", resume_id) \
-        .eq("user_id", user.id) \
-        .execute()
+    try:
+        data = await supabase.table("resumes") \
+            .select("structured_content") \
+            .eq("id", resume_id) \
+            .eq("user_id", user.id) \
+            .execute()
+    except Exception as exc:
+        if "structured_content" in str(exc):
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "Database migration pending: 'structured_content' column has not been added to Supabase yet. "
+                    "Please run the migration in supabase/migrations/20260913000001_add_structured_content_to_resumes.sql in your Supabase SQL Editor."
+                ),
+            )
+        raise
 
     if not data.data:
         raise HTTPException(status_code=404, detail="Resume not found")
