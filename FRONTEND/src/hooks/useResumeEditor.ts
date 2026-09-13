@@ -48,7 +48,7 @@ export function useResumeEditor(resumeId: string | undefined) {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [isDirty, setIsDirty] = useState<boolean>(false);
 
-  const [activeSection, setActiveSection] = useState<SectionKey>("basics" as SectionKey);
+  const [activeSection, setActiveSection] = useState<SectionKey>("basics");
   const [previewMode, setPreviewMode] = useState<PreviewMode>("split");
   const [previewType, setPreviewType] = useState<PreviewType>("html");
 
@@ -65,19 +65,32 @@ export function useResumeEditor(resumeId: string | undefined) {
   // ── 1. Load Editor Data ───────────────────────────────────────────────────
 
   const loadData = useCallback(async () => {
-    if (!resumeId) return;
+    if (!resumeId || resumeId === "new") {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
       const payload = await apiGetResumeEditor(resumeId);
-      const doc = payload.structured_content || createEmptyResume();
+      const rawDoc = payload.structured_content || createEmptyResume();
+      const fallbackEmpty = createEmptyResume();
+      const doc: StructuredResume = {
+        basics: { ...fallbackEmpty.basics, ...(rawDoc.basics || {}) },
+        experience: Array.isArray(rawDoc.experience) ? rawDoc.experience : [],
+        education: Array.isArray(rawDoc.education) ? rawDoc.education : [],
+        skills: Array.isArray(rawDoc.skills) ? rawDoc.skills : [],
+        projects: Array.isArray(rawDoc.projects) ? rawDoc.projects : [],
+        certifications: Array.isArray(rawDoc.certifications) ? rawDoc.certifications : [],
+        meta: { ...fallbackEmpty.meta, ...(rawDoc.meta || {}) },
+      };
       setResume(doc);
       setAnalysisIssues(payload.analysis_issues || []);
       setFileUrl(payload.file_url || null);
       setIsDirty(false);
       setSaveStatus("saved");
-    } catch (err: any) {
-      const msg = err?.message || "Failed to load resume editor";
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to load resume editor";
       setError(msg);
       toast.error(msg);
     } finally {
@@ -91,11 +104,16 @@ export function useResumeEditor(resumeId: string | undefined) {
       if (autosaveTimerRef.current) {
         clearTimeout(autosaveTimerRef.current);
       }
+    };
+  }, [loadData]);
+
+  useEffect(() => {
+    return () => {
       if (pdfBlobUrl) {
         URL.revokeObjectURL(pdfBlobUrl);
       }
     };
-  }, [loadData]);
+  }, [pdfBlobUrl]);
 
   // ── 2. Save Document ──────────────────────────────────────────────────────
 
@@ -111,9 +129,9 @@ export function useResumeEditor(resumeId: string | undefined) {
           toast.success("Resume saved successfully");
         }
         return true;
-      } catch (err: any) {
+      } catch (err: unknown) {
         setSaveStatus("error");
-        const msg = err?.message || "Failed to save resume draft";
+        const msg = err instanceof Error ? err.message : "Failed to save resume draft";
         if (manual) toast.error(msg);
         return false;
       }
@@ -264,8 +282,9 @@ export function useResumeEditor(resumeId: string | undefined) {
 
         triggerAutosave();
         toast.success("Bullet rewritten with AI (-3 credits)");
-      } catch (err: any) {
-        toast.error(err?.message || "Failed to rewrite bullet");
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "Failed to rewrite bullet";
+        toast.error(msg);
       } finally {
         setRewritingBulletId(null);
       }
@@ -360,8 +379,9 @@ export function useResumeEditor(resumeId: string | undefined) {
       document.body.removeChild(link);
       setTimeout(() => URL.revokeObjectURL(url), 1000);
       toast.success("ATS Resume PDF downloaded");
-    } catch (err: any) {
-      toast.error(err?.message || "Failed to export PDF");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to export PDF";
+      toast.error(msg);
     } finally {
       setIsExporting(false);
     }
@@ -380,7 +400,7 @@ export function useResumeEditor(resumeId: string | undefined) {
       }
       const newUrl = URL.createObjectURL(blob);
       setPdfBlobUrl(newUrl);
-    } catch (err: any) {
+    } catch {
       toast.error("Failed to generate PDF preview");
     } finally {
       setIsGeneratingPdf(false);

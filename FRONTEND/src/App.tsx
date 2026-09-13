@@ -95,6 +95,9 @@ const App = () => (
                 <Route path="/resumes" element={<ResumeAnalysis />} />
                 <Route path="/resumes/:id" element={<ResumeAnalysis />} />
                 <Route path="/resumes/:id/editor" element={<ResumeEditor />} />
+                <Route path="/resumes/new/editor" element={<ResumeEditor />} />
+                <Route path="/resume-editor" element={<ResumeEditor />} />
+                <Route path="/resume-editor/new" element={<ResumeEditor />} />
                 <Route path="/resume-editor/:id" element={<ResumeEditor />} />
                 <Route path="/interview" element={<AIInterview />} />
                 <Route path="/cover-letter" element={<CoverLetter />} />

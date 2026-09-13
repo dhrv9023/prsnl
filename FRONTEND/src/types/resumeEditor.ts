@@ -88,6 +88,7 @@ export interface CertificationItem {
 
 /** Valid section key identifiers — controls rendering order and section routing. */
 export type SectionKey =
+  | "basics"
   | "summary"
   | "experience"
   | "education"
@@ -96,6 +97,16 @@ export type SectionKey =
   | "certifications";
 
 export const ALL_SECTION_KEYS: SectionKey[] = [
+  "basics",
+  "summary",
+  "experience",
+  "education",
+  "skills",
+  "projects",
+  "certifications",
+];
+
+export const ORDERABLE_SECTION_KEYS: SectionKey[] = [
   "summary",
   "experience",
   "education",

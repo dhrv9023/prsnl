@@ -11,13 +11,13 @@ import {
 import type { SectionKey, StructuredResume } from "../../types/resumeEditor";
 
 interface SectionNavProps {
-  activeSection: SectionKey | "summary";
+  activeSection: SectionKey;
   resume: StructuredResume;
-  onSelectSection: (section: SectionKey | "summary") => void;
+  onSelectSection: (section: SectionKey) => void;
 }
 
 interface SectionTab {
-  key: SectionKey | "summary";
+  key: SectionKey;
   label: string;
   icon: React.ElementType;
   getCount?: (r: StructuredResume) => number | null;
@@ -25,7 +25,7 @@ interface SectionTab {
 
 const TABS: SectionTab[] = [
   {
-    key: "basics" as any,
+    key: "basics",
     label: "Contact",
     icon: User,
   },
