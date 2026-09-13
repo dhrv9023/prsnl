@@ -6,6 +6,44 @@ All notable changes to Kareerist are documented here.
 
 ---
 
+## [1.0.7] - September 13, 2026 — Interactive Structured Resume Editor, Multi-Template ATS Engine & Upload Parsing
+
+### Added & Enhanced
+
+- **Interactive Structured Resume Editor (`/resumes/{id}/editor`)**
+  - Implemented full-featured interactive resume editor in `FRONTEND/src/pages/ResumeEditor.tsx` with responsive two-column layout: collapsible form inputs on the left, live reactive A4 page preview sheet on the right.
+  - Granular section managers: Personal Basics, Professional Summary, Work Experience, Education, Technical Skills, Projects, and Certifications.
+  - Dynamic item controls: add new roles/schools/projects/certifications, reorder items, add/remove bullet points, and edit skill categories.
+  - Auto-save engine with visual dirty state indicators (`Unsaved changes`, `Saving...`, `Saved`), manual save trigger, and template switching.
+
+- **Multi-Template ATS Engine & Classic ATS Fidelity**
+  - Added 4 distinct ATS resume templates in `FRONTEND/src/components/editor/ResumePreviewSheet.tsx` and `backend/app/services/resume_pdf_generator.py`:
+    - **Classic ATS (Jake's / Overleaf ATS Standard):** Centered header with clickable links and middle dots, elegant Times-Roman serif typography, small-caps/title-cased section headings with full-width black horizontal rules, single-line experience/education layouts (`[Role, Company] ----- [Location, Date]`), markdown bold (`**keyword**`) inline rendering, and middle-dot-separated technical skill categories.
+    - **Modern Tech:** Clean sans-serif layout with subtle primary brand accents, pill badges for skills, and modern card styling.
+    - **Minimalist:** High-readability monochrome typography with subtle border dividers and generous whitespace.
+    - **Technical:** High-density, engineering-oriented format with monospace tags and dense skill grouping.
+
+- **Groq LLM Resume Parser & Self-Healing Backfills**
+  - Created `backend/app/services/resume_parser.py` powered by Groq's high-speed LLMs (`openai/gpt-oss-20b` primary with `openai/gpt-oss-120b` fallback) to parse raw extracted text into structured `ResumeData`.
+  - Implemented strict null coercion and Pydantic validation: any `null` or missing values from LLMs are recursively sanitized into empty strings `""` or lists `[]`.
+  - Added self-healing lazy parsing: when an existing uploaded resume with empty or missing structured content is opened in the editor, the system automatically detects the missing data, triggers background re-parsing from raw text, and commits the result directly to Supabase `resumes.structured_content`.
+
+- **Form Ergonomics & John Doe Starter Mock Data**
+  - Pre-populated new resumes with realistic, comprehensive "John Doe" software engineer mock data so candidates never start with an intimidating blank canvas.
+  - Fixed low-contrast dropdowns and form selects across the editor by styling menus with `bg-slate-900`, `border-slate-700`, and `text-white`.
+  - Added entrypoint buttons: "Edit in Resume Editor" and "Create New Resume" in `ResumeAnalysis.tsx` and sidebar resume selection.
+
+- **ReportLab Platypus ATS PDF Export Engine**
+  - Updated `backend/app/services/resume_pdf_generator.py` with multi-template support and high-fidelity Platypus document generation matching the visual preview.
+  - Supports markdown bold rendering (`**text**` -> `<b>text</b>`), custom margins (36pt), title-cased headings, and clickable URLs in the header.
+  - Endpoints: `GET /api/v1/resumes/{resume_id}/pdf?template={template}` and `POST /api/v1/resumes/export_pdf`.
+
+- **Test Suite Expansion to 75 Passing Automated Tests**
+  - Added test suites in `backend/tests/test_resume_parser.py`, `backend/tests/test_resume_editor_endpoints.py`, and `backend/tests/test_structured_pdf_generator.py`.
+  - Validated parser heuristics, null coercion, multi-template PDF compilation, and editor REST endpoints with 100% pass rate (75 passing tests).
+
+---
+
 ## [1.0.6] - September 13, 2026 — In-Situ PDF Resume Diff, Signed URL Previews & ATS Optimized PDF Generator
 
 ### Added & Enhanced

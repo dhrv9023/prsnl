@@ -1,4 +1,4 @@
-# September 2026 Updates Summary (v1.0.3, v1.0.4, v1.0.5 & v1.0.6)
+# September 2026 Updates Summary (v1.0.3, v1.0.4, v1.0.5, v1.0.6 & v1.0.7)
 
 [← Back to Documentation Hub](../README.md) · [← History Index](./INDEX.md)
 
@@ -6,14 +6,14 @@
 
 ## Overview
 
-In September 2026, Kareerist underwent four major upgrade cycles:
+In September 2026, Kareerist underwent five major upgrade cycles:
 1. **v1.0.3 Bug Fix Release:** Implemented automated credit refunds on AI failure, fixed mobile background scroll bleed-through on auth modals, and added slow-loading status indicators.
 2. **v1.0.4 Security Hardening & Repository Restructuring:** Completed comprehensive QA pentest audit remediations, expanded the automated test suite to 37 passing unit tests, and restructured the monorepo into a unified documentation hub under `docs/`.
 3. **v1.0.5 Launch Readiness & Hardening:** Enforced reverse-proxy HTTPS, secret exposure build guards, GDPR cookie consent, per-route SEO, admin telemetry, and WCAG AA contrast.
 4. **v1.0.6 Resume Diff, Signed URL Streaming & ATS PDF Compilation:** Added in-situ PDF Before vs. After diff visualizer, 1-hour signed URL preview streaming from Supabase Storage, ReportLab Platypus ATS PDF compiler with AI replacements, and expanded test suite to 71 automated tests.
+5. **v1.0.7 Interactive Structured Resume Editor, Multi-Template ATS Engine & Upload Parsing:** Built interactive structured resume editor with live A4 preview, 4 ATS templates (Classic Overleaf/Jake's ATS standard, Modern Tech, Minimalist, Technical), Groq LLM resume parser with self-healing lazy backfill for uploaded resumes, John Doe mock data, and expanded test suite to 75 passing automated tests.
 
-
----
+----
 
 ## 1. Bug Fixes & UX Enhancements (v1.0.3)
 
@@ -156,5 +156,48 @@ In September 2026, Kareerist underwent four major upgrade cycles:
 - Added `backend/tests/test_resume_pdf_generator.py` (5 tests) verifying issue string parsing, text replacement logic, section header heuristics, and the PDF generation endpoint.
 - Added comprehensive recovery and rate-limiting tests in `backend/tests/test_deep_analysis.py` (29 tests) verifying dynamic delay parsing from 429 errors, malformed JSON recovery, and atomic credit refund guarantees.
 - Combined with `test_critical_paths.py` (37 tests), the entire backend test suite now verifies **71 tests passing (100% pass rate)**.
+
+---
+
+## 6. Interactive Structured Resume Editor, Multi-Template ATS Generation & Upload Parsing (v1.0.7 — September 13, 2026)
+
+### A. Interactive Structured Resume Editor (`/resumes/{id}/editor`)
+- **Problem:** Candidates frequently needed to adjust their resume structure, fix grammar, or incorporate AI improvements directly within Kareerist without leaving the platform to re-edit LaTeX/Word documents and re-upload.
+- **Solution:** Built a dedicated, full-screen Structured Resume Editor in `FRONTEND/src/pages/ResumeEditor.tsx`:
+  - **Two-Column Responsive Layout:** Granular form section editors on the left, live reactive A4 page preview sheet on the right (`ResumePreviewSheet.tsx`).
+  - **Section Navigation:** Supports Personal Basics, Professional Summary, Work Experience, Education, Technical Skills, Projects, and Certifications.
+  - **Dynamic Item Management:** Allows adding/removing jobs, schools, projects, certifications, custom bullet points, and categorized technical skill groups.
+  - **Auto-Save Engine & Dirty State:** Automatically saves draft modifications with a subtle status badge (`Unsaved changes`, `Saving...`, `Saved`) alongside a manual "Save Changes" trigger.
+  - **Quick AI Fix Ingestion:** Directly incorporates AI bullet optimizations from deep analysis without manual copy-pasting.
+
+### B. Multi-Template ATS Architecture & Classic ATS Fidelity
+- **Multi-Template System:** Implemented 4 distinct template styles across both the React HTML preview and the ReportLab Platypus PDF generator:
+  1. **Classic ATS (Jake's / Overleaf ATS Standard):** Centered header with clickable links and middle dots (`•`), elegant Times-Roman serif typography, small-caps/title-cased section headings with full-width black horizontal rules, single-line experience/education layouts (`[Role, Company] ----- [Location, Date]`), markdown bold (`**keyword**`) inline rendering, and middle-dot-separated technical skill categories.
+  2. **Modern Tech:** Sleek sans-serif layout with primary brand accents, pill badges for skills, and modern card styling.
+  3. **Minimalist:** Clean monochrome typography with subtle border dividers and generous whitespace.
+  4. **Technical:** High-density, engineering-oriented format with monospace tags and dense skill grouping.
+- **High-Fidelity PDF Generation:** Aligned `backend/app/services/resume_pdf_generator.py` with the React preview:
+  - Exact margin calibration (36pt / 0.5 in).
+  - Title-cased headings (`EDUCATION`, `EXPERIENCE`, `PROJECTS`, `TECHNICAL SKILLS`) with full-width black line dividers (`HRFlowable`).
+  - Single-line two-column flex tables with zero padding for role/company and date/location headers.
+  - Middle-dot bullets (`&bull;`) and category delimiters (`&bull;` or `•`).
+  - Markdown bold syntax parsing (`**keyword**` converted to `<b>keyword</b>` in Platypus `Paragraph` flowables).
+
+### C. Groq LLM Resume Parser & Self-Healing Backfills
+- **High-Speed Parser Service:** Created `backend/app/services/resume_parser.py` using Groq's high-throughput LLMs (`openai/gpt-oss-20b` primary with automatic fallback to `openai/gpt-oss-120b`).
+- **Structured Schema & Strict Coercion:** Defined Pydantic models (`ResumeData`, `Basics`, `ExperienceItem`, `EducationItem`, `SkillCategory`, `ProjectItem`, `CertificationItem`) with `model_validator(mode="before")` and recursive null coercion to guarantee no `null` strings or empty arrays ever break the frontend or backend renderers.
+- **Self-Healing Upload Backfills:** When existing uploaded resumes with missing or unpopulated `structured_content` are opened in the editor (`GET /api/v1/resumes/{resume_id}/editor_data`), the backend lazily triggers LLM extraction on the raw stored text, populates the schema, and automatically persists it to Supabase `resumes.structured_content` in the background.
+
+### D. Form Ergonomics & John Doe Starter Mock Data
+- **Zero Blank Slate:** Newly created resumes are pre-populated with realistic, comprehensive "John Doe" software engineer mock data so users can immediately see the formatting and customize from a proven template.
+- **Accessible Form Dropdowns:** Upgraded low-contrast dropdowns and form selects across the editor with high-contrast styling (`bg-slate-900`, `border-slate-700`, and `text-white`).
+- **Unified Navigation:** Added "Edit in Resume Editor" and "Create New Resume" action buttons directly on the Resume Analysis page and sidebar cards, ensuring a seamless round-trip between analysis and editing.
+
+### E. Test Suite Expansion to 75 Automated Tests
+- Added `backend/tests/test_resume_parser.py` (parsing heuristics, fallback handling, null safety).
+- Added `backend/tests/test_resume_editor_endpoints.py` (editor data retrieval, update endpoints, persistence).
+- Added `backend/tests/test_structured_pdf_generator.py` (multi-template PDF generation, ReportLab compilation, formatting verification).
+- The automated test suite now verifies **75 tests passing with 100% pass rate**.
+
 
 

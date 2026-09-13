@@ -15,6 +15,8 @@ Kareerist is a full-stack AI-powered career toolkit built for job seekers who wa
 | **ATS Match Score** | Score your resume against a job description using cosine similarity + rule-based signals | 5 |
 | **Deep Analysis** | LLM-powered critique — strengths, weaknesses, missing keywords, actionable fixes | 15 |
 | **In-Situ Resume Diff** | Side-by-side Before vs. After comparison of weak bullets against AI improvements | Free |
+| **Interactive Resume Editor** | Structured editor with live A4 preview sheet, granular section controls & auto-save | Free |
+| **Multi-Template ATS Engine** | 4 ATS-optimized styles (Classic Overleaf ATS standard, Modern, Minimal, Technical) | Free |
 | **Hiring Intelligence** | 9-section recruiter-realistic report on how your profile reads to a hiring manager | 25 |
 | **ATS Resume Export** | Generate ATS-optimized PDF resume embedding AI improvements via ReportLab | Free |
 | **AI Mock Interview** | 6-question adaptive interview with per-answer evaluation, voice input, and a final report | 25 |
@@ -41,6 +43,7 @@ New users get **100 free credits** on signup. No payment required to try everyth
 
 ### AI / ML
 - **Groq** (`llama-3.3-70b-versatile`) — Deep Analysis, Hiring Intel, Cover Letter, Humanizer, Interview
+- **Groq** (`openai/gpt-oss-20b` & `openai/gpt-oss-120b`) — Structured resume extraction and upload parsing
 - **Groq Whisper** (`whisper-large-v3-turbo`) — Voice interview transcription
 - **HuggingFace API** — Embeddings for ATS cosine similarity
 
@@ -241,7 +244,7 @@ cd backend
 pytest tests/ -v
 ```
 
-71 automated unit and integration tests covering ATS scoring engines, credit systems, authentication, resume ingestion, deep analysis recovery, ReportLab PDF compilation, security headers, XSS prevention, permissions policies, and prompt sanitization.
+75 automated unit and integration tests covering ATS scoring engines, credit systems, authentication, resume ingestion, deep analysis recovery, ReportLab PDF compilation, structured resume parsing, multi-template compilation, security headers, XSS prevention, permissions policies, and prompt sanitization.
 
 ---
 
@@ -263,6 +266,7 @@ pytest tests/ -v
 |---|---|
 | Auth (email + Google OAuth) | ✅ Complete |
 | Resume Upload + Parsing | ✅ Complete |
+| Interactive Resume Editor & ATS Templates | ✅ Complete |
 | ATS Scoring (with/without JD) | ✅ Complete |
 | Deep Analysis | ✅ Complete |
 | Hiring Intelligence | ✅ Complete |
@@ -276,12 +280,17 @@ pytest tests/ -v
 | Error Monitoring (Sentry) | ✅ Complete |
 | Theme Toggle (Light/Dark Mode) | ✅ Complete |
 | RLS on ai_analyses | ✅ Complete |
-| Test Suite (37 tests) | ✅ Complete |
+| Test Suite (75 tests) | ✅ Complete |
 | Payment Integration | ⏳ Post-MVP |
 
 ---
 
 ## Recent Updates
+
+### September 13, 2026 (v1.0.7 & v1.0.6)
+- ✅ **Interactive Structured Resume Editor (v1.0.7):** Built full-screen editor with live A4 preview, section controls, John Doe mock data, and Groq LLM parsing with self-healing lazy backfill for uploads.
+- ✅ **Multi-Template ATS Engine (v1.0.7):** 4 ATS-friendly styles (Classic Overleaf ATS standard, Modern Tech, Minimalist, Technical) supported in live preview and ReportLab Platypus PDF export.
+- ✅ **In-Situ Resume Diff & ATS PDF Compiler (v1.0.6):** Before vs. After diff viewer, 1-hour signed URL PDF preview streaming, ReportLab PDF compilation, and expanded test suite to 75 passing tests.
 
 ### September 6, 2026
 - ✅ **Repository Restructuring:** Unified all documentation, flowcharts, sprint history, and pentest reports into a centralized `docs/` hub.

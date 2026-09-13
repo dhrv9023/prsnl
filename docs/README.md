@@ -93,8 +93,8 @@ In-depth technical guides explaining key source files and subsystems:
 
 Chronological sprint archives tracking how Kareerist evolved:
 
-- **[September 2026 Updates (v1.0.3, v1.0.4, v1.0.5 & v1.0.6)](file:///home/dhruv/Nextcloud/kareerist/prsnl/docs/history/UPDATES_SEP_2026.md)** ⭐ **LATEST**
-  Detailed release notes covering in-situ resume diff previews, signed URL streaming, ReportLab ATS PDF generation, 71 passing automated tests, AI failure credit refunds, mobile scroll locks, slow-load indicators, security pentest remediations, secret protection guards, reverse-proxy HTTPS/HSTS enforcement, GDPR cookie consent, per-route SEO & OpenGraph cards, WCAG 2.1 AA contrast fixes, bot defenses, unified CTAs, and admin analytics dashboards.
+- **[September 2026 Updates (v1.0.3, v1.0.4, v1.0.5, v1.0.6 & v1.0.7)](file:///home/dhruv/Nextcloud/kareerist/prsnl/docs/history/UPDATES_SEP_2026.md)** ⭐ **LATEST**
+  Detailed release notes covering interactive structured resume editor, 4 ATS templates (Classic Overleaf/Jake's ATS standard, Modern Tech, Minimalist, Technical), Groq LLM parser with self-healing lazy backfills, in-situ resume diff previews, signed URL streaming, ReportLab ATS PDF generation, 75 passing automated tests, AI failure credit refunds, mobile scroll locks, slow-load indicators, security pentest remediations, secret protection guards, reverse-proxy HTTPS/HSTS enforcement, GDPR cookie consent, per-route SEO & OpenGraph cards, WCAG 2.1 AA contrast fixes, bot defenses, unified CTAs, and admin analytics dashboards.
 - **[Project Genesis & Chapters 1–12](file:///home/dhruv/Nextcloud/kareerist/prsnl/docs/history/)**:
   - `chapter_01_project_genesis_and_stack.md`
   - `chapter_02_backend_architecture.md`
@@ -117,6 +117,6 @@ Chronological sprint archives tracking how Kareerist evolved:
 - **[Security Findings (Part 2 - Updated Sep 6, 2026)](file:///home/dhruv/Nextcloud/kareerist/prsnl/docs/qa/PART_2_SECURITY_FINDINGS_UPDATED_SEP_06.md)**: Remediated audit findings.
 - **[Functional Test Suite (Part 3)](file:///home/dhruv/Nextcloud/kareerist/prsnl/docs/qa/PART_3_FUNCTIONAL_TESTING.md)**: 36 functional test cases covering core user journeys.
 - **[Performance & Compatibility (Part 4)](file:///home/dhruv/Nextcloud/kareerist/prsnl/docs/qa/PART_4_PERFORMANCE_UX_COMPAT.md)**: Load metrics, bundle sizes, and browser support.
-- **[Test Coverage & Recommendations (Part 5)](file:///home/dhruv/Nextcloud/kareerist/prsnl/docs/qa/PART_5_RECOMMENDATIONS_AND_COVERAGE.md)**: Test coverage analysis (71 automated tests).
+- **[Test Coverage & Recommendations (Part 5)](file:///home/dhruv/Nextcloud/kareerist/prsnl/docs/qa/PART_5_RECOMMENDATIONS_AND_COVERAGE.md)**: Test coverage analysis (75 automated tests).
 - **[AI Pipeline Security (Part 9)](file:///home/dhruv/Nextcloud/kareerist/prsnl/docs/qa/PART_9_AI_SECURITY_AUDIT.md)**: Prompt injection defenses, quota limits, and credit refund safeguards.
 - **[Pentest Checklist (Part 10)](file:///home/dhruv/Nextcloud/kareerist/prsnl/docs/qa/PART_10_PENTEST_CHECKLIST.md)**: Verification of platform hardening.

@@ -25,8 +25,15 @@ This folder documents everything about the Kareerist project — what it is, how
 
 ## Recent Updates
 
-### **[September 2026 Updates Summary (v1.0.3, v1.0.4, v1.0.5 & v1.0.6)](./UPDATES_SEP_2026.md)** ⭐ **LATEST**
+### **[September 2026 Updates Summary (v1.0.3, v1.0.4, v1.0.5, v1.0.6 & v1.0.7)](./UPDATES_SEP_2026.md)** ⭐ **LATEST**
 Comprehensive summary of all changes made in September 2026:
+- Interactive Structured Resume Editor & Multi-Template ATS Engine (v1.0.7):
+  - Interactive structured resume editor (`/resumes/{id}/editor`) with live A4 preview sheet
+  - 4 ATS templates: Classic ATS (Jake's / Overleaf ATS Standard), Modern Tech, Minimalist, Technical
+  - ReportLab Platypus PDF export matching Classic ATS typography, dividers, and single-line headers
+  - Groq LLM parser (`gpt-oss-20b` / `120b`) with self-healing lazy backfills for uploaded resumes
+  - John Doe software engineer starter mock data and accessible high-contrast form controls
+  - Test suite expansion to 75 automated tests passing with 100% pass rate
 - In-Situ Resume Diff & ATS PDF Compilation (v1.0.6):
   - In-situ PDF Before vs. After diff visualizer (`ResumeDiffView`) directly on analysis canvas
   - 1-hour signed URL streaming from Supabase Storage for high-fidelity PDF previews
