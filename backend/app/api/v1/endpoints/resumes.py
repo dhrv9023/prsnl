@@ -436,30 +436,45 @@ async def get_resume_editor(resume_id: str, user: CurrentUser):
 
     row = data.data[0]
 
-    # 2. Lazy parse: if structured_content is NULL, parse now and persist
+    # 2. Lazy parse: if structured_content is NULL or empty shell, parse now and persist
     structured_content = row.get("structured_content")
+    raw_text = ""
+    try:
+        raw_text = (row.get("parsed_content") or {}).get("raw_text") or ""
+    except (TypeError, AttributeError):
+        pass
+
+    def _is_empty_sections(sc: dict | None) -> bool:
+        if not sc or not isinstance(sc, dict):
+            return True
+        exp = sc.get("experience") or []
+        edu = sc.get("education") or []
+        skills = sc.get("skills") or []
+        proj = sc.get("projects") or []
+        return len(exp) == 0 and len(edu) == 0 and len(skills) == 0 and len(proj) == 0
+
+    if (not structured_content or _is_empty_sections(structured_content)) and raw_text and len(raw_text.strip()) > 0:
+        logger.info("editor: lazy-parsing resume %s for user %s (raw_text len: %d)", resume_id, user.id, len(raw_text))
+        new_structured = await parse_raw_text_to_structured(raw_text)
+        if not _is_empty_sections(new_structured):
+            structured_content = new_structured
+            # Persist so next open is instant (fire-and-forget; non-fatal on failure)
+            try:
+                await supabase.table("resumes") \
+                    .update({"structured_content": structured_content}) \
+                    .eq("id", resume_id) \
+                    .eq("user_id", user.id) \
+                    .execute()
+            except Exception as exc:
+                logger.warning(
+                    "editor: failed to persist structured_content for resume %s: %s",
+                    resume_id, exc
+                )
+        elif not structured_content:
+            structured_content = new_structured
+
     if not structured_content:
-        raw_text = ""
-        try:
-            raw_text = (row.get("parsed_content") or {}).get("raw_text") or ""
-        except (TypeError, AttributeError):
-            pass
-
-        logger.info("editor: lazy-parsing resume %s for user %s", resume_id, user.id)
-        structured_content = await parse_raw_text_to_structured(raw_text)
-
-        # Persist so next open is instant (fire-and-forget; non-fatal on failure)
-        try:
-            await supabase.table("resumes") \
-                .update({"structured_content": structured_content}) \
-                .eq("id", resume_id) \
-                .eq("user_id", user.id) \
-                .execute()
-        except Exception as exc:
-            logger.warning(
-                "editor: failed to persist structured_content for resume %s: %s",
-                resume_id, exc
-            )
+        structured_content = StructuredResume.create_empty().to_editor_dict()
 
     # 3. Fetch latest Deep Analysis issues (best-effort; no 404 if absent)
     analysis_issues: list[dict] = []

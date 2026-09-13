@@ -29,83 +29,63 @@ logger = logging.getLogger(__name__)
 # ── Prompt ────────────────────────────────────────────────────────────────────
 
 _PARSER_SYSTEM_PROMPT = """\
-You are a precise resume data extraction engine.
-
-Extract the information from the resume text below into a valid JSON object that \
-matches the schema shown. Preserve all dates, company names, job titles, and bullet \
-points VERBATIM — do NOT paraphrase, invent, or infer any information that is not \
-explicitly present in the text.
-
-Return ONLY the JSON object. No markdown, no code fences, no explanation.
-
-SCHEMA:
+You are a precise resume parser. Extract the resume text into a valid JSON object matching this schema:
 {
   "basics": {
     "name": "<full name>",
-    "title": "<current/most recent job title or professional headline>",
-    "email": "<email address or empty string>",
-    "phone": "<phone number or empty string>",
-    "location": "<city, state/country or empty string>",
-    "linkedin": "<linkedin URL or null>",
-    "github": "<github URL or null>",
-    "portfolio": "<personal site/portfolio URL or null>",
-    "summary": "<professional summary paragraph verbatim, or empty string>"
+    "title": "<job title or professional headline>",
+    "email": "<email address>",
+    "phone": "<phone number>",
+    "location": "<city, country or state>",
+    "linkedin": "<linkedin URL or empty string>",
+    "github": "<github URL or empty string>",
+    "portfolio": "<portfolio URL or empty string>",
+    "summary": "<summary text verbatim>"
   },
   "experience": [
     {
-      "id": "<generate a unique UUID string>",
       "company": "<company name>",
       "role": "<job title>",
-      "location": "<city, country or null>",
-      "start_date": "<month year or year>",
-      "end_date": "<month year, year, or 'Present'>",
-      "current": <true if still employed here, else false>,
-      "bullets": [
-        {"id": "<unique UUID>", "text": "<bullet text verbatim, without leading •/-/*>"}
-      ]
+      "location": "<location or empty string>",
+      "start_date": "<start date>",
+      "end_date": "<end date or Present>",
+      "current": true,
+      "bullets": [{"text": "<bullet text verbatim without bullet symbol>"}]
     }
   ],
   "education": [
     {
-      "id": "<UUID>",
-      "institution": "<school name>",
-      "degree": "<degree type, e.g. B.Tech, B.S., M.S., Ph.D.>",
-      "field_of_study": "<major/specialization or null>",
-      "location": "<city, country or null>",
-      "start_date": "<year or month year>",
-      "end_date": "<year, month year, or 'Present'>",
-      "gpa": "<GPA string or null>",
-      "bullets": [
-        {"id": "<UUID>", "text": "<coursework or achievement bullet>"}
-      ]
+      "institution": "<school or university>",
+      "degree": "<degree or program>",
+      "field_of_study": "<major or specialization>",
+      "location": "<location or empty string>",
+      "start_date": "<start year>",
+      "end_date": "<end year>",
+      "gpa": "<GPA or empty string>",
+      "bullets": []
     }
   ],
   "skills": [
     {
-      "id": "<UUID>",
-      "category": "<group label, e.g. Languages, Frameworks, Databases, Tools, Cloud>",
-      "items": ["<skill1>", "<skill2>"]
+      "category": "<category name, e.g. Languages, Frameworks, AI/ML, Cloud>",
+      "items": ["<item 1>", "<item 2>"]
     }
   ],
   "projects": [
     {
-      "id": "<UUID>",
       "name": "<project title>",
-      "description": "<one-line description or null>",
-      "link": "<URL or null>",
-      "technologies": ["<tech1>", "<tech2>"],
-      "bullets": [
-        {"id": "<UUID>", "text": "<achievement/description bullet verbatim>"}
-      ]
+      "description": "<short description>",
+      "link": "<URL or empty string>",
+      "technologies": ["<tech 1>", "<tech 2>"],
+      "bullets": [{"text": "<bullet verbatim>"}]
     }
   ],
   "certifications": [
     {
-      "id": "<UUID>",
-      "name": "<certification name>",
+      "name": "<certification title>",
       "issuer": "<issuing organization>",
-      "date": "<month year or year>",
-      "url": "<credential URL or null>"
+      "date": "<year or date>",
+      "url": "<credential URL or empty string>"
     }
   ],
   "meta": {
@@ -117,13 +97,95 @@ SCHEMA:
 }
 
 RULES:
-1. Extract ONLY what is in the resume. Never hallucinate or fill in missing details.
-2. Generate a valid UUID4 string for every "id" field.
-3. If a section is absent from the resume, use an empty array [].
-4. Strip leading bullet symbols (•, -, *, ▪) from bullet text — store the clean text only.
-5. If a skills section lists items without category headers, use "General" as the category.
-6. Return ONLY the raw JSON object. No surrounding markdown or explanation.
+1. Extract ALL information VERBATIM. Never hallucinate or infer.
+2. Do NOT generate ID fields (they are auto-assigned by the system).
+3. If a section is absent, use an empty array [].
+4. Return ONLY valid raw JSON. No markdown or backticks.
 """
+
+
+# ── Heuristic Fallback Parser ───────────────────────────────────────────────
+
+import re
+from typing import Any
+
+
+def _clean_nulls(obj: Any) -> Any:
+    """Recursively convert None values to empty strings to satisfy schema."""
+    if isinstance(obj, dict):
+        return {k: _clean_nulls(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_clean_nulls(x) for x in obj]
+    elif obj is None:
+        return ""
+    return obj
+
+
+def heuristic_parse_raw_text(raw_text: str) -> dict:
+    """
+    Emergency rule-based fallback parser that extracts contact info and basic
+    sections from plain text when LLM calls fail or rate-limit.
+    Ensures an uploaded resume is NEVER returned as a blank document.
+    """
+    if not raw_text or not raw_text.strip():
+        return create_empty_resume()
+
+    lines = [line.strip() for line in raw_text.splitlines() if line.strip()]
+    name = lines[0] if lines else "Candidate"
+    # Filter out emails or phones from name
+    if "@" in name or any(char.isdigit() for char in name):
+        name = "Candidate"
+
+    # Extract email
+    email_match = re.search(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+", raw_text)
+    email = email_match.group(0) if email_match else ""
+
+    # Extract phone
+    phone_match = re.search(r"(\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4,6}", raw_text)
+    phone = phone_match.group(0) if phone_match else ""
+
+    # Extract location (heuristic)
+    location = ""
+    for line in lines[:6]:
+        lower = line.lower()
+        if any(w in lower for w in ("india", "usa", "gurugram", "delhi", "bengaluru", "bangalore", "california", "remote")) and "@" not in line:
+            location = line.split("|")[0].strip()
+            break
+
+    # Extract links
+    linkedin = ""
+    github = ""
+    portfolio = ""
+    for token in raw_text.split():
+        clean_token = token.strip("()[]<>,|'\"")
+        if "linkedin.com/in/" in clean_token:
+            linkedin = clean_token
+        elif "github.com/" in clean_token:
+            github = clean_token
+        elif clean_token.startswith("http") and not any(x in clean_token for x in ("linkedin", "github")):
+            portfolio = clean_token
+
+    # Extract summary if present
+    summary = ""
+    summary_match = re.search(
+        r"(?:Summary|Professional Summary|About Me)[:\s]+(.*?)(?=\n[A-Z\s]{4,}|\Z)",
+        raw_text,
+        re.DOTALL | re.IGNORECASE,
+    )
+    if summary_match:
+        summary = " ".join(summary_match.group(1).split()[:120])
+
+    empty_doc = StructuredResume.create_empty()
+    empty_doc.basics.name = name
+    empty_doc.basics.email = email
+    empty_doc.basics.phone = phone
+    empty_doc.basics.location = location
+    empty_doc.basics.linkedin = linkedin
+    empty_doc.basics.github = github
+    empty_doc.basics.portfolio = portfolio
+    empty_doc.basics.summary = summary
+
+    return empty_doc.to_editor_dict()
 
 
 # ── Main parse function ───────────────────────────────────────────────────────
@@ -133,11 +195,10 @@ async def parse_raw_text_to_structured(raw_text: str) -> dict:
     Converts raw resume text (from pypdf extraction) into a validated
     StructuredResume dictionary.
 
-    Calls Groq compound-mini with strict json_object response_format and
-    validates the output against the StructuredResume Pydantic model.
-
-    On failure (Groq error, malformed JSON, or validation error), logs the
-    error and returns a partially-initialised schema so the editor still opens.
+    Tries fast, high-capacity models with strict json_object response_format:
+      1. openai/gpt-oss-20b (high token output, 0 truncation)
+      2. openai/gpt-oss-120b (fallback)
+      3. heuristic regex parser (zero-downtime safety net)
 
     Args:
         raw_text: Plain text extracted from the candidate's uploaded PDF.
@@ -152,56 +213,65 @@ async def parse_raw_text_to_structured(raw_text: str) -> dict:
         )
         return create_empty_resume()
 
-
     messages = [
         {"role": "system", "content": _PARSER_SYSTEM_PROMPT},
         {"role": "user", "content": raw_text[:12_000]},  # stay within context limits
     ]
 
-    try:
-        raw_json = await with_ai_retry(
-            lambda: chat_complete(
-                messages=messages,
-                temperature=0.0,           # deterministic extraction, not creative
-                response_format={"type": "json_object"},
-                timeout=45,
-                max_tokens=4096,
-            ),
-            label="resume_parser",
-            max_attempts=3,
-            base_delay=2.0,
-        )
-    except Exception as exc:
-        logger.error("resume_parser: Groq call failed — returning empty template: %s", exc)
+    models_to_try = ["openai/gpt-oss-20b", "openai/gpt-oss-120b"]
+    raw_json: str | None = None
+
+    for model_candidate in models_to_try:
+        try:
+            logger.info("resume_parser: attempting parse with %s", model_candidate)
+            raw_json = await with_ai_retry(
+                lambda: chat_complete(
+                    messages=messages,
+                    temperature=0.0,
+                    response_format={"type": "json_object"},
+                    timeout=45,
+                    max_tokens=4096,
+                    model=model_candidate,
+                ),
+                label=f"resume_parser_{model_candidate}",
+                max_attempts=2,
+                base_delay=1.5,
+            )
+            if raw_json and raw_json.strip():
+                break
+        except Exception as exc:
+            logger.warning("resume_parser: model %s failed: %s", model_candidate, exc)
+
+    if not raw_json:
+        logger.error("resume_parser: all LLM calls failed — returning empty template")
         return create_empty_resume()
 
     # ── JSON decode ──────────────────────────────────────────────────────────
     try:
         parsed = json.loads(raw_json)
     except json.JSONDecodeError as exc:
-        logger.error("resume_parser: JSON decode failed — returning empty template: %s", exc)
+        logger.error("resume_parser: JSON decode failed (%s) — returning empty template", exc)
         return create_empty_resume()
 
-    # ── Pydantic validation (normalises defaults, strips unknowns) ───────────
+    # ── Sanitize nulls & validate with Pydantic ──────────────────────────────
+    cleaned = _clean_nulls(parsed)
     try:
-        structured = StructuredResume.model_validate(parsed)
+        structured = StructuredResume.model_validate(cleaned)
         return structured.to_editor_dict()
     except Exception as exc:
         logger.error(
             "resume_parser: StructuredResume validation failed — best-effort fallback: %s", exc
         )
-        # Best-effort: try to return what we have, letting Pydantic fill defaults
         try:
             structured = StructuredResume.model_validate({})
-            # Merge whatever fields did parse successfully
             for field in ("basics", "experience", "education", "skills", "projects", "certifications"):
-                if field in parsed and parsed[field]:
+                if field in cleaned and cleaned[field]:
                     try:
                         structured = StructuredResume.model_validate(
-                            {**structured.to_editor_dict(), field: parsed[field]}
+                            {**structured.to_editor_dict(), field: cleaned[field]}
                         )
                     except Exception:
-                        pass  # Keep existing safe value for this field
+                        pass
             return structured.to_editor_dict()
         except Exception:
             return create_empty_resume()

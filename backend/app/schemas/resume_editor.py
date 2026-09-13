@@ -56,6 +56,11 @@ class ResumeBasics(BaseModel):
     portfolio: Optional[str] = ""
     summary: str = ""
 
+    @field_validator("name", "title", "email", "phone", "location", "linkedin", "github", "portfolio", "summary", mode="before", check_fields=False)
+    @classmethod
+    def coerce_strings(cls, v: object) -> str:
+        return str(v) if v is not None else ""
+
 
 class ExperienceItem(BaseModel):
     """One position in the work-history section."""
@@ -68,6 +73,11 @@ class ExperienceItem(BaseModel):
     end_date: str = ""
     current: bool = False
     bullets: list[ResumeBullet] = Field(default_factory=list)
+
+    @field_validator("company", "role", "location", "start_date", "end_date", mode="before", check_fields=False)
+    @classmethod
+    def coerce_strings(cls, v: object) -> str:
+        return str(v) if v is not None else ""
 
 
 class EducationItem(BaseModel):
@@ -83,6 +93,11 @@ class EducationItem(BaseModel):
     gpa: Optional[str] = ""
     bullets: list[ResumeBullet] = Field(default_factory=list)
 
+    @field_validator("institution", "degree", "field_of_study", "location", "start_date", "end_date", "gpa", mode="before", check_fields=False)
+    @classmethod
+    def coerce_strings(cls, v: object) -> str:
+        return str(v) if v is not None else ""
+
 
 class SkillCategory(BaseModel):
     """A labelled group of skills (e.g. 'Languages', 'Frameworks')."""
@@ -90,6 +105,18 @@ class SkillCategory(BaseModel):
     id: str = Field(default_factory=_new_id)
     category: str = ""
     items: list[str] = Field(default_factory=list)
+
+    @field_validator("category", mode="before", check_fields=False)
+    @classmethod
+    def coerce_strings(cls, v: object) -> str:
+        return str(v) if v is not None else ""
+
+    @field_validator("items", mode="before", check_fields=False)
+    @classmethod
+    def coerce_items(cls, v: object) -> list[str]:
+        if not v or not isinstance(v, list):
+            return []
+        return [str(x) for x in v if x is not None]
 
 
 class ProjectItem(BaseModel):
@@ -102,6 +129,11 @@ class ProjectItem(BaseModel):
     technologies: list[str] = Field(default_factory=list)
     bullets: list[ResumeBullet] = Field(default_factory=list)
 
+    @field_validator("name", "description", "link", mode="before", check_fields=False)
+    @classmethod
+    def coerce_strings(cls, v: object) -> str:
+        return str(v) if v is not None else ""
+
 
 class CertificationItem(BaseModel):
     """A credential, certification, or license."""
@@ -111,6 +143,11 @@ class CertificationItem(BaseModel):
     issuer: str = ""
     date: str = ""
     url: Optional[str] = ""
+
+    @field_validator("name", "issuer", "date", "url", mode="before", check_fields=False)
+    @classmethod
+    def coerce_strings(cls, v: object) -> str:
+        return str(v) if v is not None else ""
 
 
 # ── Document meta ─────────────────────────────────────────────────────────────
