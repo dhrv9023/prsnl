@@ -752,7 +752,7 @@ async def rewrite_bullet(
                     {"role": "user", "content": user_content},
                 ],
                 temperature=0.5,
-                max_tokens=80,
+                max_tokens=400,
                 timeout=30,
             ),
             label="rewrite_bullet",

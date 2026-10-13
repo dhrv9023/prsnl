@@ -9,7 +9,7 @@ Retries on:
 
 Does NOT retry on:
 - HTTP 400 json_validate_failed — handled via automatic model fallback in llm_client.py
-  (primary model qwen/qwen3.8-27b, fallback groq/compound-mini)
+  (primary model openai/gpt-oss-120b, fallback openai/gpt-oss-20b)
 - HTTP 401 (auth failure — retrying won't help)
 - JSON decode errors from valid responses (LLM returned garbage — retrying may help once)
 """
